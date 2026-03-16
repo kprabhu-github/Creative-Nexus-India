@@ -18,3 +18,20 @@ View your app in AI Studio: https://ai.studio/apps/drive/1vqxHvRyslvL4om98iuxzpK
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Video Calling Module Planning
+
+A Zoom-like in-dashboard module plan and implementation notes are available in:
+
+- `docs/video-module-prd.md`
+- `docs/jitsi-implementation-guide.md`
+- `services/video/meetingModuleConfig.ts`
+- `services/video/jitsiService.ts`
+- `components/JitsiMeetingModule.tsx`
+
+Current starter implementation includes:
+
+- embedded Jitsi meeting launcher in dashboard UI
+- host/participant/guest link generation
+- copy-ready invitation message flow
+- baseline config targeting 30 users and recording-first requirements
