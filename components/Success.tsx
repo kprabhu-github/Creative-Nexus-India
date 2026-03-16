@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Download, Mail, RefreshCw, Clock, Hash, Loader2, Database, ShieldCheck, ChevronDown, ChevronUp, Code } from 'lucide-react';
 import { ClientDetails, ProjectScope, AgreementState, DatabaseRecord } from '../types';
 import { generateSignedPDF } from '../services/pdfService';
+import JitsiMeetingModule from './JitsiMeetingModule';
 
 interface Props {
   email: string;
@@ -202,6 +203,9 @@ const Success: React.FC<Props> = ({
             <span>{resendStatus}</span>
         </button>
       </div>
+
+
+      <JitsiMeetingModule />
     </div>
   );
 };
