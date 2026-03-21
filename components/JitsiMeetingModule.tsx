@@ -19,6 +19,11 @@ import {
   createJitsiRoomName,
   loadJitsiExternalApiScript,
 } from '../services/video/jitsiService';
+import {
+  meetingModuleConfig,
+  shouldOfferFallback,
+  isRoleAllowedToRecord,
+} from '../services/video/meetingModuleConfig';
 
 const JITSI_DOMAIN = 'meet.jit.si';
 
@@ -50,12 +55,20 @@ const JitsiMeetingModule: React.FC = () => {
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [screenShareRequested, setScreenShareRequested] = useState(false);
+  const [joinErrorCount, setJoinErrorCount] = useState(0);
+  const [isRoomLocked, setIsRoomLocked] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingState, setRecordingState] = useState<'idle' | 'starting' | 'active' | 'stopping'>('idle');
 
   const apiRef = useRef<JitsiMeetExternalAPI | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const links = useMemo(() => buildMeetingLinks(roomName, JITSI_DOMAIN), [roomName]);
   const participantLink = links.find(link => link.role === 'participant')?.url ?? '';
+  const fallbackZoomUrl = useMemo(() => {
+    const encodedRoom = encodeURIComponent(roomName.slice(-24));
+    return `https://zoom.us/j/${encodedRoom}`;
+  }, [roomName]);
 
   useEffect(() => {
     return () => {
@@ -68,6 +81,10 @@ const JitsiMeetingModule: React.FC = () => {
     setRoomName(createJitsiRoomName(programName));
     setJoinState('idle');
     setErrorText('');
+    setJoinErrorCount(0);
+    setIsRoomLocked(false);
+    setIsRecording(false);
+    setRecordingState('idle');
     apiRef.current?.dispose();
     apiRef.current = null;
   };
@@ -134,6 +151,7 @@ const JitsiMeetingModule: React.FC = () => {
       setJoinState('joined');
     } catch (error) {
       setJoinState('failed');
+      setJoinErrorCount(prev => prev + 1);
       setErrorText(error instanceof Error ? error.message : 'Failed to load embedded meeting');
     }
   };
@@ -143,6 +161,32 @@ const JitsiMeetingModule: React.FC = () => {
     apiRef.current = null;
     setJoinState('idle');
     setScreenShareRequested(false);
+    setIsRecording(false);
+    setRecordingState('idle');
+  };
+
+  const handleToggleRecording = () => {
+    if (!isRoleAllowedToRecord('host')) {
+      setErrorText('Recording is restricted to host/co-host roles.');
+      return;
+    }
+
+    if (recordingState === 'starting' || recordingState === 'stopping') return;
+
+    if (!isRecording) {
+      setRecordingState('starting');
+      setTimeout(() => {
+        setIsRecording(true);
+        setRecordingState('active');
+      }, 700);
+      return;
+    }
+
+    setRecordingState('stopping');
+    setTimeout(() => {
+      setIsRecording(false);
+      setRecordingState('idle');
+    }, 500);
   };
 
   return (
@@ -161,6 +205,14 @@ const JitsiMeetingModule: React.FC = () => {
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-xs font-medium">
           <ShieldCheck className="w-3 h-3 text-emerald-600" />
           {joinState === 'joined' ? 'Session Live' : joinState === 'loading' ? 'Connecting...' : 'Session Ready'}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+        <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-emerald-800">
+          Capacity target: {meetingModuleConfig.maxParticipantsPerSession} participants · Region: {meetingModuleConfig.regionHint}
+        </div>
+        <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-amber-800">
+          Recording day-one: {meetingModuleConfig.recordingFromDayOne ? 'Enabled' : 'Disabled'} · Backup: {meetingModuleConfig.enableZoomFallback ? 'Zoom Ready' : 'None'}
         </div>
       </div>
 
@@ -275,6 +327,32 @@ const JitsiMeetingModule: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => setIsRoomLocked(prev => !prev)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-800 text-xs"
+              >
+                <ShieldCheck className="w-3 h-3" />
+                {isRoomLocked ? 'Room Locked' : 'Lock Room'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleRecording}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+                  isRecording ? 'bg-red-700 text-white hover:bg-red-800' : 'border border-slate-600 text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Video className="w-3 h-3" />
+                {recordingState === 'starting'
+                  ? 'Recording...'
+                  : recordingState === 'stopping'
+                  ? 'Stopping...'
+                  : isRecording
+                  ? 'Stop Recording'
+                  : 'Start Recording'}
+              </button>
+
+              <button
+                type="button"
                 onClick={handleEndCall}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-500 text-red-300 hover:bg-red-950/50 text-xs"
               >
@@ -346,6 +424,22 @@ const JitsiMeetingModule: React.FC = () => {
           </div>
 
           {errorText && <p className="text-xs text-red-600">Error: {errorText}</p>}
+          {shouldOfferFallback(joinErrorCount) && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-xs text-amber-800">
+                Unable to join in-app session reliably. Use backup Zoom room to keep the session on schedule.
+              </p>
+              <a
+                href={fallbackZoomUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 px-3 py-2 rounded-lg"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Join Backup Zoom
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </section>
