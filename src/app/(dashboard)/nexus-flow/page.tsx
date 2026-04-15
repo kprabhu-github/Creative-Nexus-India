@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Send,
   Mail,
@@ -16,6 +16,8 @@ import {
   RefreshCw,
   Pencil,
   CheckCircle2,
+  Loader2,
+  AlertCircle,
   type LucideIcon,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -23,6 +25,45 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Button } from "@/components/ui/button";
+
+// ---------------------------------------------------------------------------
+// API response types for /api/outreach/generate
+// ---------------------------------------------------------------------------
+
+interface EmailStep {
+  step: number;
+  subject_line: string;
+  opening_hook: string;
+  body: string;
+  cta: string;
+  ab_variants: Array<{ subject_line: string }>;
+}
+
+interface LinkedInOutput {
+  connection_request: string;
+  follow_up_message: string;
+  engagement_prompts: Array<{ context: string; comment: string }>;
+}
+
+interface SequenceStep {
+  step: number;
+  channel: "email" | "linkedin";
+  timing: string;
+  subject_or_hook: string;
+  purpose: string;
+  personalisation_variables: string[];
+}
+
+interface OutreachApiResponse {
+  data: {
+    campaignId: string;
+    campaign: {
+      sequence: SequenceStep[];
+      emails: EmailStep[];
+      linkedinMessages: LinkedInOutput;
+    };
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -401,14 +442,39 @@ function SequencesTab() {
   );
 }
 
-function AIWriterTab() {
+function AIWriterTab({
+  generatedEmails,
+  generatedLinkedIn,
+  generateLoading,
+  generateError,
+  onGenerate,
+}: {
+  generatedEmails: EmailStep[];
+  generatedLinkedIn: LinkedInOutput | null;
+  generateLoading: boolean;
+  generateError: string | null;
+  onGenerate: (tone: string) => void;
+}) {
   const [tone, setTone] = useState<ToneOption>("Professional");
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
+    const textToCopy = generatedEmails.length > 0
+      ? `Subject: ${generatedEmails[0].subject_line}\n\n${generatedEmails[0].body}`
+      : `Subject: ${mockGeneratedMessage.subject}\n\n${mockGeneratedMessage.body}`;
+    void navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Use first email from API if available, otherwise fall back to mock
+  const displaySubject = generatedEmails.length > 0
+    ? generatedEmails[0].subject_line
+    : mockGeneratedMessage.subject;
+  const displayBody = generatedEmails.length > 0
+    ? `${generatedEmails[0].opening_hook}\n\n${generatedEmails[0].body}\n\n${generatedEmails[0].cta}`
+    : mockGeneratedMessage.body;
+  const hasLiveData = generatedEmails.length > 0;
 
   return (
     <div className="space-y-4">
@@ -455,22 +521,46 @@ function AIWriterTab() {
           </div>
         </div>
 
-        <Button
-          size="sm"
-          className="bg-accent text-white hover:bg-accent/90 border-transparent"
-        >
-          <RefreshCw className="w-3 h-3 mr-1" strokeWidth={2} />
-          Generate
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            className="bg-accent text-white hover:bg-accent/90 border-transparent"
+            disabled={generateLoading}
+            onClick={() => onGenerate(tone.toLowerCase())}
+          >
+            {generateLoading ? (
+              <>
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" strokeWidth={2} />
+                Generating...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-3 h-3 mr-1" strokeWidth={2} />
+                Generate
+              </>
+            )}
+          </Button>
+          {generateError && (
+            <p className="text-[11px] text-destructive flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              {generateError}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Generated message preview */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[13px] font-semibold text-foreground">Generated Message</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-foreground">Generated Message</span>
+            {hasLiveData && <StatusBadge type="success">Live</StatusBadge>}
+          </div>
           <div className="flex items-center gap-1">
             <Clock className="w-3 h-3 text-foreground-tertiary" />
-            <span className="text-[11px] text-foreground-tertiary">Generated 2 min ago</span>
+            <span className="text-[11px] text-foreground-tertiary">
+              {hasLiveData ? "Generated just now" : "Generated 2 min ago"}
+            </span>
           </div>
         </div>
         <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
@@ -479,7 +569,17 @@ function AIWriterTab() {
             <p className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">
               Subject Line
             </p>
-            <p className="text-[13px] font-semibold text-foreground">{mockGeneratedMessage.subject}</p>
+            <p className="text-[13px] font-semibold text-foreground">{displaySubject}</p>
+            {/* Show A/B variants if available */}
+            {generatedEmails.length > 0 && generatedEmails[0].ab_variants.length > 0 && (
+              <div className="mt-1.5 space-y-1">
+                {generatedEmails[0].ab_variants.map((variant, i) => (
+                  <p key={i} className="text-[11px] text-foreground-tertiary">
+                    Variant {String.fromCharCode(66 + i)}: {variant.subject_line}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="h-px bg-divider mb-3" />
@@ -491,7 +591,7 @@ function AIWriterTab() {
             </p>
             <div className="bg-background rounded-lg px-3.5 py-3 border border-border">
               <p className="text-[13px] text-foreground-secondary leading-relaxed whitespace-pre-line">
-                {mockGeneratedMessage.body}
+                {displayBody}
               </p>
             </div>
           </div>
@@ -523,13 +623,76 @@ function AIWriterTab() {
             <Button
               size="sm"
               className="flex-1 bg-accent text-white hover:bg-accent/90 border-transparent"
+              disabled={generateLoading}
+              onClick={() => onGenerate(tone.toLowerCase())}
             >
-              <RefreshCw className="w-3 h-3 mr-1" strokeWidth={2} />
-              Regenerate
+              {generateLoading ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" strokeWidth={2} />
+                  Regenerating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3 h-3 mr-1" strokeWidth={2} />
+                  Regenerate
+                </>
+              )}
             </Button>
           </div>
         </div>
       </div>
+
+      {/* LinkedIn messages section — only shown when live data exists */}
+      {generatedLinkedIn && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-semibold text-foreground">LinkedIn Messages</span>
+            <StatusBadge type="info">AI Generated</StatusBadge>
+          </div>
+          <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border space-y-3">
+            {/* Connection request */}
+            <div>
+              <p className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">
+                Connection Request
+              </p>
+              <div className="bg-background rounded-lg px-3.5 py-2.5 border border-border">
+                <p className="text-[13px] text-foreground-secondary leading-relaxed">
+                  {generatedLinkedIn.connection_request}
+                </p>
+              </div>
+            </div>
+
+            {/* Follow-up message */}
+            <div>
+              <p className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">
+                Follow-up Message
+              </p>
+              <div className="bg-background rounded-lg px-3.5 py-2.5 border border-border">
+                <p className="text-[13px] text-foreground-secondary leading-relaxed">
+                  {generatedLinkedIn.follow_up_message}
+                </p>
+              </div>
+            </div>
+
+            {/* Engagement prompts */}
+            {generatedLinkedIn.engagement_prompts.length > 0 && (
+              <div>
+                <p className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">
+                  Engagement Comments
+                </p>
+                <div className="space-y-2">
+                  {generatedLinkedIn.engagement_prompts.map((prompt, i) => (
+                    <div key={i} className="bg-background rounded-lg px-3.5 py-2.5 border border-border">
+                      <p className="text-[10px] text-foreground-tertiary mb-1">{prompt.context}</p>
+                      <p className="text-[12px] text-foreground-secondary">{prompt.comment}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -543,6 +706,51 @@ type Tab = (typeof tabs)[number];
 
 export default function NexusFlowPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Active");
+
+  // ---------------------------------------------------------------------------
+  // AI Writer state
+  // ---------------------------------------------------------------------------
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generatedEmails, setGeneratedEmails] = useState<EmailStep[]>([]);
+  const [generatedLinkedIn, setGeneratedLinkedIn] = useState<LinkedInOutput | null>(null);
+
+  /** Generate outreach campaign via /api/outreach/generate. */
+  const handleGenerate = useCallback(async (tone: string) => {
+    setGenerateLoading(true);
+    setGenerateError(null);
+
+    try {
+      const res = await fetch("/api/outreach/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaignName: "Outreach for Meera Krishnan — Freshworks",
+          targetRole: "VP Marketing",
+          targetIndustry: "SaaS / MarTech",
+          productValue:
+            "AI-driven content operations platform that cuts production time by 60% and scales content output for B2B SaaS companies.",
+          tone,
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(errBody?.error ?? `Generation failed (${res.status})`);
+      }
+
+      const json = (await res.json()) as OutreachApiResponse;
+      setGeneratedEmails(json.data.campaign.emails);
+      setGeneratedLinkedIn(json.data.campaign.linkedinMessages);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to generate outreach";
+      setGenerateError(message);
+    } finally {
+      setGenerateLoading(false);
+    }
+  }, []);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -560,7 +768,15 @@ export default function NexusFlowPage() {
 
       {activeTab === "Active" && <ActiveTab />}
       {activeTab === "Sequences" && <SequencesTab />}
-      {activeTab === "AI Writer" && <AIWriterTab />}
+      {activeTab === "AI Writer" && (
+        <AIWriterTab
+          generatedEmails={generatedEmails}
+          generatedLinkedIn={generatedLinkedIn}
+          generateLoading={generateLoading}
+          generateError={generateError}
+          onGenerate={handleGenerate}
+        />
+      )}
     </div>
   );
 }

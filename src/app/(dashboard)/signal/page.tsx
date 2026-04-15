@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Zap,
   CalendarDays,
@@ -18,6 +18,7 @@ import {
   Globe,
   Shield,
   Map,
+  AlertCircle,
   type LucideIcon,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -188,7 +189,19 @@ function StatusIcon({ status }: { status: RecentRun["status"] }) {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function WorkflowsTab() {
+function WorkflowsTab({
+  w7Loading,
+  w7Status,
+  w7Progress,
+  w7Error,
+  onLaunchW7,
+}: {
+  w7Loading: boolean;
+  w7Status: string;
+  w7Progress: number;
+  w7Error: string | null;
+  onLaunchW7: () => void;
+}) {
   return (
     <div>
       {/* Quick Actions */}
@@ -199,32 +212,100 @@ function WorkflowsTab() {
         </span>
       </div>
       <div className="grid grid-cols-3 gap-3">
-        {quickActions.map((action) => (
-          <div
-            key={action.id}
-            className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-[7px] bg-accent/10 flex items-center justify-center shrink-0">
-                  <action.icon className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
-                </div>
-                <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
-                  {action.workflow}
-                </span>
-              </div>
-              <div className="text-[13px] font-semibold text-foreground leading-tight">{action.title}</div>
-              <p className="text-[12px] text-foreground-tertiary mt-1 leading-relaxed">{action.description}</p>
-            </div>
-            <Button
-              size="sm"
-              className="mt-3 w-full bg-accent text-white hover:bg-accent/90 border-transparent"
+        {quickActions.map((action) => {
+          const isW7 = action.workflow === "W7" || action.id === "w1";
+
+          return (
+            <div
+              key={action.id}
+              className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border flex flex-col justify-between"
             >
-              <Play className="w-3 h-3 mr-1" strokeWidth={2.5} />
-              Launch
-            </Button>
-          </div>
-        ))}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-7 h-7 rounded-[7px] bg-accent/10 flex items-center justify-center shrink-0">
+                    <action.icon className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
+                  </div>
+                  <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                    {action.workflow}
+                  </span>
+                </div>
+                <div className="text-[13px] font-semibold text-foreground leading-tight">{action.title}</div>
+                <p className="text-[12px] text-foreground-tertiary mt-1 leading-relaxed">{action.description}</p>
+              </div>
+
+              {/* W7 card gets wired to real API; other cards keep the static button */}
+              {isW7 ? (
+                <div className="mt-3 space-y-2">
+                  <Button
+                    size="sm"
+                    className="w-full bg-accent text-white hover:bg-accent/90 border-transparent"
+                    disabled={w7Loading}
+                    onClick={onLaunchW7}
+                  >
+                    {w7Loading ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" strokeWidth={2.5} />
+                        Running...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3 h-3 mr-1" strokeWidth={2.5} />
+                        Launch
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Live status line */}
+                  {w7Status && (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        {w7Status === "completed" ? (
+                          <CheckCircle2 className="w-3 h-3 text-success" strokeWidth={2} />
+                        ) : w7Status === "failed" ? (
+                          <AlertCircle className="w-3 h-3 text-destructive" strokeWidth={2} />
+                        ) : (
+                          <Loader2 className="w-3 h-3 text-accent animate-spin" strokeWidth={2} />
+                        )}
+                        <span
+                          className={`text-[11px] font-medium ${
+                            w7Status === "completed"
+                              ? "text-success"
+                              : w7Status === "failed"
+                                ? "text-destructive"
+                                : "text-accent"
+                          }`}
+                        >
+                          {w7Status === "completed"
+                            ? "Completed"
+                            : w7Status === "failed"
+                              ? "Failed"
+                              : `Running... ${w7Progress}%`}
+                        </span>
+                      </div>
+                      {w7Loading && <ProgressBar value={w7Progress} color="accent" />}
+                    </div>
+                  )}
+
+                  {/* Error display */}
+                  {w7Error && (
+                    <p className="text-[11px] text-destructive flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      {w7Error}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  className="mt-3 w-full bg-accent text-white hover:bg-accent/90 border-transparent"
+                >
+                  <Play className="w-3 h-3 mr-1" strokeWidth={2.5} />
+                  Launch
+                </Button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Recent Runs */}
@@ -392,6 +473,121 @@ function DeliverablesTab() {
 export default function SignalPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Workflows");
 
+  // ---------------------------------------------------------------------------
+  // W7 workflow state
+  // ---------------------------------------------------------------------------
+  const [w7Loading, setW7Loading] = useState(false);
+  const [, setW7RunId] = useState<string | null>(null);
+  const [w7Status, setW7Status] = useState<string>("");
+  const [w7Progress, setW7Progress] = useState(0);
+  const [w7Error, setW7Error] = useState<string | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /** Stop the polling interval if running. */
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  /** Poll /api/agents/status/:runId every 5 seconds. */
+  const startPolling = useCallback(
+    (runId: string) => {
+      stopPolling();
+
+      const poll = async () => {
+        try {
+          const res = await fetch(`/api/agents/status/${runId}`);
+          if (!res.ok) {
+            const errBody = (await res.json().catch(() => null)) as {
+              error?: string;
+            } | null;
+            throw new Error(errBody?.error ?? `Status check failed (${res.status})`);
+          }
+
+          const json = (await res.json()) as {
+            data: {
+              run: { status: string; progress: number; error: string | null };
+            };
+          };
+
+          const run = json.data.run;
+          setW7Progress(run.progress ?? 0);
+
+          if (run.status === "completed") {
+            setW7Status("completed");
+            setW7Loading(false);
+            stopPolling();
+          } else if (run.status === "failed") {
+            setW7Status("failed");
+            setW7Error(run.error ?? "Workflow failed");
+            setW7Loading(false);
+            stopPolling();
+          } else {
+            setW7Status(run.status);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Polling error";
+          setW7Error(message);
+          setW7Loading(false);
+          stopPolling();
+        }
+      };
+
+      // Poll immediately, then every 5 seconds
+      void poll();
+      pollIntervalRef.current = setInterval(() => {
+        void poll();
+      }, 5000);
+    },
+    [stopPolling],
+  );
+
+  /** Launch the W7 Client Onboarding workflow. */
+  const launchW7 = useCallback(async () => {
+    const clientDomain = window.prompt("Enter client domain (e.g. acme.com):");
+    if (!clientDomain) return;
+
+    // Reset state
+    setW7Loading(true);
+    setW7Status("pending");
+    setW7Progress(0);
+    setW7Error(null);
+    setW7RunId(null);
+
+    try {
+      const res = await fetch("/api/agents/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workflowCode: "W7",
+          clientDomain,
+          competitors: [],
+          targetAudience: "",
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(errBody?.error ?? `Failed to launch workflow (${res.status})`);
+      }
+
+      const json = (await res.json()) as { data: { runId: string } };
+      const { runId } = json.data;
+
+      setW7RunId(runId);
+      startPolling(runId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to launch W7";
+      setW7Error(message);
+      setW7Loading(false);
+      setW7Status("");
+    }
+  }, [startPolling]);
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <PageHeader
@@ -406,7 +602,15 @@ export default function SignalPage() {
         }
       />
 
-      {activeTab === "Workflows" && <WorkflowsTab />}
+      {activeTab === "Workflows" && (
+        <WorkflowsTab
+          w7Loading={w7Loading}
+          w7Status={w7Status}
+          w7Progress={w7Progress}
+          w7Error={w7Error}
+          onLaunchW7={launchW7}
+        />
+      )}
       {activeTab === "Brand Brief" && <BrandBriefTab />}
       {activeTab === "Deliverables" && <DeliverablesTab />}
     </div>

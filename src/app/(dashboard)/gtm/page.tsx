@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -21,7 +21,75 @@ import {
   Eye,
   MessageSquare,
   Layers,
+  Loader2,
+  AlertCircle,
+  Sparkles,
 } from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// API response types for /api/gtm/icp
+// ---------------------------------------------------------------------------
+
+interface IcpFirmographics {
+  company_size: string;
+  industry: string;
+  tech_stack: string[];
+  funding_stage: string;
+  revenue_range: string;
+}
+
+interface IcpBuyerPersona {
+  title: string;
+  seniority: string;
+  pain_points: string[];
+  goals: string[];
+  decision_authority: string;
+}
+
+interface IcpDocument {
+  firmographics: IcpFirmographics;
+  buyer_personas: IcpBuyerPersona[];
+  buying_triggers: string[];
+  disqualification_criteria: string[];
+  scoring_rubric: {
+    scale: string;
+    factors: Array<{ factor: string; weight: number; description: string }>;
+  };
+}
+
+interface ApiLeadEntry {
+  id?: string;
+  company_name: string;
+  company_domain: string;
+  industry: string;
+  employee_count: string;
+  funding_stage: string;
+  revenue_range: string;
+  contact_name: string;
+  contact_title: string;
+  contact_email: string;
+  contact_linkedin: string;
+  icp_score: number;
+  rationale: string;
+}
+
+interface IcpApiResponse {
+  data: {
+    icpId: string;
+    icp: IcpDocument;
+    intentSignals: {
+      signals: Array<{
+        source: string;
+        signal: string;
+        strength: string;
+        interpretation: string;
+      }>;
+      summary: string;
+    };
+    leads: ApiLeadEntry[];
+    gtmRecommendations: string[];
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Mock data
@@ -149,7 +217,32 @@ function MetricCard({ label, value, delta, icon: Icon, color }: typeof metrics[n
   );
 }
 
-function ICPCard() {
+function ICPCard({
+  liveIcp,
+  icpLoading,
+  icpError,
+}: {
+  liveIcp: IcpDocument | null;
+  icpLoading: boolean;
+  icpError: string | null;
+}) {
+  // Merge live data into display when available
+  const displayName = liveIcp
+    ? `${liveIcp.firmographics.industry} — ${liveIcp.firmographics.company_size}`
+    : icpProfile.name;
+  const displayDescription = liveIcp
+    ? `${liveIcp.firmographics.industry} companies, ${liveIcp.firmographics.company_size} employees, ${liveIcp.firmographics.funding_stage} stage, revenue ${liveIcp.firmographics.revenue_range}. Tech stack: ${liveIcp.firmographics.tech_stack.slice(0, 4).join(", ")}.`
+    : icpProfile.description;
+  const displayCriteria = liveIcp
+    ? [
+        { label: "Company Size", value: liveIcp.firmographics.company_size },
+        { label: "Revenue", value: liveIcp.firmographics.revenue_range },
+        { label: "Industry", value: liveIcp.firmographics.industry },
+        { label: "Funding Stage", value: liveIcp.firmographics.funding_stage },
+      ]
+    : icpProfile.criteria;
+  const displayRubric = liveIcp ? liveIcp.scoring_rubric.scale : icpProfile.scoreRubric;
+
   return (
     <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
       <div className="flex items-center justify-between mb-3">
@@ -158,8 +251,8 @@ function ICPCard() {
             <Target className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
           </div>
           <div>
-            <h3 className="text-[13px] font-semibold text-foreground">{icpProfile.name}</h3>
-            <p className="text-[11px] text-foreground-tertiary">Score rubric: {icpProfile.scoreRubric}</p>
+            <h3 className="text-[13px] font-semibold text-foreground">{displayName}</h3>
+            <p className="text-[11px] text-foreground-tertiary">Score rubric: {displayRubric}</p>
           </div>
         </div>
         <Button variant="ghost" size="sm">
@@ -167,17 +260,57 @@ function ICPCard() {
           Edit ICP
         </Button>
       </div>
-      <p className="text-[12px] text-foreground-secondary mb-3 leading-relaxed">{icpProfile.description}</p>
+
+      {icpLoading && (
+        <div className="flex items-center gap-2 mb-3">
+          <Loader2 className="w-3.5 h-3.5 text-accent animate-spin" />
+          <span className="text-[12px] text-accent font-medium">Building ICP with AI agents...</span>
+        </div>
+      )}
+
+      {icpError && (
+        <p className="text-[11px] text-destructive flex items-center gap-1 mb-3">
+          <AlertCircle className="w-3 h-3 shrink-0" />
+          {icpError}
+        </p>
+      )}
+
+      <p className="text-[12px] text-foreground-secondary mb-3 leading-relaxed">{displayDescription}</p>
       <div className="grid grid-cols-2 gap-2 mb-3">
-        {icpProfile.criteria.map((c) => (
+        {displayCriteria.map((c) => (
           <div key={c.label} className="bg-background rounded-lg px-2.5 py-1.5">
             <p className="text-[10px] text-foreground-tertiary">{c.label}</p>
             <p className="text-[12px] font-medium text-foreground">{c.value}</p>
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-foreground-tertiary flex items-center gap-1">
-        <Clock className="w-3 h-3" /> Last updated {icpProfile.lastUpdated}
+
+      {/* Show buyer personas when live ICP available */}
+      {liveIcp && liveIcp.buyer_personas.length > 0 && (
+        <>
+          <div className="h-px bg-divider my-3" />
+          <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-2">
+            Buyer Personas
+          </div>
+          <div className="space-y-2">
+            {liveIcp.buyer_personas.map((persona) => (
+              <div key={persona.title} className="bg-background rounded-lg px-2.5 py-2">
+                <div className="flex items-center gap-1.5">
+                  <Users className="w-3 h-3 text-accent" />
+                  <span className="text-[12px] font-medium text-foreground">{persona.title}</span>
+                  <StatusBadge type="neutral">{persona.seniority}</StatusBadge>
+                </div>
+                <p className="text-[11px] text-foreground-tertiary mt-1">
+                  {persona.pain_points.slice(0, 2).join(" | ")}
+                </p>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <p className="text-[11px] text-foreground-tertiary flex items-center gap-1 mt-3">
+        <Clock className="w-3 h-3" /> Last updated {liveIcp ? "just now" : icpProfile.lastUpdated}
       </p>
     </div>
   );
@@ -336,7 +469,15 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
 // Tab content
 // ---------------------------------------------------------------------------
 
-function OverviewTab() {
+function OverviewTab({
+  liveIcp,
+  icpLoading,
+  icpError,
+}: {
+  liveIcp: IcpDocument | null;
+  icpLoading: boolean;
+  icpError: string | null;
+}) {
   return (
     <div className="space-y-4">
       {/* Metrics row */}
@@ -349,7 +490,7 @@ function OverviewTab() {
       {/* ICP + Campaigns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <div className="lg:col-span-1">
-          <ICPCard />
+          <ICPCard liveIcp={liveIcp} icpLoading={icpLoading} icpError={icpError} />
         </div>
         <div className="lg:col-span-2 space-y-3">
           <div className="flex items-center justify-between">
@@ -369,10 +510,24 @@ function OverviewTab() {
 
 const leadFilterOptions = ["All", "A-Tier", "B-Tier", "Contacted"];
 
-function LeadsTab() {
+function LeadsTab({ liveLeads }: { liveLeads: ApiLeadEntry[] }) {
   const [filter, setFilter] = useState("All");
 
-  const filtered = leads.filter((lead) => {
+  // Convert live API leads into the Lead shape so they render in LeadRow
+  const apiLeadsMapped: Lead[] = liveLeads.map((l) => ({
+    name: l.contact_name,
+    company: l.company_name,
+    title: l.contact_title,
+    tier: (l.icp_score >= 80 ? "A" : l.icp_score >= 60 ? "B" : l.icp_score >= 40 ? "C" : "D") as ICPTier,
+    intentScore: l.icp_score,
+    lastAction: l.rationale,
+    status: "New" as LeadStatus,
+  }));
+
+  // Show live leads when available, otherwise fall back to mock
+  const displayLeads = apiLeadsMapped.length > 0 ? apiLeadsMapped : leads;
+
+  const filtered = displayLeads.filter((lead) => {
     if (filter === "All") return true;
     if (filter === "A-Tier") return lead.tier === "A";
     if (filter === "B-Tier") return lead.tier === "B";
@@ -384,7 +539,12 @@ function LeadsTab() {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <SegmentedControl options={leadFilterOptions} value={filter} onChange={setFilter} />
-        <p className="text-[12px] text-foreground-tertiary">{filtered.length} leads</p>
+        <div className="flex items-center gap-3">
+          {apiLeadsMapped.length > 0 && (
+            <StatusBadge type="success">AI Generated</StatusBadge>
+          )}
+          <p className="text-[12px] text-foreground-tertiary">{filtered.length} leads</p>
+        </div>
       </div>
       <div className="bg-background-secondary rounded-[10px] dark:border dark:border-border divide-y divide-divider">
         {filtered.map((lead) => (
@@ -428,16 +588,133 @@ const tabs = ["Overview", "Leads", "Campaigns"];
 export default function GtmPage() {
   const [activeTab, setActiveTab] = useState("Overview");
 
+  // ---------------------------------------------------------------------------
+  // ICP builder state
+  // ---------------------------------------------------------------------------
+  const [icpLoading, setIcpLoading] = useState(false);
+  const [icpError, setIcpError] = useState<string | null>(null);
+  const [liveIcp, setLiveIcp] = useState<IcpDocument | null>(null);
+  const [liveLeads, setLiveLeads] = useState<ApiLeadEntry[]>([]);
+  const [gtmRecommendations, setGtmRecommendations] = useState<string[]>([]);
+
+  /** Build an ICP via the /api/gtm/icp endpoint. */
+  const buildIcp = useCallback(async () => {
+    const productDescription = window.prompt(
+      "Describe your product / service (min 10 chars):",
+    );
+    if (!productDescription || productDescription.length < 10) {
+      if (productDescription !== null) {
+        setIcpError("Product description must be at least 10 characters.");
+      }
+      return;
+    }
+
+    const targetMarket = window.prompt("Target market (e.g. B2B SaaS in India):");
+    if (!targetMarket || targetMarket.length < 5) {
+      if (targetMarket !== null) {
+        setIcpError("Target market must be at least 5 characters.");
+      }
+      return;
+    }
+
+    const idealBuyer = window.prompt("Ideal buyer roles (e.g. VP Marketing, Head of Growth):");
+    if (!idealBuyer || idealBuyer.length < 3) {
+      if (idealBuyer !== null) {
+        setIcpError("Ideal buyer description must be at least 3 characters.");
+      }
+      return;
+    }
+
+    // Reset state
+    setIcpLoading(true);
+    setIcpError(null);
+    setLiveIcp(null);
+    setLiveLeads([]);
+    setGtmRecommendations([]);
+
+    try {
+      const res = await fetch("/api/gtm/icp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productDescription,
+          targetMarket,
+          idealBuyer,
+          competitors: [],
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(errBody?.error ?? `ICP build failed (${res.status})`);
+      }
+
+      const json = (await res.json()) as IcpApiResponse;
+      setLiveIcp(json.data.icp);
+      setLiveLeads(json.data.leads);
+      setGtmRecommendations(json.data.gtmRecommendations);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to build ICP";
+      setIcpError(message);
+    } finally {
+      setIcpLoading(false);
+    }
+  }, []);
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <PageHeader
         title="Pipeline"
         description="Build ICPs, generate leads, run outbound campaigns."
-        actions={<SegmentedControl options={tabs} value={activeTab} onChange={setActiveTab} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="bg-accent text-white hover:bg-accent/90 border-transparent"
+              onClick={buildIcp}
+              disabled={icpLoading}
+            >
+              {icpLoading ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Building...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Build New ICP
+                </>
+              )}
+            </Button>
+            <SegmentedControl options={tabs} value={activeTab} onChange={setActiveTab} />
+          </div>
+        }
       />
 
-      {activeTab === "Overview" && <OverviewTab />}
-      {activeTab === "Leads" && <LeadsTab />}
+      {/* GTM Recommendations banner */}
+      {gtmRecommendations.length > 0 && (
+        <div className="bg-accent/5 border border-accent/20 rounded-[10px] p-3.5 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-accent" />
+            <span className="text-[13px] font-semibold text-foreground">GTM Recommendations</span>
+          </div>
+          <ul className="space-y-1">
+            {gtmRecommendations.map((rec, i) => (
+              <li key={i} className="text-[12px] text-foreground-secondary flex items-start gap-1.5">
+                <span className="text-accent font-medium shrink-0">{i + 1}.</span>
+                {rec}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {activeTab === "Overview" && (
+        <OverviewTab liveIcp={liveIcp} icpLoading={icpLoading} icpError={icpError} />
+      )}
+      {activeTab === "Leads" && <LeadsTab liveLeads={liveLeads} />}
       {activeTab === "Campaigns" && <CampaignsTab />}
     </div>
   );

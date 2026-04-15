@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Camera,
   AtSign,
@@ -23,10 +23,13 @@ import {
   ThumbsDown,
   MessageSquare,
   AlertTriangle,
+  Loader2,
+  Microscope,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,10 +85,64 @@ interface ContentIdea {
 }
 
 // ---------------------------------------------------------------------------
+// API response types
+// ---------------------------------------------------------------------------
+
+interface AnalysisTopPost {
+  caption: string;
+  engagement: number;
+  reason: string;
+}
+
+interface AnalysisBestPostType {
+  type: string;
+  avgEngagement: number;
+}
+
+interface AnalysisContentIdea {
+  hook: string;
+  format: string;
+  rationale: string;
+}
+
+interface AnalysisData {
+  performanceSnapshot: {
+    avgEngagement: number;
+    totalPosts: number;
+    topPosts: AnalysisTopPost[];
+    bottomPosts: AnalysisTopPost[];
+  };
+  contentPatterns: {
+    winningHooks: string[];
+    bestPostTypes: AnalysisBestPostType[];
+    optimalCaptionLength: { min: number; max: number; unit: string };
+  };
+  hashtagIntelligence: {
+    keep: string[];
+    stop: string[];
+    try: string[];
+  };
+  contentIdeas: AnalysisContentIdea[];
+}
+
+interface AnalysisResults {
+  scrapeId: string;
+  analysisId: string | null;
+  platform: string;
+  username: string;
+  postsAnalysed: number;
+  analysis: AnalysisData;
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Mock data
 // ---------------------------------------------------------------------------
 
-const metricCards: MetricCard[] = [
+const defaultMetricCards: MetricCard[] = [
   {
     label: "Total Posts Analysed",
     value: "127",
@@ -111,7 +168,7 @@ const metricCards: MetricCard[] = [
   },
 ];
 
-const topPosts: TopPost[] = [
+const defaultTopPosts: TopPost[] = [
   {
     id: "p1",
     platform: "Instagram",
@@ -135,14 +192,14 @@ const topPosts: TopPost[] = [
   },
 ];
 
-const platformEngagement: PlatformEngagement[] = [
+const defaultPlatformEngagement: PlatformEngagement[] = [
   { platform: "Instagram", icon: Camera, avgEngagement: "6.2%", trend: "up", trendDelta: "+1.1%" },
   { platform: "Twitter", icon: AtSign, avgEngagement: "3.1%", trend: "down", trendDelta: "-0.3%" },
   { platform: "LinkedIn", icon: Send, avgEngagement: "5.4%", trend: "up", trendDelta: "+0.8%" },
   { platform: "TikTok", icon: Music2, avgEngagement: "8.7%", trend: "up", trendDelta: "+2.4%" },
 ];
 
-const winningPatterns: PatternCard[] = [
+const defaultWinningPatterns: PatternCard[] = [
   {
     id: "w1",
     title: "Question-Led Hooks",
@@ -166,7 +223,7 @@ const winningPatterns: PatternCard[] = [
   },
 ];
 
-const avoidPatterns: PatternCard[] = [
+const defaultAvoidPatterns: PatternCard[] = [
   {
     id: "a1",
     title: "Generic CTAs",
@@ -183,7 +240,7 @@ const avoidPatterns: PatternCard[] = [
   },
 ];
 
-const hashtagGroups: HashtagGroup[] = [
+const defaultHashtagGroups: HashtagGroup[] = [
   {
     label: "Keep Using",
     color: "bg-success/10",
@@ -204,7 +261,7 @@ const hashtagGroups: HashtagGroup[] = [
   },
 ];
 
-const contentIdeas: ContentIdea[] = [
+const defaultContentIdeas: ContentIdea[] = [
   {
     id: "i1",
     title: "Client Transformation Reel",
@@ -302,7 +359,17 @@ function confidenceBadgeType(confidence: "High" | "Medium"): "success" | "warnin
 // Snapshot Tab
 // ---------------------------------------------------------------------------
 
-function SnapshotTab() {
+function SnapshotTab({
+  metricCards,
+  topPosts,
+  platformEngagement,
+  analysisLoading,
+}: {
+  metricCards: MetricCard[];
+  topPosts: TopPost[];
+  platformEngagement: PlatformEngagement[];
+  analysisLoading: boolean;
+}) {
   return (
     <div>
       {/* Metric Cards */}
@@ -310,8 +377,13 @@ function SnapshotTab() {
         {metricCards.map((card) => (
           <div
             key={card.label}
-            className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border"
+            className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border relative"
           >
+            {analysisLoading && (
+              <div className="absolute inset-0 bg-background-secondary/80 rounded-[10px] flex items-center justify-center z-10">
+                <Loader2 className="w-5 h-5 text-accent animate-spin" />
+              </div>
+            )}
             <div className="flex items-center gap-2 mb-2">
               <div className="w-7 h-7 rounded-[7px] bg-accent/10 flex items-center justify-center shrink-0">
                 <card.icon className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
@@ -423,7 +495,15 @@ function SnapshotTab() {
 // Patterns Tab
 // ---------------------------------------------------------------------------
 
-function PatternsTab() {
+function PatternsTab({
+  winningPatterns,
+  avoidPatterns,
+  hashtagGroups,
+}: {
+  winningPatterns: PatternCard[];
+  avoidPatterns: PatternCard[];
+  hashtagGroups: HashtagGroup[];
+}) {
   return (
     <div>
       {/* What Works */}
@@ -510,7 +590,11 @@ function PatternsTab() {
 // Ideas Tab
 // ---------------------------------------------------------------------------
 
-function IdeasTab() {
+function IdeasTab({
+  contentIdeas,
+}: {
+  contentIdeas: ContentIdea[];
+}) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -573,6 +657,147 @@ function IdeasTab() {
 
 export default function SocialPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Snapshot");
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  const handleRunAnalysis = useCallback(async () => {
+    const platform = window.prompt("Platform to analyse:", "instagram");
+    if (!platform) return;
+
+    const username = window.prompt("Username (without @):", "creativenexusglobal");
+    if (!username) return;
+
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+
+    try {
+      const response = await fetch("/api/social/analyse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform,
+          username,
+          postsCount: 30,
+        }),
+      });
+
+      const json: { data?: AnalysisResults; error?: string } = await response.json();
+
+      if (!response.ok || json.error) {
+        throw new Error(json.error ?? `Request failed with status ${response.status}`);
+      }
+
+      if (json.data) {
+        setAnalysisResults(json.data);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Analysis failed. Please try again.";
+      setAnalysisError(message);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Derive display data from API results or fall back to mock data
+  // -------------------------------------------------------------------------
+
+  const analysis = analysisResults?.analysis;
+
+  // Snapshot tab data
+  const metricCards: MetricCard[] = analysis
+    ? [
+        {
+          label: "Total Posts Analysed",
+          value: String(analysis.performanceSnapshot.totalPosts),
+          icon: BarChart3,
+        },
+        {
+          label: "Avg Engagement Rate",
+          value: `${analysis.performanceSnapshot.avgEngagement.toLocaleString()}`,
+          icon: Heart,
+        },
+        {
+          label: "Top Platform",
+          value: analysisResults.platform.charAt(0).toUpperCase() + analysisResults.platform.slice(1),
+          icon: Camera,
+        },
+        {
+          label: "Content Health Score",
+          value: `${Math.min(100, Math.round(analysis.performanceSnapshot.avgEngagement * 10))}/100`,
+          icon: Activity,
+        },
+      ]
+    : defaultMetricCards;
+
+  const topPosts: TopPost[] = analysis
+    ? analysis.performanceSnapshot.topPosts.map((post, i) => ({
+        id: `live-${i}`,
+        platform: (analysisResults.platform.charAt(0).toUpperCase() + analysisResults.platform.slice(1)) as Platform,
+        caption: post.caption,
+        engagement: post.engagement,
+        type: "Reel" as const,
+      }))
+    : defaultTopPosts;
+
+  const platformEngagement: PlatformEngagement[] = defaultPlatformEngagement;
+
+  // Patterns tab data
+  const winningPatterns: PatternCard[] = analysis
+    ? analysis.contentPatterns.winningHooks.slice(0, 3).map((hook, i) => ({
+        id: `wh-${i}`,
+        title: hook.length > 40 ? hook.slice(0, 40) + "..." : hook,
+        description: hook,
+        dataPoint: analysis.contentPatterns.bestPostTypes[i]
+          ? `${analysis.contentPatterns.bestPostTypes[i].type}: ${analysis.contentPatterns.bestPostTypes[i].avgEngagement} avg`
+          : "Winning pattern",
+        icon: MessageSquare,
+      }))
+    : defaultWinningPatterns;
+
+  const avoidPatterns: PatternCard[] = defaultAvoidPatterns;
+
+  const hashtagGroups: HashtagGroup[] = analysis
+    ? [
+        {
+          label: "Keep Using",
+          color: "bg-success/10",
+          textColor: "text-success",
+          tags: analysis.hashtagIntelligence.keep.map((t) =>
+            t.startsWith("#") ? t : `#${t}`,
+          ),
+        },
+        {
+          label: "Stop Using",
+          color: "bg-destructive/10",
+          textColor: "text-destructive",
+          tags: analysis.hashtagIntelligence.stop.map((t) =>
+            t.startsWith("#") ? t : `#${t}`,
+          ),
+        },
+        {
+          label: "Try These",
+          color: "bg-accent/10",
+          textColor: "text-accent",
+          tags: analysis.hashtagIntelligence.try.map((t) =>
+            t.startsWith("#") ? t : `#${t}`,
+          ),
+        },
+      ]
+    : defaultHashtagGroups;
+
+  // Ideas tab data
+  const contentIdeas: ContentIdea[] = analysis
+    ? analysis.contentIdeas.map((idea, i) => ({
+        id: `live-idea-${i}`,
+        title: idea.format,
+        hook: idea.hook,
+        whyItWorks: idea.rationale,
+        platform: (analysisResults.platform.charAt(0).toUpperCase() + analysisResults.platform.slice(1)) as Platform,
+        confidence: (i < 4 ? "High" : "Medium") as "High" | "Medium",
+      }))
+    : defaultContentIdeas;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -580,17 +805,53 @@ export default function SocialPage() {
         title="Social Intelligence"
         description="Analyse your social media performance, discover winning patterns, and get data-backed content ideas."
         actions={
-          <SegmentedControl
-            options={[...tabs]}
-            value={activeTab}
-            onChange={(v) => setActiveTab(v as Tab)}
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleRunAnalysis}
+              disabled={analysisLoading}
+              className="bg-accent text-white hover:bg-accent/90 disabled:opacity-50"
+              size="sm"
+            >
+              {analysisLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" data-icon="inline-start" />
+              ) : (
+                <Microscope className="w-3.5 h-3.5" data-icon="inline-start" />
+              )}
+              {analysisLoading ? "Analysing..." : "Run Analysis"}
+            </Button>
+            <SegmentedControl
+              options={[...tabs]}
+              value={activeTab}
+              onChange={(v) => setActiveTab(v as Tab)}
+            />
+          </div>
         }
       />
 
-      {activeTab === "Snapshot" && <SnapshotTab />}
-      {activeTab === "Patterns" && <PatternsTab />}
-      {activeTab === "Ideas" && <IdeasTab />}
+      {/* Analysis Error */}
+      {analysisError && (
+        <div className="mb-4 flex items-center gap-2 rounded-[10px] bg-destructive/10 px-3.5 py-2.5 text-[13px] text-destructive">
+          <AlertTriangle className="w-4 h-4 shrink-0" strokeWidth={1.8} />
+          <span>{analysisError}</span>
+        </div>
+      )}
+
+      {activeTab === "Snapshot" && (
+        <SnapshotTab
+          metricCards={metricCards}
+          topPosts={topPosts}
+          platformEngagement={platformEngagement}
+          analysisLoading={analysisLoading}
+        />
+      )}
+      {activeTab === "Patterns" && (
+        <PatternsTab
+          winningPatterns={winningPatterns}
+          avoidPatterns={avoidPatterns}
+          hashtagGroups={hashtagGroups}
+        />
+      )}
+      {activeTab === "Ideas" && <IdeasTab contentIdeas={contentIdeas} />}
     </div>
   );
 }
