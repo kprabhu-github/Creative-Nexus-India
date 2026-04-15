@@ -17,9 +17,9 @@ export default function Header() {
         <div className="h-4 w-px bg-border" />
         <Button variant="ghost" className="gap-2 text-foreground-secondary hover:text-foreground h-8 px-2">
           <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center">
-            <span className="text-[10px] font-semibold text-white">AM</span>
+            <span className="text-[10px] font-semibold text-white">KP</span>
           </div>
-          <span className="text-[13px] font-medium hidden md:block">Alex Mercer</span>
+          <span className="text-[13px] font-medium hidden md:block">K. Prabhu</span>
         </Button>
       </div>
     </header>
