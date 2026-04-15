@@ -25,6 +25,10 @@ import {
   Lightbulb,
   Filter,
   ArrowUpDown,
+  MessageSquare,
+  MapPin,
+  Video,
+  Download,
 } from "lucide-react";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -579,8 +583,96 @@ function OverviewTab({
   promptGaps,
   scanLoading,
 }: OverviewTabProps) {
+  const [selectedPillar, setSelectedPillar] = useState(1); // 0-indexed into scorePillars
+
+  /* -- Score Breakdown mock data -- */
+  const scorePillars = [
+    {
+      label: "AI Citation Score",
+      icon: MessageSquare,
+      score: 6,
+      status: "Needs Work" as const,
+      contribution: 20,
+      insight: "Your brand is rarely cited by AI search engines. Most responses reference competitor content instead.",
+      quickFix: "Publish authoritative, long-form content that directly answers common AI prompts in your niche.",
+    },
+    {
+      label: "SEO Health",
+      icon: Search,
+      score: 19,
+      status: "Needs Work" as const,
+      contribution: 30,
+      insight: "Core Web Vitals and technical SEO issues are limiting your discoverability by AI crawlers.",
+      quickFix: "Fix critical site speed issues and add structured data (JSON-LD) for Organization and Service schemas.",
+    },
+    {
+      label: "Local Search",
+      icon: MapPin,
+      score: 13,
+      status: "Needs Work" as const,
+      contribution: 15,
+      insight: "Your Google Business Profile is incomplete and you have few local citations across directories.",
+      quickFix: "Complete your GBP profile, add service-area pages, and build citations on top Indian directories.",
+    },
+    {
+      label: "Video Search",
+      icon: Video,
+      score: 9,
+      status: "Needs Work" as const,
+      contribution: 15,
+      insight: "No video content appears in AI-generated answers. Competitors with YouTube presence rank significantly higher.",
+      quickFix: "Create 3-5 expert videos answering top industry prompts and optimize with transcripts and chapters.",
+    },
+    {
+      label: "Authority Signals",
+      icon: Shield,
+      score: 17,
+      status: "Needs Work" as const,
+      contribution: 20,
+      insight: "Low backlink count from authoritative domains. AI models weigh domain authority heavily in citation decisions.",
+      quickFix: "Launch a digital PR campaign targeting industry publications and secure guest posts on high-DA sites.",
+    },
+  ];
+
+  const pillar = scorePillars[selectedPillar];
+  const worstPillarIdx = scorePillars.reduce((minIdx, p, i, arr) => p.score < arr[minIdx].score ? i : minIdx, 0);
+
+  /* -- Competitive landscape mock data -- */
+  const competitiveLandscape = [
+    { name: "Creative Nexus", score: 14, isYou: true },
+    { name: "Kinnect", score: 61, isYou: false },
+    { name: "Interactive Avenues", score: 58, isYou: false },
+    { name: "WATConsult", score: 56, isYou: false },
+  ];
+  const topCompetitor = competitiveLandscape.filter(c => !c.isYou).sort((a, b) => b.score - a.score)[0];
+  const totalCompScore = competitiveLandscape.reduce((sum, c) => sum + c.score, 0);
+
+  /* -- Top keywords & prompts mock data -- */
+  const topKeywords = [
+    { keyword: "digital marketing agency India", score: 23 },
+    { keyword: "AI marketing agency", score: 18 },
+    { keyword: "creative agency Mumbai", score: 14 },
+  ];
+  const topPrompts = [
+    { prompt: "Best digital agency for AI search", intent: "Commercial", score: 31 },
+    { prompt: "Top creative agencies in India 2026", intent: "Commercial", score: 24 },
+    { prompt: "Agency for AI-powered campaigns", intent: "Commercial", score: 19 },
+  ];
+
   return (
     <div className="space-y-4">
+      {/* Download Report Button */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => alert("Report download coming soon")}
+        >
+          <Download className="w-3.5 h-3.5" data-icon="inline-start" />
+          Download Report
+        </Button>
+      </div>
+
       {/* Hero Metrics Row — dark cards like DareAISearch */}
       {!scanLoading && (
         <div className="grid grid-cols-5 gap-3">
@@ -686,6 +778,273 @@ function OverviewTab({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* ====== Section 1: Score Breakdown — "What Makes Up Your Score" ====== */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[13px] font-semibold text-foreground">What Makes Up Your Score</span>
+          <span className="text-xs text-foreground-tertiary">5 pillars evaluated</span>
+        </div>
+
+        {/* Pillar cards row */}
+        <div className="grid grid-cols-5 gap-3 mb-3">
+          {scorePillars.map((p, i) => {
+            const PillarIcon = p.icon;
+            const isSelected = i === selectedPillar;
+            const isWorst = i === worstPillarIdx;
+            return (
+              <button
+                key={p.label}
+                onClick={() => setSelectedPillar(i)}
+                className={`bg-background-secondary rounded-[10px] p-3.5 dark:border text-left transition-all ${
+                  isSelected
+                    ? "border-2 border-accent ring-1 ring-accent/20"
+                    : isWorst
+                      ? "border border-accent/40 dark:border-accent/40"
+                      : "dark:border-border border border-transparent hover:border-accent/20"
+                }`}
+              >
+                <div className="flex items-center justify-center mb-2">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSelected ? "bg-accent/10" : "bg-foreground/5 dark:bg-foreground/10"}`}>
+                    <PillarIcon className={`w-4 h-4 ${isSelected ? "text-accent" : "text-foreground-secondary"}`} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="text-[11px] text-foreground-tertiary text-center mb-1 leading-tight">{p.label}</div>
+                <div className={`text-xl font-bold text-center tracking-tight ${isSelected ? "text-accent" : "text-foreground"}`}>
+                  {p.score}%
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected pillar detail */}
+        {pillar && (
+          <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border mb-3">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[14px] font-semibold text-foreground">{pillar.label}</span>
+                <span className="text-lg font-bold text-accent">{pillar.score}%</span>
+                <StatusBadge type={pillar.score >= 60 ? "success" : pillar.score >= 40 ? "warning" : "error"}>
+                  {pillar.score >= 60 ? "Excellent" : pillar.score >= 40 ? "Good" : "Needs Work"}
+                </StatusBadge>
+              </div>
+              <span className="text-xs text-foreground-tertiary">
+                Contributes {pillar.contribution}% to your overall score
+              </span>
+            </div>
+            <ProgressBar value={pillar.score} color="accent" className="mb-3" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">Insight</div>
+                <p className="text-[12px] text-foreground-secondary leading-relaxed">{pillar.insight}</p>
+              </div>
+              <div>
+                <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">Quick Fix</div>
+                <p className="text-[12px] text-foreground-secondary leading-relaxed">{pillar.quickFix}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Biggest Opportunity */}
+        <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border border-l-2 border-l-accent">
+          <div className="flex items-start gap-2">
+            <Zap className="w-4 h-4 text-accent mt-0.5 shrink-0" strokeWidth={1.8} />
+            <div>
+              <div className="text-[13px] font-semibold text-foreground mb-1">Biggest Opportunity</div>
+              <p className="text-[12px] text-foreground-secondary leading-relaxed">
+                <span className="font-semibold text-foreground">SEO Health</span> has the highest impact potential. Improving this pillar could increase your overall score by up to <span className="font-bold text-accent">+17 points</span>.
+              </p>
+              <p className="text-[12px] text-foreground-secondary leading-relaxed mt-1">
+                <span className="font-medium text-foreground">Quick fix:</span> Fix critical site speed issues and add structured data (JSON-LD) for Organization and Service schemas.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ====== Section 2: Brand Perception — "What ChatGPT Knows About Your Brand" ====== */}
+      <div>
+        <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1.5">Brand Perception</div>
+        <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border">
+          <h3 className="text-[14px] font-semibold text-foreground mb-0.5">What ChatGPT Knows About Your Brand</h3>
+          <p className="text-[12px] text-foreground-tertiary mb-3">How ChatGPT currently perceives and describes your brand</p>
+          <ul className="space-y-2">
+            {[
+              "Provides creative design and branding services",
+              "Offers website design and development solutions",
+              "Delivers digital marketing and social media campaigns",
+              "Serves businesses in India seeking online presence",
+            ].map((point) => (
+              <li key={point} className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-accent mt-1.5 shrink-0" />
+                <span className="text-[13px] text-foreground-secondary leading-snug">{point}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* ====== Section 3: Revenue Risk Warning ====== */}
+      <div className="bg-warning/5 rounded-[10px] p-4 border-l-2 border-l-warning dark:border dark:border-border dark:border-l-warning">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-warning mt-0.5 shrink-0" strokeWidth={1.8} />
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <StatusBadge type="warning">Revenue Risk</StatusBadge>
+            </div>
+            <h3 className="text-[14px] font-semibold text-foreground mb-1">AI is sending your customers to your competitors</h3>
+            <p className="text-[12px] text-foreground-secondary leading-relaxed mb-3">
+              Based on your SearchScore and competitor visibility across AI search engines: Brands with low AI Search visibility lose 40-60% of Search assisted revenue to competitors recommended by AI search engines.
+            </p>
+            <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-2">What This Means</div>
+            <ul className="space-y-1.5">
+              {[
+                "Competitors are being recommended before users reach Google",
+                "Your brand is missing at the decision stage",
+                "Demand exists, but AI is redirecting it elsewhere",
+              ].map((point) => (
+                <li key={point} className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-warning mt-1.5 shrink-0" />
+                  <span className="text-[13px] text-foreground-secondary leading-snug">{point}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* ====== Section 4: Competitive Landscape (Donut Chart Style) ====== */}
+      <div>
+        <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1.5">Market Position</div>
+        <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-[14px] font-semibold text-foreground">Competitive Landscape</h3>
+            <span className="text-xs text-foreground-tertiary">Compare your AI visibility against competitors</span>
+          </div>
+          <p className="text-[12px] text-accent font-medium mb-4">
+            AI picked {topCompetitor.name} first. They&apos;re already {topCompetitor.score - (competitiveLandscape.find(c => c.isYou)?.score ?? 0)}% ahead.
+          </p>
+          <div className="grid grid-cols-[180px_1fr] gap-6 items-center">
+            {/* CSS-only donut chart */}
+            <div className="relative w-[160px] h-[160px] mx-auto">
+              <svg viewBox="0 0 160 160" className="w-full h-full -rotate-90">
+                {(() => {
+                  let cumulativePercent = 0;
+                  const radius = 60;
+                  const circumference = 2 * Math.PI * radius;
+                  const colors = ["#D90A2C", "#10A37F", "#4285F4", "#D97706"];
+                  return competitiveLandscape.map((c, i) => {
+                    const percent = c.score / totalCompScore;
+                    const dashArray = percent * circumference;
+                    const dashOffset = -cumulativePercent * circumference;
+                    cumulativePercent += percent;
+                    return (
+                      <circle
+                        key={c.name}
+                        cx="80"
+                        cy="80"
+                        r={radius}
+                        fill="none"
+                        stroke={colors[i % colors.length]}
+                        strokeWidth="24"
+                        strokeDasharray={`${dashArray} ${circumference - dashArray}`}
+                        strokeDashoffset={dashOffset}
+                        className="transition-all duration-500"
+                      />
+                    );
+                  });
+                })()}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-bold text-foreground">{competitiveLandscape.find(c => c.isYou)?.score ?? 0}%</span>
+                <span className="text-[10px] text-foreground-tertiary">Your Score</span>
+              </div>
+            </div>
+
+            {/* Leaderboard list */}
+            <div className="space-y-2.5">
+              {[...competitiveLandscape].sort((a, b) => b.score - a.score).map((c) => {
+                const colors: Record<string, string> = {
+                  "Creative Nexus": "bg-[#D90A2C]",
+                  "Kinnect": "bg-[#10A37F]",
+                  "Interactive Avenues": "bg-[#4285F4]",
+                  "WATConsult": "bg-[#D97706]",
+                };
+                return (
+                  <div key={c.name} className="flex items-center gap-3">
+                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${colors[c.name] ?? "bg-foreground-tertiary"}`} />
+                    <span className={`text-[13px] font-medium min-w-[140px] ${c.isYou ? "text-accent" : "text-foreground"}`}>
+                      {c.name}
+                      {c.isYou && <span className="text-[10px] ml-1 text-accent/60">(You)</span>}
+                    </span>
+                    <div className="flex-1 h-2 bg-divider rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${c.isYou ? "bg-accent" : "bg-foreground/30 dark:bg-foreground/20"}`}
+                        style={{ width: `${c.score}%` }}
+                      />
+                    </div>
+                    <span className="text-[13px] font-bold text-foreground w-10 text-right">{c.score}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ====== Section 5: Top Keywords + Top Prompts (side by side) ====== */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Top Keywords */}
+        <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border">
+          <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">Keyword Visibility</div>
+          <h3 className="text-[14px] font-semibold text-foreground mb-3">Top 3 Visible Keywords</h3>
+          <div className="space-y-3">
+            {topKeywords.map((kw, i) => (
+              <div key={kw.keyword} className="flex items-center gap-3">
+                <span className="text-[13px] font-bold text-accent w-5">{i + 1}.</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-medium text-foreground truncate mb-1">{kw.keyword}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-divider rounded-full overflow-hidden">
+                      <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${kw.score}%` }} />
+                    </div>
+                    <span className="text-[12px] font-semibold text-foreground w-8 text-right">{kw.score}%</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Top Prompts */}
+        <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border">
+          <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">Prompt Rankings</div>
+          <h3 className="text-[14px] font-semibold text-foreground mb-3">Top 3 Prompts</h3>
+          <div className="space-y-3">
+            {topPrompts.map((tp, i) => (
+              <div key={tp.prompt} className="flex items-center gap-3">
+                <span className="text-[13px] font-bold text-accent w-5">{i + 1}.</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[13px] font-medium text-foreground truncate">{tp.prompt}</span>
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent/10 text-accent shrink-0">
+                      {tp.intent}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-divider rounded-full overflow-hidden">
+                      <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: `${tp.score}%` }} />
+                    </div>
+                    <span className="text-[12px] font-semibold text-foreground w-8 text-right">{tp.score}%</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
