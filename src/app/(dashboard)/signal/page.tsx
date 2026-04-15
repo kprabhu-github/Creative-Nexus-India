@@ -6,7 +6,6 @@ import {
   CalendarDays,
   FileText,
   Play,
-  Clock,
   CheckCircle2,
   Loader2,
   ListOrdered,
@@ -63,53 +62,6 @@ const quickActions: QuickAction[] = [
   },
 ];
 
-interface RecentRun {
-  id: string;
-  workflow: string;
-  workflowLabel: string;
-  client: string;
-  status: "completed" | "running" | "queued";
-  timeAgo: string;
-  progress?: number;
-}
-
-const recentRuns: RecentRun[] = [
-  {
-    id: "r1",
-    workflow: "W1",
-    workflowLabel: "Strategy Sprint",
-    client: "Acme Corp",
-    status: "completed",
-    timeAgo: "12 min ago",
-  },
-  {
-    id: "r2",
-    workflow: "W2",
-    workflowLabel: "Content Plan",
-    client: "NovaTech Solutions",
-    status: "running",
-    timeAgo: "3 min ago",
-    progress: 64,
-  },
-  {
-    id: "r3",
-    workflow: "W5",
-    workflowLabel: "Email Sequence",
-    client: "Bloom Wellness",
-    status: "running",
-    timeAgo: "8 min ago",
-    progress: 31,
-  },
-  {
-    id: "r4",
-    workflow: "W4",
-    workflowLabel: "SEO Brief",
-    client: "Meridian Finance",
-    status: "queued",
-    timeAgo: "1 min ago",
-  },
-];
-
 interface BriefSection {
   name: string;
   icon: LucideIcon;
@@ -147,43 +99,6 @@ const deliverables: Deliverable[] = [
 
 const tabs = ["Workflows", "Brand Brief", "Deliverables"] as const;
 type Tab = (typeof tabs)[number];
-
-// ---------------------------------------------------------------------------
-// Status helpers
-// ---------------------------------------------------------------------------
-
-function statusBadgeType(status: RecentRun["status"]) {
-  switch (status) {
-    case "completed":
-      return "success" as const;
-    case "running":
-      return "info" as const;
-    case "queued":
-      return "neutral" as const;
-  }
-}
-
-function statusLabel(status: RecentRun["status"]) {
-  switch (status) {
-    case "completed":
-      return "Completed";
-    case "running":
-      return "Running";
-    case "queued":
-      return "Queued";
-  }
-}
-
-function StatusIcon({ status }: { status: RecentRun["status"] }) {
-  switch (status) {
-    case "completed":
-      return <CheckCircle2 className="w-3.5 h-3.5 text-success" strokeWidth={2} />;
-    case "running":
-      return <Loader2 className="w-3.5 h-3.5 text-accent animate-spin" strokeWidth={2} />;
-    case "queued":
-      return <Clock className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -308,39 +223,7 @@ function WorkflowsTab({
         })}
       </div>
 
-      {/* Recent Runs */}
-      <div className="flex items-center justify-between mt-5 mb-2">
-        <span className="text-[13px] font-semibold text-foreground">Recent Runs</span>
-        <button className="text-xs font-medium text-accent hover:underline">View All</button>
-      </div>
-      <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border">
-        {recentRuns.map((run, i) => (
-          <div key={run.id}>
-            <div className="flex items-center gap-3 px-3.5 py-2.5 bg-background dark:bg-background/40">
-              <div className="w-7 h-7 rounded-full bg-background-secondary flex items-center justify-center shrink-0 dark:bg-foreground-tertiary/10">
-                <StatusIcon status={run.status} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-medium text-foreground">{run.workflowLabel}</span>
-                  <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
-                    {run.workflow}
-                  </span>
-                </div>
-                <div className="text-xs text-foreground-tertiary">{run.client}</div>
-                {run.status === "running" && run.progress != null && (
-                  <ProgressBar value={run.progress} color="accent" className="mt-1.5 max-w-[200px]" />
-                )}
-              </div>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <StatusBadge type={statusBadgeType(run.status)}>{statusLabel(run.status)}</StatusBadge>
-                <span className="text-[12px] text-foreground-tertiary w-[72px] text-right">{run.timeAgo}</span>
-              </div>
-            </div>
-            {i < recentRuns.length - 1 && <div className="h-px bg-divider mx-3.5" />}
-          </div>
-        ))}
-      </div>
+      {/* Recent runs will be populated from Supabase when real workflow data exists */}
     </div>
   );
 }
