@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Globe,
   CheckCircle,
@@ -73,6 +73,7 @@ function emailStatusLabel(lead: MergedLead): {
   text: string;
   type: "success" | "warning" | "error";
 } {
+  if (lead.score?.status === "qualified") return { text: "Replied", type: "success" };
   if (lead.score?.spam) return { text: "Blocked", type: "error" };
   const sentEmail = lead.emails.find((e) => e.status === "sent");
   if (sentEmail) return { text: "Email sent", type: "success" };
@@ -280,6 +281,51 @@ function LeadListItem({
 }
 
 // ---------------------------------------------------------------------------
+// Email History Item
+// ---------------------------------------------------------------------------
+
+function EmailHistoryItem({ email }: { email: LeadEmail }) {
+  const [expanded, setExpanded] = useState(false);
+  const typeLabel = email.email_type === "acknowledgement"
+    ? "Acknowledgement"
+    : `Follow-up ${email.email_type.replace("followup_", "")}`;
+
+  return (
+    <div className="border border-divider rounded-[8px] overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-surface-hover/30 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <StatusBadge type="success">{typeLabel}</StatusBadge>
+          <span className="text-xs text-foreground font-medium truncate max-w-[200px]">
+            {email.subject}
+          </span>
+        </div>
+        <span className="text-[10px] text-foreground-tertiary shrink-0">
+          {email.sent_at
+            ? new Date(email.sent_at).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : ""}
+        </span>
+      </button>
+      {expanded && (
+        <div className="px-3 pb-3 border-t border-divider">
+          <div
+            className="text-xs text-foreground leading-relaxed prose prose-xs max-w-none dark:prose-invert [&_a]:text-accent mt-2"
+            dangerouslySetInnerHTML={{ __html: email.body_html }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Right Panel: Lead Detail
 // ---------------------------------------------------------------------------
 
@@ -289,6 +335,7 @@ function LeadDetail({
   onSendEmail,
   onRegenerateDraft,
   onMarkSpam,
+  onMarkReplied,
   onStopFollowups,
   actionLoading,
 }: {
@@ -297,15 +344,16 @@ function LeadDetail({
   onSendEmail: (emailId: string) => void;
   onRegenerateDraft: (lead: MergedLead) => void;
   onMarkSpam: (leadId: string) => void;
+  onMarkReplied: (leadId: string) => void;
   onStopFollowups: (leadId: string) => void;
   actionLoading: string | null;
 }) {
   const latestEmail = lead.emails.length > 0 ? lead.emails[0] : null;
-  const sentEmail = lead.emails.find((e) => e.status === "sent");
+  const sentEmails = lead.emails.filter((e) => e.status === "sent");
   const draftEmail = lead.emails.find(
     (e) => e.status === "draft" || e.status === "queued"
   );
-  const activeEmail = sentEmail || draftEmail || latestEmail;
+  const activeEmail = (sentEmails.length > 0 ? sentEmails[0] : null) || draftEmail || latestEmail;
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-4">
@@ -479,6 +527,52 @@ function LeadDetail({
           </div>
         )}
       </div>
+
+      {/* Email History */}
+      {sentEmails.length > 0 && (
+        <div>
+          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+            Sent Emails ({sentEmails.length})
+          </span>
+          <div className="mt-1.5 space-y-2">
+            {sentEmails.map((email) => (
+              <EmailHistoryItem key={email.id} email={email} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Unreplied alert */}
+      {sentEmails.length > 0 && lead.score?.status === "contacted" && (
+        <div className="flex items-center justify-between bg-warning/5 border border-warning/20 rounded-[8px] p-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-warning" strokeWidth={2} />
+            <span className="text-xs text-warning font-medium">
+              No reply yet — {sentEmails.length} email{sentEmails.length > 1 ? "s" : ""} sent
+            </span>
+          </div>
+          <button
+            onClick={() => onMarkReplied(lead.id)}
+            disabled={actionLoading === "replied"}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-success/10 text-success text-[11px] font-medium hover:bg-success/15 transition-colors disabled:opacity-50"
+          >
+            {actionLoading === "replied" ? (
+              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+            ) : (
+              <CheckCircle className="w-3 h-3" strokeWidth={2} />
+            )}
+            Mark as Replied
+          </button>
+        </div>
+      )}
+
+      {/* Replied badge */}
+      {lead.score?.status === "qualified" && (
+        <div className="flex items-center gap-2 bg-success/5 border border-success/20 rounded-[8px] p-3">
+          <CheckCircle className="w-4 h-4 text-success" strokeWidth={2} />
+          <span className="text-xs text-success font-medium">Lead replied — follow-ups stopped</span>
+        </div>
+      )}
 
       {/* Action Buttons */}
       {activeEmail && (
@@ -691,8 +785,19 @@ export default function LeadsPage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [qualifyLoading, setQualifyLoading] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info" }>>([]);
 
   const supabase = useMemo(() => createClient(), []);
+
+  function showToast(message: string, type: "success" | "error" | "info" = "info") {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }
 
   // -------------------------------------------------------------------------
   // Data fetching
@@ -747,10 +852,21 @@ export default function LeadsPage() {
     setError(null);
     await Promise.all([fetchLeads(), fetchScores(), fetchEmails(), fetchFollowups()]);
     setLoading(false);
+    setLastRefresh(new Date());
   }, [fetchLeads, fetchScores, fetchEmails, fetchFollowups]);
 
   useEffect(() => {
     loadAll();
+  }, [loadAll]);
+
+  useEffect(() => {
+    refreshTimerRef.current = setInterval(() => {
+      loadAll();
+      setLastRefresh(new Date());
+    }, 60000);
+    return () => {
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    };
   }, [loadAll]);
 
   // -------------------------------------------------------------------------
@@ -916,8 +1032,10 @@ export default function LeadsPage() {
 
       // Refresh scores
       await fetchScores();
+      showToast("Lead scoring complete!", "success");
     } catch (err) {
       console.error("Qualify error:", err);
+      showToast("Failed to qualify leads", "error");
     } finally {
       setQualifyLoading(false);
     }
@@ -953,8 +1071,10 @@ export default function LeadsPage() {
       }
 
       await fetchEmails();
+      showToast("Email draft generated", "success");
     } catch (err) {
       console.error("Draft error:", err);
+      showToast("Failed to generate draft", "error");
     } finally {
       setActionLoading(null);
     }
@@ -975,8 +1095,10 @@ export default function LeadsPage() {
       }
 
       await Promise.all([fetchEmails(), fetchFollowups(), fetchScores()]);
+      showToast("Email sent successfully!", "success");
     } catch (err) {
       console.error("Send error:", err);
+      showToast("Failed to send email", "error");
     } finally {
       setActionLoading(null);
     }
@@ -1001,8 +1123,10 @@ export default function LeadsPage() {
       }
 
       await Promise.all([fetchScores(), fetchEmails(), fetchFollowups()]);
+      showToast("Lead marked as spam", "info");
     } catch (err) {
       console.error("Mark spam error:", err);
+      showToast("Failed to mark as spam", "error");
     } finally {
       setActionLoading(null);
     }
@@ -1030,6 +1154,28 @@ export default function LeadsPage() {
     }
   };
 
+  const handleMarkReplied = async (leadId: string) => {
+    setActionLoading("replied");
+    try {
+      const res = await fetch(`/api/leads/${leadId}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_replied" }),
+      });
+      if (!res.ok) {
+        const json = (await res.json()) as { error?: string };
+        throw new Error(json.error ?? "Action failed");
+      }
+      await Promise.all([fetchScores(), fetchFollowups()]);
+      showToast("Lead marked as replied — follow-ups stopped", "success");
+    } catch (err) {
+      console.error("Mark replied error:", err);
+      showToast("Failed to mark as replied", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -1044,6 +1190,10 @@ export default function LeadsPage() {
         description="AI-scored leads with automated email outreach"
         actions={
           <div className="flex items-center gap-2">
+            <span className="text-[10px] text-foreground-tertiary flex items-center gap-1" title={`Last refreshed: ${lastRefresh.toLocaleTimeString()}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+              Live
+            </span>
             <button
               onClick={() => loadAll()}
               disabled={loading}
@@ -1257,6 +1407,7 @@ export default function LeadsPage() {
               onSendEmail={handleSendEmail}
               onRegenerateDraft={handleRegenerateDraft}
               onMarkSpam={handleMarkSpam}
+              onMarkReplied={handleMarkReplied}
               onStopFollowups={handleStopFollowups}
               actionLoading={actionLoading}
             />
@@ -1278,6 +1429,24 @@ export default function LeadsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Toast notifications */}
+      <div className="fixed bottom-6 right-6 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`animate-in slide-in-from-bottom-2 fade-in duration-300 px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
+              toast.type === "success"
+                ? "bg-success text-white"
+                : toast.type === "error"
+                  ? "bg-destructive text-white"
+                  : "bg-foreground text-background"
+            }`}
+          >
+            {toast.message}
+          </div>
+        ))}
       </div>
     </div>
   );
