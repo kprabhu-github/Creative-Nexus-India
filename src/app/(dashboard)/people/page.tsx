@@ -1,45 +1,75 @@
 "use client";
 
 import { useState } from "react";
-import { Users, UserMinus, Briefcase } from "lucide-react";
+import {
+  Users, UserCheck, UserMinus, Briefcase,
+  Star, Mail, Phone, Search,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
 
 // ---------------------------------------------------------------------------
-// Mock data
+// Types & Data
 // ---------------------------------------------------------------------------
+
+type Department = "Engineering" | "Design" | "Marketing" | "Operations";
+type OnlineStatus = "Online" | "Away" | "Offline";
 
 interface Employee {
   id: string;
   name: string;
   initials: string;
   role: string;
-  department: "Engineering" | "Design" | "Marketing" | "Operations";
-  status: "Active" | "On Leave";
+  department: Department;
+  score: number;
+  status: OnlineStatus;
 }
 
 const employees: Employee[] = [
-  { id: "e1", name: "Arjun Mehta", initials: "AM", role: "Lead Engineer", department: "Engineering", status: "Active" },
-  { id: "e2", name: "Priya Sharma", initials: "PS", role: "Senior Designer", department: "Design", status: "Active" },
-  { id: "e3", name: "Rahul Verma", initials: "RV", role: "Frontend Developer", department: "Engineering", status: "On Leave" },
-  { id: "e4", name: "Sneha Patel", initials: "SP", role: "Content Strategist", department: "Marketing", status: "Active" },
-  { id: "e5", name: "Vikram Singh", initials: "VS", role: "Backend Developer", department: "Engineering", status: "Active" },
-  { id: "e6", name: "Anjali Gupta", initials: "AG", role: "UI Designer", department: "Design", status: "On Leave" },
-  { id: "e7", name: "Karan Joshi", initials: "KJ", role: "SEO Specialist", department: "Marketing", status: "Active" },
-  { id: "e8", name: "Meera Reddy", initials: "MR", role: "Operations Manager", department: "Operations", status: "Active" },
+  { id: "e1", name: "K. Prabhu", initials: "KP", role: "CEO", department: "Operations", score: 4.9, status: "Online" },
+  { id: "e2", name: "Rishabh Kumar", initials: "RK", role: "CTO", department: "Engineering", score: 4.7, status: "Online" },
+  { id: "e3", name: "Ashish Kumar", initials: "AK", role: "Lead Designer", department: "Design", score: 4.5, status: "Online" },
+  { id: "e4", name: "Natraj", initials: "NR", role: "Marketing Head", department: "Marketing", score: 4.3, status: "Away" },
+  { id: "e5", name: "Anit Sharma", initials: "AS", role: "Frontend Dev", department: "Engineering", score: 4.1, status: "Online" },
+  { id: "e6", name: "Priya Nair", initials: "PN", role: "Content Strategist", department: "Marketing", score: 4.4, status: "Online" },
+  { id: "e7", name: "Sneha Patel", initials: "SP", role: "UI/UX Designer", department: "Design", score: 4.2, status: "Online" },
+  { id: "e8", name: "Vikram Singh", initials: "VS", role: "Backend Dev", department: "Engineering", score: 3.9, status: "Offline" },
+  { id: "e9", name: "Meera Reddy", initials: "MR", role: "Ops Manager", department: "Operations", score: 4.6, status: "Online" },
+  { id: "e10", name: "Karan Joshi", initials: "KJ", role: "SEO Specialist", department: "Marketing", score: 4.0, status: "Away" },
+  { id: "e11", name: "Anjali Gupta", initials: "AG", role: "HR Manager", department: "Operations", score: 4.3, status: "Online" },
+  { id: "e12", name: "Dev Patel", initials: "DP", role: "DevOps Engineer", department: "Engineering", score: 4.1, status: "Online" },
 ];
 
-const departmentColors: Record<Employee["department"], string> = {
-  Engineering: "bg-accent/10 text-accent",
-  Design: "bg-success/10 text-success",
-  Marketing: "bg-warning/10 text-warning",
-  Operations: "bg-foreground-tertiary/10 text-foreground-tertiary",
+const filters = ["All", "Engineering", "Design", "Marketing", "Operations"] as const;
+type Filter = (typeof filters)[number];
+
+const deptAvatarColor: Record<Department, string> = {
+  Engineering: "bg-success/15 text-success",
+  Design: "bg-warning/15 text-warning",
+  Marketing: "bg-destructive/15 text-destructive",
+  Operations: "bg-accent/15 text-accent",
 };
 
-const filters = ["All", "Engineering", "Design", "Marketing"] as const;
-type Filter = (typeof filters)[number];
+const deptBadgeColor: Record<Department, string> = {
+  Engineering: "bg-success/10 text-success",
+  Design: "bg-warning/10 text-warning",
+  Marketing: "bg-destructive/10 text-destructive",
+  Operations: "bg-accent/10 text-accent",
+};
+
+function statusDot(status: OnlineStatus) {
+  switch (status) {
+    case "Online":
+      return "bg-success";
+    case "Away":
+      return "bg-warning";
+    case "Offline":
+      return "bg-foreground-tertiary/40";
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // Page
@@ -47,68 +77,118 @@ type Filter = (typeof filters)[number];
 
 export default function PeoplePage() {
   const [filter, setFilter] = useState<Filter>("All");
+  const [search, setSearch] = useState("");
 
-  const filtered = filter === "All"
-    ? employees
-    : employees.filter((e) => e.department === filter);
+  const filtered = employees.filter((emp) => {
+    const matchesDept = filter === "All" || emp.department === filter;
+    const matchesSearch =
+      search === "" ||
+      emp.name.toLowerCase().includes(search.toLowerCase()) ||
+      emp.role.toLowerCase().includes(search.toLowerCase());
+    return matchesDept && matchesSearch;
+  });
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <PageHeader
-        title="Team"
-        description="Employee directory, org chart, leaves, payroll, and HR operations."
+        title="Team Directory"
+        description="Employee directory, roles, and performance overview."
         actions={
-          <SegmentedControl
-            options={[...filters]}
-            value={filter}
-            onChange={(v) => setFilter(v as Filter)}
-          />
+          <div className="flex items-center gap-2">
+            <SegmentedControl
+              options={[...filters]}
+              value={filter}
+              onChange={(v) => setFilter(v as Filter)}
+            />
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-7 pl-8 pr-3 text-xs font-medium rounded-lg border border-border bg-background text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/50 w-[160px] transition-all"
+              />
+            </div>
+          </div>
         }
       />
 
       {/* Metrics */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <MetricCard title="Total Employees" value="45" icon={Users} trend="+3 this month" />
-        <MetricCard title="On Leave Today" value="3" icon={UserMinus} description="2 planned, 1 sick" />
-        <MetricCard title="Open Positions" value="4" icon={Briefcase} description="2 engineering, 1 design, 1 ops" />
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        <MetricCard title="Total Employees" value="45" icon={Users} trend="+3 this quarter" />
+        <MetricCard title="Active Now" value="38" icon={UserCheck} description="Online or in office" />
+        <MetricCard title="On Leave" value="3" icon={UserMinus} description="2 planned, 1 sick" />
+        <MetricCard title="Open Positions" value="4" icon={Briefcase} description="2 Eng, 1 Design, 1 Ops" />
       </div>
 
-      {/* Employee Directory */}
+      {/* Directory Header */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-[13px] font-semibold text-foreground">Employee Directory</span>
         <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
           {filtered.length} {filtered.length === 1 ? "member" : "members"}
         </span>
       </div>
-      <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border">
-        {filtered.map((emp, i) => (
-          <div key={emp.id}>
-            <div className="flex items-center gap-3 px-3.5 py-2.5 bg-background dark:bg-background/40">
-              {/* Avatar */}
-              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-                <span className="text-[11px] font-semibold text-accent">{emp.initials}</span>
+
+      {/* Card Grid */}
+      {filtered.length === 0 ? (
+        <div className="bg-background-secondary rounded-[10px] p-8 dark:border dark:border-border text-center">
+          <span className="text-[13px] text-foreground-tertiary">No employees match your search.</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.map((emp) => (
+            <div
+              key={emp.id}
+              className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border hover:shadow-sm transition-shadow"
+            >
+              {/* Top: Avatar + Status + Dept */}
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${deptAvatarColor[emp.department]}`}>
+                      <span className="text-[14px] font-bold">{emp.initials}</span>
+                    </div>
+                    <span
+                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-background-secondary ${statusDot(emp.status)}`}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-[14px] font-semibold text-foreground">{emp.name}</div>
+                    <div className="text-[12px] text-foreground-tertiary">{emp.role}</div>
+                  </div>
+                </div>
               </div>
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-medium text-foreground">{emp.name}</div>
-                <div className="text-xs text-foreground-tertiary">{emp.role}</div>
+              {/* Middle: Dept Badge + Score */}
+              <div className="flex items-center justify-between mb-3">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${deptBadgeColor[emp.department]}`}>
+                  {emp.department}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5 text-warning fill-warning" strokeWidth={2} />
+                  <span className="text-[13px] font-semibold text-foreground">{emp.score}</span>
+                </div>
               </div>
 
-              {/* Department badge */}
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${departmentColors[emp.department]}`}>
-                {emp.department}
-              </span>
-
-              {/* Status */}
-              <StatusBadge type={emp.status === "Active" ? "success" : "warning"}>
-                {emp.status}
-              </StatusBadge>
+              {/* Bottom: Actions */}
+              <div className="flex items-center justify-between pt-2.5 border-t border-divider">
+                <div className="flex items-center gap-1.5">
+                  <button className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-surface-hover transition-colors">
+                    <Mail className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />
+                  </button>
+                  <button className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-surface-hover transition-colors">
+                    <Phone className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />
+                  </button>
+                </div>
+                <Button variant="ghost" size="xs">
+                  View Profile
+                </Button>
+              </div>
             </div>
-            {i < filtered.length - 1 && <div className="h-px bg-divider mx-3.5" />}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

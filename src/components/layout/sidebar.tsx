@@ -4,37 +4,40 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Zap, Share2, Radar, Target,
-  Send, FileText, Briefcase, MessageCircle, Settings,
+  LayoutDashboard, Zap, Share2, Radar, Target, Send,
+  FileText, Briefcase, MessageCircle, Settings,
   Users, DollarSign, Clock, ListChecks, Hash, BrainCircuit, TrendingUp,
+  Receipt, FileSignature, CalendarDays, UserPlus,
   ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const clientNav = [
+const modulesNav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Signal Engine", href: "/signal", icon: Zap },
   { name: "Social Intelligence", href: "/social", icon: Share2 },
   { name: "AI SearchLens", href: "/searchlens", icon: Radar },
   { name: "GTM Engine", href: "/gtm", icon: Target },
   { name: "LinkedIn Outreach", href: "/nexus-flow", icon: Send },
-  { name: "Invoices", href: "/finance/invoices", icon: FileText },
+];
+
+const opsNav = [
+  { name: "Executive", href: "/executive", icon: TrendingUp },
+  { name: "Team", href: "/people", icon: Users },
   { name: "Projects", href: "/projects", icon: Briefcase },
+  { name: "Attendance", href: "/attendance", icon: Clock },
+  { name: "Expenses", href: "/finance/expenses", icon: Receipt },
+  { name: "Invoices", href: "/finance/invoices", icon: FileText },
+  { name: "Finance", href: "/finance", icon: DollarSign },
+  { name: "Contracts", href: "/contracts", icon: FileSignature },
+  { name: "Calendar", href: "/calendar", icon: CalendarDays },
+  { name: "Onboarding", href: "/onboarding", icon: UserPlus },
   { name: "Inbox", href: "/messages", icon: MessageCircle },
+  { name: "Sprints", href: "/ops/projects", icon: ListChecks },
+  { name: "Channels", href: "/slack", icon: Hash },
+  { name: "AI Lab", href: "/ops", icon: BrainCircuit },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
-
-const internalNav = [
-  { name: "PeopleHub", href: "/people", icon: Users },
-  { name: "Finance", href: "/finance", icon: DollarSign },
-  { name: "Attendance", href: "/attendance", icon: Clock },
-  { name: "Project Ops", href: "/ops/projects", icon: ListChecks },
-  { name: "Slack Hub", href: "/slack", icon: Hash },
-  { name: "AI Lab", href: "/ops", icon: BrainCircuit },
-  { name: "Executive", href: "/executive", icon: TrendingUp },
-];
-
-const isInternalUser = true;
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -51,7 +54,7 @@ export default function Sidebar() {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(next));
   };
 
-  const renderLinks = (links: typeof clientNav) =>
+  const renderLinks = (links: typeof modulesNav) =>
     links.map((link) => {
       const active = pathname === link.href || (link.href !== "/dashboard" && pathname.startsWith(link.href));
       return (
@@ -113,29 +116,25 @@ export default function Sidebar() {
       <div className="flex-1 overflow-y-auto py-2">
         <div className={cn("px-3 mb-1", collapsed && "hidden")}>
           <span className="text-[11px] font-semibold text-foreground-tertiary uppercase tracking-wider">
-            Client-Facing
+            Modules
           </span>
         </div>
-        <div className="space-y-px">{renderLinks(clientNav)}</div>
+        <div className="space-y-px">{renderLinks(modulesNav)}</div>
 
-        {isInternalUser && (
-          <>
-            <div className={cn("px-3 mt-5 mb-1", collapsed && "hidden")}>
-              <span className="text-[11px] font-semibold text-foreground-tertiary uppercase tracking-wider">
-                Internal
-              </span>
-            </div>
-            {collapsed && <div className="h-3" />}
-            <div className="space-y-px">{renderLinks(internalNav)}</div>
-          </>
-        )}
+        <div className={cn("px-3 mt-5 mb-1", collapsed && "hidden")}>
+          <span className="text-[11px] font-semibold text-foreground-tertiary uppercase tracking-wider">
+            Operations
+          </span>
+        </div>
+        {collapsed && <div className="h-3" />}
+        <div className="space-y-px">{renderLinks(opsNav)}</div>
       </div>
 
       <div className={cn(
         "px-3.5 py-3 text-[11px] text-foreground-tertiary border-t border-border",
         collapsed && "text-center px-0"
       )}>
-        {collapsed ? "CX" : "Creative Nexus Global"}
+        {collapsed ? "CX" : "creativenexus.in"}
       </div>
     </aside>
   );
