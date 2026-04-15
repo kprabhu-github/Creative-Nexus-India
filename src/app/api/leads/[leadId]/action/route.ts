@@ -1,14 +1,14 @@
 // ---------------------------------------------------------------------------
 // POST /api/leads/[leadId]/action -- Perform an action on a lead
 // ---------------------------------------------------------------------------
-// Supported actions: mark_spam, mark_qualified, close, stop_followups
+// Supported actions: mark_spam, mark_qualified, mark_replied, close, stop_followups
 // Body: { action: LeadAction }
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-type LeadAction = "mark_spam" | "mark_qualified" | "close" | "stop_followups";
+type LeadAction = "mark_spam" | "mark_qualified" | "mark_replied" | "close" | "stop_followups";
 
 export async function POST(
   request: NextRequest,
@@ -60,6 +60,19 @@ export async function POST(
           updated_at: now,
         })
         .eq("lead_id", leadId);
+      break;
+    }
+    case "mark_replied": {
+      await supabase
+        .from("lead_scores")
+        .update({ status: "qualified", updated_at: now })
+        .eq("lead_id", leadId);
+      // Stop all pending follow-ups — lead has responded
+      await supabase
+        .from("lead_followups")
+        .update({ status: "cancelled" })
+        .eq("lead_id", leadId)
+        .eq("status", "pending");
       break;
     }
     case "close": {
