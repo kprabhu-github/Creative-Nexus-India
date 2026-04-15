@@ -21,6 +21,7 @@ type LeadSource =
   | "woocommerce_order"
   | "woocommerce_customer"
   | "contact_form"
+  | "gravity_form"
   | "comment";
 
 type LeadStatus = "new" | "contacted" | "qualified" | "converted";
@@ -401,6 +402,124 @@ async function fetchComments(): Promise<{
 }
 
 // ---------------------------------------------------------------------------
+// Source 5: Gravity Forms entries
+// ---------------------------------------------------------------------------
+
+async function fetchGravityForms(): Promise<{
+  leads: Lead[];
+  error: string | null;
+}> {
+  const publicKey = process.env.GRAVITY_FORMS_PUBLIC_KEY;
+  const privateKey = process.env.GRAVITY_FORMS_PRIVATE_KEY;
+  const siteUrl = process.env.WOOCOMMERCE_URL || "https://creativenexus.in";
+
+  if (!publicKey || !privateKey) {
+    return { leads: [], error: null }; // silently skip if not configured
+  }
+
+  try {
+    // Gravity Forms REST API v2 — first get forms list
+    const formsUrl = `${siteUrl}/wp-json/gf/v2/forms`;
+    const authHeader = "Basic " + Buffer.from(`${publicKey}:${privateKey}`).toString("base64");
+
+    const formsRes = await fetch(formsUrl, {
+      headers: { Authorization: authHeader },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!formsRes.ok) {
+      if (formsRes.status === 404) return { leads: [], error: null };
+      return { leads: [], error: `Gravity Forms API: ${formsRes.status}` };
+    }
+
+    const formsData = await formsRes.json();
+    const forms = typeof formsData === "object" && !Array.isArray(formsData)
+      ? Object.values(formsData)
+      : Array.isArray(formsData) ? formsData : [];
+
+    const allLeads: Lead[] = [];
+
+    // Fetch entries from each form (limit to first 5 forms)
+    for (const form of (forms as Array<{ id: number | string; title?: string }>).slice(0, 5)) {
+      try {
+        const entriesUrl = `${siteUrl}/wp-json/gf/v2/forms/${form.id}/entries?paging[page_size]=20&sorting[key]=date_created&sorting[direction]=DESC`;
+        const entriesRes = await fetch(entriesUrl, {
+          headers: { Authorization: authHeader },
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!entriesRes.ok) continue;
+
+        const entriesData = await entriesRes.json();
+        const entries = entriesData.entries || entriesData || [];
+
+        if (!Array.isArray(entries)) continue;
+
+        for (const entry of entries) {
+          // Gravity Forms entries have numbered field IDs
+          // Common mappings: field 1 = name, field 2 = email, field 3 = phone, field 4 = message
+          const name = entry["1"] || entry["1.3"] && entry["1.6"]
+            ? `${entry["1.3"] || ""} ${entry["1.6"] || ""}`.trim()
+            : entry["1"] || "";
+          const email = entry["2"] || entry["3"] || findFieldByPattern(entry, /@/);
+          const phone = entry["4"] || entry["3"] || findFieldByPattern(entry, /^\+?\d[\d\s-]{8,}/);
+          const message = entry["5"] || entry["4"] || entry["6"] || findLongestField(entry);
+
+          if (!name && !email) continue; // skip empty entries
+
+          allLeads.push({
+            id: `gf_entry_${entry.id}`,
+            source: "gravity_form" as LeadSource,
+            name: typeof name === "string" ? name : String(name || ""),
+            email: typeof email === "string" ? email : "",
+            phone: typeof phone === "string" ? phone : "",
+            company: "",
+            message: typeof message === "string" ? message : "",
+            value: 0,
+            status: "new" as LeadStatus,
+            date: entry.date_created || new Date().toISOString(),
+            meta: {
+              form_id: form.id,
+              form_title: form.title || `Form ${form.id}`,
+              entry_id: entry.id,
+              source_url: entry.source_url || "",
+            },
+          });
+        }
+      } catch {
+        // Skip individual form errors
+      }
+    }
+
+    return { leads: allLeads, error: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Gravity Forms fetch failed";
+    return { leads: [], error: msg };
+  }
+}
+
+// Helper: find a field value matching a pattern
+function findFieldByPattern(entry: Record<string, unknown>, pattern: RegExp): string {
+  for (const [key, val] of Object.entries(entry)) {
+    if (typeof val === "string" && pattern.test(val) && !["id", "form_id", "date_created", "source_url", "status"].includes(key)) {
+      return val;
+    }
+  }
+  return "";
+}
+
+// Helper: find the longest text field (likely the message)
+function findLongestField(entry: Record<string, unknown>): string {
+  let longest = "";
+  for (const [key, val] of Object.entries(entry)) {
+    if (typeof val === "string" && val.length > longest.length && !["id", "form_id", "date_created", "source_url", "status", "ip", "user_agent"].includes(key)) {
+      longest = val;
+    }
+  }
+  return longest;
+}
+
+// ---------------------------------------------------------------------------
 // GET handler
 // ---------------------------------------------------------------------------
 
@@ -433,7 +552,7 @@ export async function GET(request: NextRequest) {
   // Fetch sources in parallel based on filter
   const shouldFetch = (s: string) => source === "all" || source === s;
 
-  const [ordersResult, customersResult, formsResult, commentsResult] =
+  const [ordersResult, customersResult, formsResult, gravityResult, commentsResult] =
     await Promise.all([
       shouldFetch("orders")
         ? fetchOrders(perPage)
@@ -443,6 +562,9 @@ export async function GET(request: NextRequest) {
         : Promise.resolve({ leads: [] as Lead[], error: null }),
       shouldFetch("forms")
         ? fetchContactForms(perPage)
+        : Promise.resolve({ leads: [] as Lead[], error: null }),
+      shouldFetch("forms") || shouldFetch("all")
+        ? fetchGravityForms()
         : Promise.resolve({ leads: [] as Lead[], error: null }),
       shouldFetch("comments")
         ? fetchComments()
@@ -461,6 +583,10 @@ export async function GET(request: NextRequest) {
   if (formsResult.error) errors.push(formsResult.error);
   sources.forms = formsResult.leads.length;
   allLeads = allLeads.concat(formsResult.leads);
+
+  if (gravityResult.error) errors.push(gravityResult.error);
+  sources.forms += gravityResult.leads.length;
+  allLeads = allLeads.concat(gravityResult.leads);
 
   if (commentsResult.error) errors.push(commentsResult.error);
   sources.comments = commentsResult.leads.length;
