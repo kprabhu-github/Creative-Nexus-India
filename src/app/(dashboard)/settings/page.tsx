@@ -12,6 +12,11 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  BarChart3,
+  Search,
+  Code,
+  Megaphone,
+  MapPin,
   type LucideIcon,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -49,6 +54,7 @@ interface AgencyConfig {
   outreach_company_value?: string;
   outreach_default_tone?: string;
   api_status?: Record<string, boolean>;
+  google_integrations?: Record<string, string>;
   notification_email?: boolean;
   notification_browser?: boolean;
   notification_slack?: boolean;
@@ -141,7 +147,24 @@ const apiIntegrations = [
   { id: "openai", name: "OpenAI", description: "Embeddings and fallback", envKey: "OPENAI_API_KEY" },
   { id: "semrush", name: "Semrush", description: "SEO and keyword research", envKey: "SEMRUSH_API_KEY" },
   { id: "razorpay", name: "Razorpay", description: "Payment processing", envKey: "RAZORPAY_KEY_ID" },
+  { id: "google_analytics", name: "Google Analytics 4", description: "Website analytics and reporting", envKey: "GA4_PROPERTY_ID" },
+  { id: "google_search_console", name: "Google Search Console", description: "Search performance and indexing", envKey: "GSC_SITE_URL" },
+  { id: "google_tag_manager", name: "Google Tag Manager", description: "Tag management and tracking", envKey: "GTM_CONTAINER_ID" },
+  { id: "google_ads", name: "Google Ads", description: "Paid search advertising", envKey: "GOOGLE_ADS_CUSTOMER_ID" },
 ];
+
+// ---------------------------------------------------------------------------
+// Google Integrations Config
+// ---------------------------------------------------------------------------
+
+const googleIntegrations = [
+  { id: "google_analytics", name: "Google Analytics 4", icon: BarChart3, field: "ga4_property_id", placeholder: "123456789", label: "Property ID" },
+  { id: "google_search_console", name: "Google Search Console", icon: Search, field: "gsc_site_url", placeholder: "https://creativenexus.in/", label: "Site URL", defaultValue: "https://creativenexus.in/" },
+  { id: "google_tag_manager", name: "Google Tag Manager", icon: Code, field: "gtm_container_id", placeholder: "GTM-XXXXXXX", label: "Container ID" },
+  { id: "google_workspace", name: "Google Workspace (GSuite)", icon: Mail, field: "gsuite_domain", placeholder: "creativenexus.in", label: "Domain", defaultValue: "creativenexus.in" },
+  { id: "google_ads", name: "Google Ads", icon: Megaphone, field: "google_ads_customer_id", placeholder: "123-456-7890", label: "Customer ID" },
+  { id: "google_business", name: "Google Business Profile", icon: MapPin, field: "gbp_location_id", placeholder: "Location ID", label: "Location ID" },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Page
@@ -593,16 +616,124 @@ export default function SettingsPage() {
         </SectionCard>
 
         {/* ---------------------------------------------------------------- */}
-        {/* Section 6: API Status (read-only)                                */}
+        {/* Section 6: Google Integrations                                   */}
+        {/* ---------------------------------------------------------------- */}
+        <SectionCard icon={Globe} title="Google Integrations">
+          <p className="text-[12px] text-foreground-tertiary mb-3">
+            Connect your Google services. OAuth will be enabled in a future update — for now, entering an ID marks the service as connected.
+          </p>
+          <div className="space-y-2.5">
+            {googleIntegrations.map((integration) => {
+              const googleConfig = config.google_integrations ?? {};
+              const currentValue = googleConfig[integration.field] ?? "";
+              const isConnected = Boolean(currentValue);
+
+              return (
+                <div
+                  key={integration.id}
+                  className="rounded-lg bg-background dark:bg-background/40 px-3 py-2.5"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-md bg-foreground-tertiary/8 flex items-center justify-center shrink-0">
+                      <integration.icon className="w-3 h-3 text-foreground-tertiary" strokeWidth={2} />
+                    </div>
+                    <span className="text-[13px] font-medium text-foreground flex-1">
+                      {integration.name}
+                    </span>
+                    <StatusBadge type={isConnected ? "success" : "neutral"}>
+                      {isConnected ? "Connected" : "Not Connected"}
+                    </StatusBadge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={currentValue}
+                      onChange={(e) => {
+                        const updated = {
+                          ...config.google_integrations,
+                          [integration.field]: e.target.value,
+                        };
+                        updateField("google_integrations", updated);
+                      }}
+                      placeholder={integration.placeholder}
+                      className="bg-background-secondary dark:bg-background/60 flex-1 text-[13px]"
+                    />
+                    {isConnected ? (
+                      <Button
+                        variant="outline"
+                        className="shrink-0 text-[12px]"
+                        onClick={() => {
+                          const updated = {
+                            ...config.google_integrations,
+                            [integration.field]: "",
+                          };
+                          updateField("google_integrations", updated);
+                          void saveSection("google", {
+                            google_integrations: updated,
+                          });
+                        }}
+                      >
+                        Disconnect
+                      </Button>
+                    ) : (
+                      <Button
+                        className="bg-accent text-white hover:bg-accent/90 border-transparent shrink-0 text-[12px]"
+                        disabled={!currentValue || savingSection === "google"}
+                        onClick={() => {
+                          void saveSection("google", {
+                            google_integrations: config.google_integrations,
+                          });
+                        }}
+                      >
+                        {savingSection === "google" ? (
+                          <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+                        ) : (
+                          "Connect"
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {(savedSection === "google" || (savingSection === "google" && sectionError)) && (
+            <div className="flex items-center gap-1 mt-2">
+              {savedSection === "google" && (
+                <span className="text-[12px] text-success flex items-center gap-1 animate-in fade-in duration-300">
+                  <CheckCircle2 className="w-3 h-3" strokeWidth={2} />
+                  Saved
+                </span>
+              )}
+              {savingSection === "google" && sectionError && (
+                <span className="text-[12px] text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" strokeWidth={2} />
+                  {sectionError}
+                </span>
+              )}
+            </div>
+          )}
+        </SectionCard>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Section 7: API Status (read-only)                                */}
         {/* ---------------------------------------------------------------- */}
         <SectionCard icon={Plug} title="API Status">
           <div className="rounded-lg overflow-hidden bg-background dark:bg-background/40">
             {apiIntegrations.map((integration, i) => {
-              const isConnected =
-                config.api_status?.[integration.id] ??
-                ["supabase", "anthropic", "apify", "nvidia", "openai"].includes(
-                  integration.id,
-                );
+              // For Google services, check if a value exists in google_integrations
+              const googleFieldMap: Record<string, string> = {
+                google_analytics: "ga4_property_id",
+                google_search_console: "gsc_site_url",
+                google_tag_manager: "gtm_container_id",
+                google_ads: "google_ads_customer_id",
+              };
+              const googleField = googleFieldMap[integration.id];
+              const isConnected = googleField
+                ? Boolean(config.google_integrations?.[googleField])
+                : config.api_status?.[integration.id] ??
+                  ["supabase", "anthropic", "apify", "nvidia", "openai"].includes(
+                    integration.id,
+                  );
 
               return (
                 <div key={integration.id}>
@@ -629,7 +760,7 @@ export default function SettingsPage() {
         </SectionCard>
 
         {/* ---------------------------------------------------------------- */}
-        {/* Section 7: Notification Preferences                              */}
+        {/* Section 8: Notification Preferences                              */}
         {/* ---------------------------------------------------------------- */}
         <SectionCard icon={Bell} title="Notification Preferences">
           <div className="space-y-3">
