@@ -12,11 +12,11 @@ const ANTHROPIC_API_VERSION = "2023-06-01";
 /** Model tiers mapped to their intended usage across the platform. */
 export const CLAUDE_MODELS = {
   /** Strategy-grade: complex reasoning, brand strategy, high-stakes output. */
-  strategy: "claude-opus-4-20250514",
+  strategy: "claude-sonnet-4-20250514",
   /** Execution-grade: content generation, structured extraction, DAG agents. */
-  execution: "claude-sonnet-4-6-20250514",
+  execution: "claude-sonnet-4-20250514",
   /** Research-grade: classification, summarisation, low-latency tasks. */
-  research: "claude-haiku-4-5-20250514",
+  research: "claude-haiku-4-5-20251001",
 } as const;
 
 export type ClaudeModelTier = keyof typeof CLAUDE_MODELS;
