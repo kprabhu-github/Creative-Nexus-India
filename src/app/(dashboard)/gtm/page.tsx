@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -585,8 +585,33 @@ function CampaignsTab() {
 
 const tabs = ["Overview", "Leads", "Campaigns"];
 
+interface GtmSettings {
+  product_description?: string;
+  target_market?: string;
+  ideal_buyer?: string;
+  default_competitors?: string[];
+  [key: string]: unknown;
+}
+
 export default function GtmPage() {
   const [activeTab, setActiveTab] = useState("Overview");
+  const [settings, setSettings] = useState<GtmSettings | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const json = (await res.json()) as { data: GtmSettings };
+          setSettings(json.data ?? null);
+        }
+      } catch {
+        // Settings load failed — will fall back to window.prompt
+      }
+    }
+    void loadSettings();
+  }, []);
 
   // ---------------------------------------------------------------------------
   // ICP builder state
@@ -599,31 +624,47 @@ export default function GtmPage() {
 
   /** Build an ICP via the /api/gtm/icp endpoint. */
   const buildIcp = useCallback(async () => {
-    const productDescription = window.prompt(
-      "Describe your product / service (min 10 chars):",
-    );
+    // Use settings as defaults, fall back to window.prompt if missing
+    let productDescription = settings?.product_description ?? "";
     if (!productDescription || productDescription.length < 10) {
-      if (productDescription !== null) {
-        setIcpError("Product description must be at least 10 characters.");
+      const prompted = window.prompt(
+        "Describe your product / service (min 10 chars):",
+        productDescription,
+      );
+      if (!prompted || prompted.length < 10) {
+        if (prompted !== null) {
+          setIcpError("Product description must be at least 10 characters.");
+        }
+        return;
       }
-      return;
+      productDescription = prompted;
     }
 
-    const targetMarket = window.prompt("Target market (e.g. B2B SaaS in India):");
+    let targetMarket = settings?.target_market ?? "";
     if (!targetMarket || targetMarket.length < 5) {
-      if (targetMarket !== null) {
-        setIcpError("Target market must be at least 5 characters.");
+      const prompted = window.prompt("Target market (e.g. B2B SaaS in India):", targetMarket);
+      if (!prompted || prompted.length < 5) {
+        if (prompted !== null) {
+          setIcpError("Target market must be at least 5 characters.");
+        }
+        return;
       }
-      return;
+      targetMarket = prompted;
     }
 
-    const idealBuyer = window.prompt("Ideal buyer roles (e.g. VP Marketing, Head of Growth):");
+    let idealBuyer = settings?.ideal_buyer ?? "";
     if (!idealBuyer || idealBuyer.length < 3) {
-      if (idealBuyer !== null) {
-        setIcpError("Ideal buyer description must be at least 3 characters.");
+      const prompted = window.prompt("Ideal buyer roles (e.g. VP Marketing, Head of Growth):", idealBuyer);
+      if (!prompted || prompted.length < 3) {
+        if (prompted !== null) {
+          setIcpError("Ideal buyer description must be at least 3 characters.");
+        }
+        return;
       }
-      return;
+      idealBuyer = prompted;
     }
+
+    const competitors = settings?.default_competitors ?? [];
 
     // Reset state
     setIcpLoading(true);
@@ -640,7 +681,7 @@ export default function GtmPage() {
           productDescription,
           targetMarket,
           idealBuyer,
-          competitors: [],
+          competitors,
         }),
       });
 
@@ -661,7 +702,7 @@ export default function GtmPage() {
     } finally {
       setIcpLoading(false);
     }
-  }, []);
+  }, [settings]);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

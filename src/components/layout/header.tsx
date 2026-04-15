@@ -1,8 +1,8 @@
 "use client";
 
-import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlobalSearch } from "./global-search";
+import { NotificationPanel } from "./notification-panel";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 export default function Header() {
@@ -13,10 +13,7 @@ export default function Header() {
       </div>
       <div className="flex items-center gap-3">
         <ThemeToggle />
-        <Button variant="ghost" size="icon-sm" className="relative text-foreground-tertiary hover:text-foreground">
-          <Bell className="w-4 h-4" strokeWidth={1.8} />
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-accent rounded-full" />
-        </Button>
+        <NotificationPanel />
         <div className="h-4 w-px bg-border" />
         <Button variant="ghost" className="gap-2 text-foreground-secondary hover:text-foreground h-8 px-2">
           <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center">

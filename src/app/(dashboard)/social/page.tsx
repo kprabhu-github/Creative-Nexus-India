@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Camera,
   AtSign,
@@ -655,18 +655,54 @@ function IdeasTab({
 // Page
 // ---------------------------------------------------------------------------
 
+interface SocialSettings {
+  social_instagram?: string;
+  social_twitter?: string;
+  [key: string]: unknown;
+}
+
 export default function SocialPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Snapshot");
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<SocialSettings | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const json = (await res.json()) as { data: SocialSettings };
+          setSettings(json.data ?? null);
+        }
+      } catch {
+        // Settings load failed — will fall back to window.prompt
+      }
+    }
+    void loadSettings();
+  }, []);
 
   const handleRunAnalysis = useCallback(async () => {
-    const platform = window.prompt("Platform to analyse:", "instagram");
-    if (!platform) return;
+    // Use settings as defaults, fall back to window.prompt
+    let platform = "instagram";
+    const promptedPlatform = window.prompt("Platform to analyse:", "instagram");
+    if (!promptedPlatform) return;
+    platform = promptedPlatform;
 
-    const username = window.prompt("Username (without @):", "creativenexusglobal");
-    if (!username) return;
+    // Use saved handle from settings, removing @ prefix if present
+    const defaultUsername =
+      platform === "instagram"
+        ? (settings?.social_instagram ?? "").replace(/^@/, "")
+        : (settings?.social_twitter ?? "").replace(/^@/, "");
+
+    let username = defaultUsername || "";
+    if (!username) {
+      const prompted = window.prompt("Username (without @):", "creativenexusglobal");
+      if (!prompted) return;
+      username = prompted;
+    }
 
     setAnalysisLoading(true);
     setAnalysisError(null);
@@ -697,7 +733,7 @@ export default function SocialPage() {
     } finally {
       setAnalysisLoading(false);
     }
-  }, []);
+  }, [settings]);
 
   // -------------------------------------------------------------------------
   // Derive display data from API results or fall back to mock data

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Zap,
   CalendarDays,
@@ -470,8 +470,32 @@ function DeliverablesTab() {
 // Page
 // ---------------------------------------------------------------------------
 
+interface AgencySettings {
+  domain?: string;
+  default_competitors?: string[];
+  target_audience?: string;
+  [key: string]: unknown;
+}
+
 export default function SignalPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Workflows");
+  const [settings, setSettings] = useState<AgencySettings | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const json = (await res.json()) as { data: AgencySettings };
+          setSettings(json.data ?? null);
+        }
+      } catch {
+        // Settings load failed — will fall back to window.prompt
+      }
+    }
+    void loadSettings();
+  }, []);
 
   // ---------------------------------------------------------------------------
   // W7 workflow state
@@ -546,8 +570,16 @@ export default function SignalPage() {
 
   /** Launch the W7 Client Onboarding workflow. */
   const launchW7 = useCallback(async () => {
-    const clientDomain = window.prompt("Enter client domain (e.g. acme.com):");
-    if (!clientDomain) return;
+    // Use settings domain as default, fall back to window.prompt
+    let clientDomain = settings?.domain ?? "";
+    if (!clientDomain) {
+      const prompted = window.prompt("Enter client domain (e.g. acme.com):");
+      if (!prompted) return;
+      clientDomain = prompted;
+    }
+
+    const competitors = settings?.default_competitors ?? [];
+    const targetAudience = (settings?.target_audience as string) ?? "";
 
     // Reset state
     setW7Loading(true);
@@ -563,8 +595,8 @@ export default function SignalPage() {
         body: JSON.stringify({
           workflowCode: "W7",
           clientDomain,
-          competitors: [],
-          targetAudience: "",
+          competitors,
+          targetAudience,
         }),
       });
 
@@ -586,7 +618,7 @@ export default function SignalPage() {
       setW7Loading(false);
       setW7Status("");
     }
-  }, [startPolling]);
+  }, [startPolling, settings]);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

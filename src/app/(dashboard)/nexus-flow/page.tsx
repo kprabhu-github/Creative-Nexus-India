@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Send,
   Mail,
@@ -704,8 +704,33 @@ function AIWriterTab({
 const tabs = ["Active", "Sequences", "AI Writer"] as const;
 type Tab = (typeof tabs)[number];
 
+interface OutreachSettings {
+  outreach_sender_name?: string;
+  outreach_sender_title?: string;
+  outreach_company_value?: string;
+  outreach_default_tone?: string;
+  [key: string]: unknown;
+}
+
 export default function NexusFlowPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Active");
+  const [settings, setSettings] = useState<OutreachSettings | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const json = (await res.json()) as { data: OutreachSettings };
+          setSettings(json.data ?? null);
+        }
+      } catch {
+        // Settings load failed — will use hardcoded defaults
+      }
+    }
+    void loadSettings();
+  }, []);
 
   // ---------------------------------------------------------------------------
   // AI Writer state
@@ -720,6 +745,11 @@ export default function NexusFlowPage() {
     setGenerateLoading(true);
     setGenerateError(null);
 
+    // Use settings defaults where available
+    const productValue = settings?.outreach_company_value ??
+      "AI-driven content operations platform that cuts production time by 60% and scales content output for B2B SaaS companies.";
+    const resolvedTone = tone || settings?.outreach_default_tone || "professional";
+
     try {
       const res = await fetch("/api/outreach/generate", {
         method: "POST",
@@ -728,9 +758,8 @@ export default function NexusFlowPage() {
           campaignName: "Outreach for Meera Krishnan — Freshworks",
           targetRole: "VP Marketing",
           targetIndustry: "SaaS / MarTech",
-          productValue:
-            "AI-driven content operations platform that cuts production time by 60% and scales content output for B2B SaaS companies.",
-          tone,
+          productValue,
+          tone: resolvedTone,
         }),
       });
 
@@ -750,7 +779,7 @@ export default function NexusFlowPage() {
     } finally {
       setGenerateLoading(false);
     }
-  }, []);
+  }, [settings]);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

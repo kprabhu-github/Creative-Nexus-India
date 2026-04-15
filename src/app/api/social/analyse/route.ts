@@ -11,6 +11,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { callClaude, parseClaudeJson } from "@/lib/anthropic";
 import { scrapeInstagram, ragBrowse } from "@/lib/apify";
+import { createNotification } from "@/lib/notifications";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -354,7 +355,20 @@ export async function POST(request: Request) {
     }
 
     // -----------------------------------------------------------------------
-    // Step 6: Return the analysis
+    // Step 6: Push notification — analysis complete
+    // -----------------------------------------------------------------------
+    await createNotification({
+      title: "Social Analysis Complete",
+      message: `Analysis of @${username} on ${platform} complete. ${normalisedPosts.length} posts analysed with engagement data and content recommendations.`,
+      category: "social",
+      priority: "medium",
+      sourceModule: "social",
+      sourceUrl: "/social",
+      actions: [{ label: "View Analysis", url: "/social" }],
+    });
+
+    // -----------------------------------------------------------------------
+    // Step 7: Return the analysis
     // -----------------------------------------------------------------------
 
     return NextResponse.json({

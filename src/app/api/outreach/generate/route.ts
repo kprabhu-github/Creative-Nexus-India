@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { callClaude, parseClaudeJson } from "@/lib/anthropic";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createNotification } from "@/lib/notifications";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -339,7 +340,20 @@ export async function POST(request: Request) {
     );
 
     // -----------------------------------------------------------------------
-    // Step 5: Return assembled response
+    // Step 5: Push notification — campaign ready
+    // -----------------------------------------------------------------------
+    await createNotification({
+      title: "Campaign Ready",
+      message: `Outreach campaign "${input.campaignName}" generated with ${sequence.sequence.length}-step sequence, email copy, and LinkedIn messages.`,
+      category: "outreach",
+      priority: "high",
+      sourceModule: "nexus-flow",
+      sourceUrl: "/nexus-flow",
+      actions: [{ label: "View Campaign", url: "/nexus-flow" }],
+    });
+
+    // -----------------------------------------------------------------------
+    // Step 6: Return assembled response
     // -----------------------------------------------------------------------
     return NextResponse.json(
       {

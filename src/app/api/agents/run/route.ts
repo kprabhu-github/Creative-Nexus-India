@@ -12,6 +12,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { callClaude, parseClaudeJson } from "@/lib/anthropic";
 import { crawlWebsite } from "@/lib/apify";
+import { createNotification } from "@/lib/notifications";
 import type {
   WorkflowCode,
   AgentCode,
@@ -428,6 +429,17 @@ async function executeWorkflow(
       output: compiledOutput,
       completed_at: new Date().toISOString(),
     });
+
+    // Push notification on workflow completion
+    await createNotification({
+      title: `${workflowCode} Workflow Complete`,
+      message: `${workflowCode} completed for ${(input.clientDomain as string) ?? "client"}. All ${totalAgents} agents finished successfully.`,
+      category: "agent_run",
+      priority: "high",
+      sourceModule: "signal",
+      sourceUrl: "/signal",
+      actions: [{ label: "View Results", url: "/signal" }],
+    });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
 
@@ -435,6 +447,17 @@ async function executeWorkflow(
       status: "failed",
       error: errorMessage,
       completed_at: new Date().toISOString(),
+    });
+
+    // Push notification on workflow failure
+    await createNotification({
+      title: `${workflowCode} Workflow Failed`,
+      message: `${workflowCode} failed for ${(input.clientDomain as string) ?? "client"}: ${errorMessage}`,
+      category: "agent_run",
+      priority: "critical",
+      sourceModule: "signal",
+      sourceUrl: "/signal",
+      actions: [{ label: "View Details", url: "/signal" }],
     });
   }
 }

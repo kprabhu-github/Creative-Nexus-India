@@ -15,6 +15,7 @@ import { z } from "zod";
 import { callClaude, parseClaudeJson } from "@/lib/anthropic";
 import { ragBrowse, type CrawlResult } from "@/lib/apify";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createNotification } from "@/lib/notifications";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -404,7 +405,21 @@ export async function POST(request: Request) {
     const leadIds = await storeLeads(icpId, leadListOutput.leads);
 
     // -----------------------------------------------------------------------
-    // Step 7: Return assembled response
+    // Step 7: Push notification — leads generated
+    // -----------------------------------------------------------------------
+    const highIntentLeads = leadListOutput.leads.filter((l) => l.icp_score >= 80);
+    await createNotification({
+      title: `${leadListOutput.leads.length} Leads Generated`,
+      message: `ICP built for ${input.targetMarket}. ${highIntentLeads.length} high-intent leads (score 80+) ready for outreach.`,
+      category: "gtm",
+      priority: highIntentLeads.length > 0 ? "high" : "medium",
+      sourceModule: "gtm",
+      sourceUrl: "/gtm",
+      actions: [{ label: "View Leads", url: "/gtm" }],
+    });
+
+    // -----------------------------------------------------------------------
+    // Step 8: Return assembled response
     // -----------------------------------------------------------------------
     return NextResponse.json(
       {

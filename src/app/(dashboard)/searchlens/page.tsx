@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -239,26 +239,59 @@ const sentimentMap: Record<string, "success" | "warning" | "neutral"> = {
 /*  Page Component                                                     */
 /* ------------------------------------------------------------------ */
 
+interface SearchLensSettings {
+  searchlens_brand_name?: string;
+  searchlens_prompts?: string[];
+  searchlens_competitors?: string[];
+  [key: string]: unknown;
+}
+
 export default function SearchLensPage() {
   const [tab, setTab] = useState("Overview");
   const [scanLoading, setScanLoading] = useState(false);
   const [scanResults, setScanResults] = useState<ScanResults | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<SearchLensSettings | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const json = (await res.json()) as { data: SearchLensSettings };
+          setSettings(json.data ?? null);
+        }
+      } catch {
+        // Settings load failed — will fall back to window.prompt
+      }
+    }
+    void loadSettings();
+  }, []);
 
   const handleRunScan = useCallback(async () => {
-    const brandName = window.prompt("Brand name to scan:", "Creative Nexus");
-    if (!brandName) return;
+    // Use settings as defaults, fall back to window.prompt if missing
+    let brandName = settings?.searchlens_brand_name ?? "";
+    if (!brandName) {
+      const prompted = window.prompt("Brand name to scan:", "Creative Nexus");
+      if (!prompted) return;
+      brandName = prompted;
+    }
 
-    const promptsInput = window.prompt(
-      "Search prompts (comma-separated):",
-      "best digital marketing agency in India, AI-powered marketing agency",
-    );
-    if (!promptsInput) return;
+    let prompts = settings?.searchlens_prompts ?? [];
+    if (prompts.length === 0) {
+      const promptsInput = window.prompt(
+        "Search prompts (comma-separated):",
+        "best digital marketing agency in India, AI-powered marketing agency",
+      );
+      if (!promptsInput) return;
+      prompts = promptsInput
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+    }
 
-    const prompts = promptsInput
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean);
+    const competitors = settings?.searchlens_competitors ?? ["WebFX", "Siege Media"];
 
     setScanLoading(true);
     setScanError(null);
@@ -270,7 +303,7 @@ export default function SearchLensPage() {
         body: JSON.stringify({
           brandName,
           prompts,
-          competitors: ["WebFX", "Siege Media"],
+          competitors,
         }),
       });
 
@@ -289,7 +322,7 @@ export default function SearchLensPage() {
     } finally {
       setScanLoading(false);
     }
-  }, []);
+  }, [settings]);
 
   // Derive display values from scan results or fall back to mock data
   const visibilityScore = scanResults?.visibilityScore ?? 74;

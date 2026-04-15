@@ -12,6 +12,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { callClaude, parseClaudeJson } from "@/lib/anthropic";
 import { ragBrowse } from "@/lib/apify";
+import { createNotification } from "@/lib/notifications";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -366,7 +367,20 @@ export async function POST(request: Request) {
     }
 
     // -----------------------------------------------------------------------
-    // Step 6: Return structured response
+    // Step 6: Push notification — visibility score result
+    // -----------------------------------------------------------------------
+    await createNotification({
+      title: `Visibility Score: ${visibilityScore}/100`,
+      message: `AI SearchLens scan for "${brandName}" complete. Mentioned in ${promptAnalyses.filter((a) => a.mentioned).length}/${totalPrompts} prompts. ${promptGaps.length > 0 ? `${promptGaps.length} prompt gaps detected.` : "No gaps."}`,
+      category: "searchlens",
+      priority: visibilityScore < 50 ? "high" : "medium",
+      sourceModule: "searchlens",
+      sourceUrl: "/searchlens",
+      actions: [{ label: "View Results", url: "/searchlens" }],
+    });
+
+    // -----------------------------------------------------------------------
+    // Step 7: Return structured response
     // -----------------------------------------------------------------------
 
     return NextResponse.json({
