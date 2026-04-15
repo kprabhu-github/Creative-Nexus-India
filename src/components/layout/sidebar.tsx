@@ -19,6 +19,7 @@ const modulesNav = [
   { name: "AI SearchLens", href: "/searchlens", icon: Radar },
   { name: "GTM Engine", href: "/gtm", icon: Target },
   { name: "LinkedIn Outreach", href: "/nexus-flow", icon: Send },
+  { name: "Website Leads", href: "/leads", icon: Users },
 ];
 
 const opsNav = [
