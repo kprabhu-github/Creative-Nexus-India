@@ -7,6 +7,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 export const metadata: Metadata = {
   title: "Creative Nexus Command Centre",
   description: "AI-native agency operating system by Creative Nexus Global",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

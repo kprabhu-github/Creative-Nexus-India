@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" fill="none">
+  <!-- CREATIVE text -->
+  <text x="0" y="30" font-family="Inter, -apple-system, sans-serif" font-size="24" font-weight="300" letter-spacing="1" fill="currentColor">CREATIVE</text>
+  <!-- NEXUS text with bold weight -->
+  <text x="112" y="30" font-family="Inter, -apple-system, sans-serif" font-size="24" font-weight="800" letter-spacing="1" fill="currentColor">NE</text>
+  <!-- X with red accent -->
+  <text x="144" y="30" font-family="Inter, -apple-system, sans-serif" font-size="24" font-weight="800" letter-spacing="1" fill="currentColor">X</text>
+  <!-- Red accent on X -->
+  <polygon points="152,8 158,8 155,14" fill="#D90A2C"/>
+  <text x="158" y="30" font-family="Inter, -apple-system, sans-serif" font-size="24" font-weight="800" letter-spacing="1" fill="currentColor">US</text>
+</svg>

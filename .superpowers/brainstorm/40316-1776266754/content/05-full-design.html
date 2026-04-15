@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creative Nexus Command Centre — Full Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #f0f0f0; padding: 40px; -webkit-font-smoothing: antialiased; }
+  h1 { font-size: 28px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.8px; text-align: center; margin-bottom: 8px; }
+  .subtitle { font-size: 15px; color: #86868b; text-align: center; margin-bottom: 40px; }
+  .mode-label { font-size: 13px; font-weight: 600; color: #86868b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; text-align: center; }
+  .window { border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.08); margin-bottom: 48px; }
+  .titlebar { height: 38px; display: flex; align-items: center; padding: 0 16px; gap: 8px; }
+  .titlebar-dot { width: 12px; height: 12px; border-radius: 6px; }
+  .modes { display: flex; flex-direction: column; gap: 48px; max-width: 1100px; margin: 0 auto; }
+
+  /* Light mode window */
+  .light .titlebar { background: #e8e8ed; }
+  .light .titlebar-dot:nth-child(1) { background: #FF5F57; }
+  .light .titlebar-dot:nth-child(2) { background: #FEBC2E; }
+  .light .titlebar-dot:nth-child(3) { background: #28C840; }
+
+  /* Dark mode window */
+  .dark .titlebar { background: #2a2a2c; }
+  .dark .titlebar-dot:nth-child(1) { background: #FF5F57; }
+  .dark .titlebar-dot:nth-child(2) { background: #FEBC2E; }
+  .dark .titlebar-dot:nth-child(3) { background: #28C840; }
+
+  .app { display: flex; min-height: 520px; }
+
+  /* ---- LIGHT SIDEBAR ---- */
+  .light .sidebar {
+    width: 220px; flex-shrink: 0;
+    background: rgba(246,246,246,0.92);
+    border-right: 1px solid rgba(0,0,0,0.08);
+    padding: 10px 0;
+    backdrop-filter: blur(20px);
+  }
+  .light .sidebar .logo { padding: 6px 14px 14px; display: flex; align-items: center; gap: 10px; }
+  .light .sidebar .logo-icon { width: 28px; height: 28px; border-radius: 7px; background: #1d1d1f; display: flex; align-items: center; justify-content: center; }
+  .light .sidebar .logo-icon span { color: white; font-weight: 700; font-size: 11px; }
+  .light .sidebar .logo-text { font-size: 13px; font-weight: 600; color: #1d1d1f; letter-spacing: -0.1px; }
+  .light .sidebar .section-label { padding: 14px 14px 5px; font-size: 11px; font-weight: 600; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px; }
+  .light .sidebar .nav-item { margin: 1px 8px; padding: 5px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #424245; cursor: default; }
+  .light .sidebar .nav-item.active { background: rgba(0,0,0,0.06); color: #1d1d1f; font-weight: 500; }
+  .light .sidebar .nav-item svg { width: 16px; height: 16px; stroke-width: 1.8; }
+  .light .sidebar .nav-item.active svg { stroke: #1d1d1f; }
+  .light .sidebar .nav-item:not(.active) svg { stroke: #86868b; }
+
+  /* ---- LIGHT MAIN ---- */
+  .light .main { flex: 1; background: #ffffff; padding: 20px 24px; overflow: hidden; }
+  .light .page-title { font-size: 22px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.5px; }
+  .light .page-subtitle { font-size: 13px; color: #86868b; margin-top: 1px; }
+  .light .toolbar { display: flex; align-items: center; justify-content: space-between; margin-top: 0; }
+  .light .segmented { display: flex; gap: 1px; background: #e8e8ed; border-radius: 7px; padding: 1px; }
+  .light .segmented div { padding: 4px 12px; font-size: 12px; font-weight: 500; color: #86868b; border-radius: 6px; cursor: default; }
+  .light .segmented div.active { background: white; color: #1d1d1f; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  .light .metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .light .metric { background: #f5f5f7; border-radius: 10px; padding: 14px; }
+  .light .metric-label { font-size: 11px; font-weight: 500; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px; }
+  .light .metric-value { font-size: 24px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.8px; margin-top: 2px; }
+  .light .metric-change { font-size: 12px; font-weight: 500; margin-top: 2px; }
+  .light .metric-change.up { color: #34C759; }
+  .light .metric-change.neutral { color: #86868b; }
+  .light .section-header { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; }
+  .light .section-title { font-size: 13px; font-weight: 600; color: #1d1d1f; }
+  .light .section-action { font-size: 12px; color: #D90A2C; font-weight: 500; }
+  .light .list { margin-top: 8px; background: #f5f5f7; border-radius: 10px; overflow: hidden; }
+  .light .list-item { display: flex; align-items: center; padding: 10px 14px; background: white; }
+  .light .list-divider { height: 1px; background: #e8e8ed; margin: 0 14px; }
+  .light .list-icon { width: 28px; height: 28px; border-radius: 14px; background: #f5f5f7; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .light .list-content { margin-left: 10px; flex: 1; }
+  .light .list-title { font-size: 13px; font-weight: 500; color: #1d1d1f; }
+  .light .list-desc { font-size: 12px; color: #86868b; }
+  .light .list-time { font-size: 12px; color: #86868b; flex-shrink: 0; }
+  .light .progress-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .light .progress-card { background: #f5f5f7; border-radius: 10px; padding: 14px; }
+  .light .progress-bar { margin-top: 8px; height: 4px; background: #e8e8ed; border-radius: 2px; overflow: hidden; }
+  .light .progress-fill { height: 100%; border-radius: 2px; }
+
+  /* ---- DARK SIDEBAR ---- */
+  .dark .sidebar {
+    width: 220px; flex-shrink: 0;
+    background: rgba(30,30,30,0.92);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 0;
+    backdrop-filter: blur(20px);
+  }
+  .dark .sidebar .logo { padding: 6px 14px 14px; display: flex; align-items: center; gap: 10px; }
+  .dark .sidebar .logo-icon { width: 28px; height: 28px; border-radius: 7px; background: rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center; }
+  .dark .sidebar .logo-icon span { color: rgba(255,255,255,0.9); font-weight: 700; font-size: 11px; }
+  .dark .sidebar .logo-text { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.9); letter-spacing: -0.1px; }
+  .dark .sidebar .section-label { padding: 14px 14px 5px; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.3px; }
+  .dark .sidebar .nav-item { margin: 1px 8px; padding: 5px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.55); cursor: default; }
+  .dark .sidebar .nav-item.active { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.95); font-weight: 500; }
+  .dark .sidebar .nav-item svg { width: 16px; height: 16px; stroke-width: 1.8; }
+  .dark .sidebar .nav-item.active svg { stroke: rgba(255,255,255,0.95); }
+  .dark .sidebar .nav-item:not(.active) svg { stroke: rgba(255,255,255,0.4); }
+
+  /* ---- DARK MAIN ---- */
+  .dark .main { flex: 1; background: #1c1c1e; padding: 20px 24px; overflow: hidden; }
+  .dark .page-title { font-size: 22px; font-weight: 700; color: rgba(255,255,255,0.95); letter-spacing: -0.5px; }
+  .dark .page-subtitle { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 1px; }
+  .dark .toolbar { display: flex; align-items: center; justify-content: space-between; }
+  .dark .segmented { display: flex; gap: 1px; background: rgba(255,255,255,0.08); border-radius: 7px; padding: 1px; }
+  .dark .segmented div { padding: 4px 12px; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.4); border-radius: 6px; cursor: default; }
+  .dark .segmented div.active { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.9); }
+  .dark .metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .dark .metric { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 14px; border: 1px solid rgba(255,255,255,0.04); }
+  .dark .metric-label { font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.3px; }
+  .dark .metric-value { font-size: 24px; font-weight: 700; color: rgba(255,255,255,0.95); letter-spacing: -0.8px; margin-top: 2px; }
+  .dark .metric-change { font-size: 12px; font-weight: 500; margin-top: 2px; }
+  .dark .metric-change.up { color: #30D158; }
+  .dark .metric-change.neutral { color: rgba(255,255,255,0.4); }
+  .dark .section-header { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; }
+  .dark .section-title { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); }
+  .dark .section-action { font-size: 12px; color: #FF453A; font-weight: 500; }
+  .dark .list { margin-top: 8px; background: rgba(255,255,255,0.04); border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.04); }
+  .dark .list-item { display: flex; align-items: center; padding: 10px 14px; background: rgba(255,255,255,0.03); }
+  .dark .list-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 0 14px; }
+  .dark .list-icon { width: 28px; height: 28px; border-radius: 14px; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .dark .list-content { margin-left: 10px; flex: 1; }
+  .dark .list-title { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9); }
+  .dark .list-desc { font-size: 12px; color: rgba(255,255,255,0.4); }
+  .dark .list-time { font-size: 12px; color: rgba(255,255,255,0.35); flex-shrink: 0; }
+  .dark .progress-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .dark .progress-card { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 14px; border: 1px solid rgba(255,255,255,0.04); }
+  .dark .progress-bar { margin-top: 8px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+  .dark .progress-fill { height: 100%; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<h1>Creative Nexus Command Centre</h1>
+<p class="subtitle">macOS Sonoma · Inter · Compact · #D90A2C accent · Light & Dark</p>
+
+<div class="modes">
+
+<!-- ===== LIGHT MODE ===== -->
+<div>
+  <div class="mode-label">Light Mode</div>
+  <div class="window light">
+    <div class="titlebar">
+      <div class="titlebar-dot"></div>
+      <div class="titlebar-dot"></div>
+      <div class="titlebar-dot"></div>
+    </div>
+    <div class="app">
+      <div class="sidebar">
+        <div class="logo">
+          <div class="logo-icon"><span>CX</span></div>
+          <div class="logo-text">Command Centre</div>
+        </div>
+        <div class="section-label">Client-Facing</div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Signal Engine
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Social Intel
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          AI SearchLens
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          GTM Engine
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+          Nexus Flow
+        </div>
+        <div class="section-label">Internal</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          PeopleHub
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Finance
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Attendance
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Project Ops
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="toolbar">
+          <div>
+            <div class="page-title">Overview</div>
+            <div class="page-subtitle">Your agency at a glance</div>
+          </div>
+          <div class="segmented">
+            <div class="active">Day</div>
+            <div>Week</div>
+            <div>Month</div>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Revenue</div>
+            <div class="metric-value">$45,231</div>
+            <div class="metric-change up">+20.1%</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Active Clients</div>
+            <div class="metric-value">124</div>
+            <div class="metric-change up">+4 this week</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Agent Uptime</div>
+            <div class="metric-value">99.9%</div>
+            <div class="metric-change neutral">13 agents</div>
+          </div>
+        </div>
+
+        <div class="section-header">
+          <div class="section-title">Recent Activity</div>
+          <div class="section-action">View All</div>
+        </div>
+        <div class="list">
+          <div class="list-item">
+            <div class="list-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="list-content"><div class="list-title">Strategy Gen W1</div><div class="list-desc">Competitor analysis completed</div></div>
+            <div class="list-time">Now</div>
+          </div>
+          <div class="list-divider"></div>
+          <div class="list-item">
+            <div class="list-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="list-content"><div class="list-title">Brand Brief — Acme Co</div><div class="list-desc">Awaiting client approval</div></div>
+            <div class="list-time">2m</div>
+          </div>
+          <div class="list-divider"></div>
+          <div class="list-item">
+            <div class="list-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#D90A2C" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <div class="list-content"><div class="list-title">Quality Alert — Voice Drift</div><div class="list-desc" style="color: #D90A2C;">Needs attention</div></div>
+            <div class="list-time">5m</div>
+          </div>
+        </div>
+
+        <div class="progress-row">
+          <div class="progress-card">
+            <div class="metric-label">Workflows Today</div>
+            <div style="font-size: 20px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.5px; margin-top: 2px;">8 <span style="font-size: 13px; font-weight: 400; color: #86868b;">/ 12 target</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width: 67%; background: #D90A2C;"></div></div>
+          </div>
+          <div class="progress-card">
+            <div class="metric-label">Quality Score</div>
+            <div style="font-size: 20px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.5px; margin-top: 2px;">94% <span style="font-size: 13px; font-weight: 400; color: #34C759;">&#9650; 2.1%</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width: 94%; background: #34C759;"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DARK MODE ===== -->
+<div>
+  <div class="mode-label">Dark Mode</div>
+  <div class="window dark">
+    <div class="titlebar">
+      <div class="titlebar-dot"></div>
+      <div class="titlebar-dot"></div>
+      <div class="titlebar-dot"></div>
+    </div>
+    <div class="app">
+      <div class="sidebar">
+        <div class="logo">
+          <div class="logo-icon"><span>CX</span></div>
+          <div class="logo-text">Command Centre</div>
+        </div>
+        <div class="section-label">Client-Facing</div>
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Signal Engine
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          Social Intel
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          AI SearchLens
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          GTM Engine
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>
+          Nexus Flow
+        </div>
+        <div class="section-label">Internal</div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          PeopleHub
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Finance
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Attendance
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Project Ops
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="toolbar">
+          <div>
+            <div class="page-title">Overview</div>
+            <div class="page-subtitle">Your agency at a glance</div>
+          </div>
+          <div class="segmented">
+            <div class="active">Day</div>
+            <div>Week</div>
+            <div>Month</div>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Revenue</div>
+            <div class="metric-value">$45,231</div>
+            <div class="metric-change up">+20.1%</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Active Clients</div>
+            <div class="metric-value">124</div>
+            <div class="metric-change up">+4 this week</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Agent Uptime</div>
+            <div class="metric-value">99.9%</div>
+            <div class="metric-change neutral">13 agents</div>
+          </div>
+        </div>
+
+        <div class="section-header">
+          <div class="section-title">Recent Activity</div>
+          <div class="section-action">View All</div>
+        </div>
+        <div class="list">
+          <div class="list-item">
+            <div class="list-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="list-content"><div class="list-title">Strategy Gen W1</div><div class="list-desc">Competitor analysis completed</div></div>
+            <div class="list-time">Now</div>
+          </div>
+          <div class="list-divider"></div>
+          <div class="list-item">
+            <div class="list-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="list-content"><div class="list-title">Brand Brief — Acme Co</div><div class="list-desc">Awaiting client approval</div></div>
+            <div class="list-time">2m</div>
+          </div>
+          <div class="list-divider"></div>
+          <div class="list-item">
+            <div class="list-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF453A" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <div class="list-content"><div class="list-title">Quality Alert — Voice Drift</div><div class="list-desc" style="color: #FF453A;">Needs attention</div></div>
+            <div class="list-time">5m</div>
+          </div>
+        </div>
+
+        <div class="progress-row">
+          <div class="progress-card">
+            <div class="metric-label">Workflows Today</div>
+            <div style="font-size: 20px; font-weight: 700; color: rgba(255,255,255,0.95); letter-spacing: -0.5px; margin-top: 2px;">8 <span style="font-size: 13px; font-weight: 400; color: rgba(255,255,255,0.4);">/ 12 target</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width: 67%; background: #FF453A;"></div></div>
+          </div>
+          <div class="progress-card">
+            <div class="metric-label">Quality Score</div>
+            <div style="font-size: 20px; font-weight: 700; color: rgba(255,255,255,0.95); letter-spacing: -0.5px; margin-top: 2px;">94% <span style="font-size: 13px; font-weight: 400; color: #30D158;">&#9650; 2.1%</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width: 94%; background: #30D158;"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+</body>
+</html>

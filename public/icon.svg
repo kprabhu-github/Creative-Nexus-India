@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" fill="none">
+  <rect width="28" height="28" rx="7" fill="#1d1d1f"/>
+  <!-- C letter -->
+  <text x="4" y="19.5" font-family="Inter, -apple-system, sans-serif" font-size="13" font-weight="700" fill="white">C</text>
+  <!-- X letter with red accent -->
+  <text x="13.5" y="19.5" font-family="Inter, -apple-system, sans-serif" font-size="13" font-weight="700" fill="white">X</text>
+  <!-- Red diamond accent on X -->
+  <polygon points="20,5 23,8 20,11 17,8" fill="#D90A2C"/>
+</svg>

@@ -4,23 +4,23 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Activity, Share2, Search, BarChart,
-  Mail, FileText, Briefcase, MessageSquare, Settings,
-  Users, DollarSign, Clock, ListChecks, Cpu, TrendingUp,
+  LayoutDashboard, Zap, Share2, Radar, Target,
+  Send, FileText, Briefcase, MessageCircle, Settings,
+  Users, DollarSign, Clock, ListChecks, Hash, BrainCircuit, TrendingUp,
   ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const clientNav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Signal Engine", href: "/signal", icon: Activity },
-  { name: "Social Intel", href: "/social", icon: Share2 },
-  { name: "AI SearchLens", href: "/searchlens", icon: Search },
-  { name: "GTM Engine", href: "/gtm", icon: BarChart },
-  { name: "Nexus Flow", href: "/nexus-flow", icon: Mail },
+  { name: "Signal Engine", href: "/signal", icon: Zap },
+  { name: "Social Intelligence", href: "/social", icon: Share2 },
+  { name: "AI SearchLens", href: "/searchlens", icon: Radar },
+  { name: "GTM Engine", href: "/gtm", icon: Target },
+  { name: "LinkedIn Outreach", href: "/nexus-flow", icon: Send },
   { name: "Invoices", href: "/finance/invoices", icon: FileText },
   { name: "Projects", href: "/projects", icon: Briefcase },
-  { name: "Messages", href: "/messages", icon: MessageSquare },
+  { name: "Inbox", href: "/messages", icon: MessageCircle },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -29,8 +29,8 @@ const internalNav = [
   { name: "Finance", href: "/finance", icon: DollarSign },
   { name: "Attendance", href: "/attendance", icon: Clock },
   { name: "Project Ops", href: "/ops/projects", icon: ListChecks },
-  { name: "Slack Hub", href: "/slack", icon: MessageSquare },
-  { name: "AI Ops", href: "/ops", icon: Cpu },
+  { name: "Slack Hub", href: "/slack", icon: Hash },
+  { name: "AI Lab", href: "/ops", icon: BrainCircuit },
   { name: "Executive", href: "/executive", icon: TrendingUp },
 ];
 
@@ -88,8 +88,9 @@ export default function Sidebar() {
       )}
     >
       <div className="flex items-center gap-2.5 px-3.5 h-12 shrink-0">
-        <div className="w-7 h-7 rounded-[7px] bg-foreground flex items-center justify-center shrink-0">
+        <div className="w-7 h-7 rounded-[7px] bg-foreground flex items-center justify-center shrink-0 relative">
           <span className="text-background font-bold text-[11px]">CX</span>
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#D90A2C] rotate-45" />
         </div>
         {!collapsed && (
           <span className="text-[13px] font-semibold text-foreground tracking-tight truncate">

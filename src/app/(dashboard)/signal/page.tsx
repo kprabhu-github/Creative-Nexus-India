@@ -1,0 +1,414 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Zap,
+  CalendarDays,
+  FileText,
+  Play,
+  Clock,
+  CheckCircle2,
+  Loader2,
+  ListOrdered,
+  Download,
+  Crosshair,
+  PenTool,
+  Mail,
+  BarChart3,
+  Globe,
+  Shield,
+  Map,
+  type LucideIcon,
+} from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { Button } from "@/components/ui/button";
+
+// ---------------------------------------------------------------------------
+// Mock data
+// ---------------------------------------------------------------------------
+
+interface QuickAction {
+  id: string;
+  workflow: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}
+
+const quickActions: QuickAction[] = [
+  {
+    id: "w1",
+    workflow: "W1",
+    title: "Run Strategy Sprint",
+    description: "Full competitor analysis, brand positioning, and content strategy in one pass.",
+    icon: Zap,
+  },
+  {
+    id: "w2",
+    workflow: "W2",
+    title: "Generate Content Plan",
+    description: "SEO-driven 90-day content calendar with topic clusters and keyword targets.",
+    icon: FileText,
+  },
+  {
+    id: "w3",
+    workflow: "W3",
+    title: "Social Calendar",
+    description: "Platform-specific social calendar with captions, hashtags, and posting schedule.",
+    icon: CalendarDays,
+  },
+];
+
+interface RecentRun {
+  id: string;
+  workflow: string;
+  workflowLabel: string;
+  client: string;
+  status: "completed" | "running" | "queued";
+  timeAgo: string;
+  progress?: number;
+}
+
+const recentRuns: RecentRun[] = [
+  {
+    id: "r1",
+    workflow: "W1",
+    workflowLabel: "Strategy Sprint",
+    client: "Acme Corp",
+    status: "completed",
+    timeAgo: "12 min ago",
+  },
+  {
+    id: "r2",
+    workflow: "W2",
+    workflowLabel: "Content Plan",
+    client: "NovaTech Solutions",
+    status: "running",
+    timeAgo: "3 min ago",
+    progress: 64,
+  },
+  {
+    id: "r3",
+    workflow: "W5",
+    workflowLabel: "Email Sequence",
+    client: "Bloom Wellness",
+    status: "running",
+    timeAgo: "8 min ago",
+    progress: 31,
+  },
+  {
+    id: "r4",
+    workflow: "W4",
+    workflowLabel: "SEO Brief",
+    client: "Meridian Finance",
+    status: "queued",
+    timeAgo: "1 min ago",
+  },
+];
+
+interface BriefSection {
+  name: string;
+  icon: LucideIcon;
+  items: number;
+}
+
+const brandBriefSections: BriefSection[] = [
+  { name: "Brand Positioning", icon: Crosshair, items: 6 },
+  { name: "Voice Rules", icon: PenTool, items: 12 },
+  { name: "Content Pillars", icon: ListOrdered, items: 5 },
+  { name: "Competitor Map", icon: Map, items: 8 },
+];
+
+interface Deliverable {
+  id: string;
+  title: string;
+  type: string;
+  format: "PDF" | "DOCX" | "CSV";
+  date: string;
+  icon: LucideIcon;
+}
+
+const deliverables: Deliverable[] = [
+  { id: "d1", title: "Q2 Content Strategy", type: "Strategy", format: "PDF", date: "Apr 12, 2026", icon: BarChart3 },
+  { id: "d2", title: "SEO Brief — SaaS Keywords", type: "SEO", format: "PDF", date: "Apr 10, 2026", icon: Globe },
+  { id: "d3", title: "90-Day Social Calendar", type: "Social", format: "CSV", date: "Apr 9, 2026", icon: CalendarDays },
+  { id: "d4", title: "Email Nurture Sequence", type: "Email", format: "DOCX", date: "Apr 7, 2026", icon: Mail },
+  { id: "d5", title: "Competitor Intelligence Report", type: "Intel", format: "PDF", date: "Apr 5, 2026", icon: Shield },
+  { id: "d6", title: "Brand Voice Guidelines", type: "Brand", format: "PDF", date: "Apr 3, 2026", icon: PenTool },
+];
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+
+const tabs = ["Workflows", "Brand Brief", "Deliverables"] as const;
+type Tab = (typeof tabs)[number];
+
+// ---------------------------------------------------------------------------
+// Status helpers
+// ---------------------------------------------------------------------------
+
+function statusBadgeType(status: RecentRun["status"]) {
+  switch (status) {
+    case "completed":
+      return "success" as const;
+    case "running":
+      return "info" as const;
+    case "queued":
+      return "neutral" as const;
+  }
+}
+
+function statusLabel(status: RecentRun["status"]) {
+  switch (status) {
+    case "completed":
+      return "Completed";
+    case "running":
+      return "Running";
+    case "queued":
+      return "Queued";
+  }
+}
+
+function StatusIcon({ status }: { status: RecentRun["status"] }) {
+  switch (status) {
+    case "completed":
+      return <CheckCircle2 className="w-3.5 h-3.5 text-success" strokeWidth={2} />;
+    case "running":
+      return <Loader2 className="w-3.5 h-3.5 text-accent animate-spin" strokeWidth={2} />;
+    case "queued":
+      return <Clock className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function WorkflowsTab() {
+  return (
+    <div>
+      {/* Quick Actions */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[13px] font-semibold text-foreground">Quick Actions</span>
+        <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+          8 workflows available
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {quickActions.map((action) => (
+          <div
+            key={action.id}
+            className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-[7px] bg-accent/10 flex items-center justify-center shrink-0">
+                  <action.icon className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
+                </div>
+                <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                  {action.workflow}
+                </span>
+              </div>
+              <div className="text-[13px] font-semibold text-foreground leading-tight">{action.title}</div>
+              <p className="text-[12px] text-foreground-tertiary mt-1 leading-relaxed">{action.description}</p>
+            </div>
+            <Button
+              size="sm"
+              className="mt-3 w-full bg-accent text-white hover:bg-accent/90 border-transparent"
+            >
+              <Play className="w-3 h-3 mr-1" strokeWidth={2.5} />
+              Launch
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent Runs */}
+      <div className="flex items-center justify-between mt-5 mb-2">
+        <span className="text-[13px] font-semibold text-foreground">Recent Runs</span>
+        <button className="text-xs font-medium text-accent hover:underline">View All</button>
+      </div>
+      <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border">
+        {recentRuns.map((run, i) => (
+          <div key={run.id}>
+            <div className="flex items-center gap-3 px-3.5 py-2.5 bg-background dark:bg-background/40">
+              <div className="w-7 h-7 rounded-full bg-background-secondary flex items-center justify-center shrink-0 dark:bg-foreground-tertiary/10">
+                <StatusIcon status={run.status} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-foreground">{run.workflowLabel}</span>
+                  <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                    {run.workflow}
+                  </span>
+                </div>
+                <div className="text-xs text-foreground-tertiary">{run.client}</div>
+                {run.status === "running" && run.progress != null && (
+                  <ProgressBar value={run.progress} color="accent" className="mt-1.5 max-w-[200px]" />
+                )}
+              </div>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <StatusBadge type={statusBadgeType(run.status)}>{statusLabel(run.status)}</StatusBadge>
+                <span className="text-[12px] text-foreground-tertiary w-[72px] text-right">{run.timeAgo}</span>
+              </div>
+            </div>
+            {i < recentRuns.length - 1 && <div className="h-px bg-divider mx-3.5" />}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BrandBriefTab() {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[13px] font-semibold text-foreground">Active Brand Brief</span>
+        <button className="text-xs font-medium text-accent hover:underline">Edit Brief</button>
+      </div>
+      <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
+        {/* Brief header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-[9px] bg-accent/10 flex items-center justify-center shrink-0">
+              <Shield className="w-4 h-4 text-accent" strokeWidth={2} />
+            </div>
+            <div>
+              <div className="text-[15px] font-semibold text-foreground">Acme Corp</div>
+              <div className="text-[12px] text-foreground-tertiary">B2B SaaS &middot; Series B &middot; 120 employees</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusBadge type="success">Approved</StatusBadge>
+            <span className="text-[11px] font-medium text-foreground-tertiary bg-foreground-tertiary/8 px-2 py-0.5 rounded-full">
+              v2.1
+            </span>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-divider my-3" />
+
+        {/* Sections */}
+        <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-2">
+          Brief Sections
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {brandBriefSections.map((section) => (
+            <div
+              key={section.name}
+              className="flex items-center gap-2.5 rounded-lg bg-background px-3 py-2.5 dark:bg-background/40"
+            >
+              <div className="w-7 h-7 rounded-[7px] bg-foreground-tertiary/8 flex items-center justify-center shrink-0">
+                <section.icon className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium text-foreground">{section.name}</div>
+                <div className="text-[12px] text-foreground-tertiary">{section.items} items defined</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-divider my-3" />
+
+        {/* Footer metadata */}
+        <div className="flex items-center justify-between">
+          <span className="text-[12px] text-foreground-tertiary">
+            Last updated Apr 11, 2026 by <span className="text-foreground font-medium">Sarah Mitchell</span>
+          </span>
+          <span className="text-[12px] text-foreground-tertiary">
+            Quality score: <span className="text-success font-semibold">96%</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatBadgeColor(format: Deliverable["format"]): string {
+  switch (format) {
+    case "PDF":
+      return "bg-accent/10 text-accent";
+    case "DOCX":
+      return "bg-success/10 text-success";
+    case "CSV":
+      return "bg-warning/10 text-warning";
+  }
+}
+
+function DeliverablesTab() {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[13px] font-semibold text-foreground">Recent Deliverables</span>
+        <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+          6 files
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {deliverables.map((item) => (
+          <div
+            key={item.id}
+            className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-[7px] bg-foreground-tertiary/8 flex items-center justify-center shrink-0">
+                  <item.icon className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />
+                </div>
+                <span className={`text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${formatBadgeColor(item.format)}`}>
+                  {item.format}
+                </span>
+              </div>
+              <div className="text-[13px] font-semibold text-foreground leading-tight">{item.title}</div>
+              <div className="text-[12px] text-foreground-tertiary mt-0.5">{item.date}</div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 w-full"
+            >
+              <Download className="w-3 h-3 mr-1" strokeWidth={2} />
+              Download
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export default function SignalPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("Workflows");
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <PageHeader
+        title="Signal Engine"
+        description="AI-powered content strategy and brand intelligence workflows."
+        actions={
+          <SegmentedControl
+            options={[...tabs]}
+            value={activeTab}
+            onChange={(v) => setActiveTab(v as Tab)}
+          />
+        }
+      />
+
+      {activeTab === "Workflows" && <WorkflowsTab />}
+      {activeTab === "Brand Brief" && <BrandBriefTab />}
+      {activeTab === "Deliverables" && <DeliverablesTab />}
+    </div>
+  );
+}

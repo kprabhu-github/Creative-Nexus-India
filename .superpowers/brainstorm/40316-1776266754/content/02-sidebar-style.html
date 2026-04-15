@@ -1,0 +1,210 @@
+<h2>Sidebar Style</h2>
+<p class="subtitle">The sidebar is the spine of your app. Which macOS sidebar pattern fits the Command Centre?</p>
+
+<div class="split">
+  <!-- Option A: Finder-style -->
+  <div class="mockup" data-choice="a" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">A. Finder / Mail Style</div>
+    <div class="mockup-body" style="padding: 0; display: flex; min-height: 420px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;">
+      <!-- Sidebar -->
+      <div style="width: 220px; background: rgba(246,246,246,0.85); backdrop-filter: blur(20px); border-right: 1px solid rgba(0,0,0,0.08); padding: 12px 0; flex-shrink: 0;">
+        <!-- Logo area -->
+        <div style="padding: 8px 16px 16px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(180deg, #FF6B5A, #E04D3D); display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-weight: 700; font-size: 11px;">CX</span>
+          </div>
+          <span style="font-size: 13px; font-weight: 600; color: #1d1d1f; letter-spacing: -0.1px;">Command Centre</span>
+        </div>
+
+        <!-- Section label -->
+        <div style="padding: 16px 16px 6px; font-size: 11px; font-weight: 600; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px;">Client-Facing</div>
+
+        <!-- Active item -->
+        <div style="margin: 1px 8px; padding: 6px 8px; background: rgba(0,0,0,0.06); border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+          <div style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1d1d1f" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          <span style="font-size: 13px; font-weight: 500; color: #1d1d1f;">Dashboard</span>
+        </div>
+
+        <!-- Inactive items -->
+        <div style="margin: 1px 8px; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+          <div style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">Signal Engine</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+          <div style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">Social Intel</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+          <div style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">AI SearchLens</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+          <div style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">GTM Engine</span>
+        </div>
+
+        <!-- Internal section -->
+        <div style="padding: 20px 16px 6px; font-size: 11px; font-weight: 600; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px;">Internal</div>
+        <div style="margin: 1px 8px; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+          <div style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">PeopleHub</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 6px 8px; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+          <div style="width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">Finance</span>
+        </div>
+      </div>
+
+      <!-- Main content area -->
+      <div style="flex: 1; background: #ffffff; padding: 24px;">
+        <div style="font-size: 22px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.3px;">Overview</div>
+        <div style="font-size: 13px; color: #86868b; margin-top: 2px;">Your agency at a glance</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 20px;">
+          <div style="background: #f5f5f7; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 11px; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px;">Revenue</div>
+            <div style="font-size: 24px; font-weight: 600; color: #1d1d1f; margin-top: 4px;">$45,231</div>
+          </div>
+          <div style="background: #f5f5f7; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 11px; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px;">Clients</div>
+            <div style="font-size: 24px; font-weight: 600; color: #1d1d1f; margin-top: 4px;">124</div>
+          </div>
+          <div style="background: #f5f5f7; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 11px; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px;">Uptime</div>
+            <div style="font-size: 24px; font-weight: 600; color: #1d1d1f; margin-top: 4px;">99.9%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: System Settings style -->
+  <div class="mockup" data-choice="b" onclick="toggleSelect(this)" style="cursor:pointer;">
+    <div class="mockup-header">B. System Settings Style</div>
+    <div class="mockup-body" style="padding: 0; display: flex; min-height: 420px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;">
+      <!-- Sidebar -->
+      <div style="width: 220px; background: rgba(246,246,246,0.85); backdrop-filter: blur(20px); border-right: 1px solid rgba(0,0,0,0.08); padding: 12px 0; flex-shrink: 0;">
+        <!-- Search bar -->
+        <div style="margin: 4px 12px 12px; padding: 6px 10px; background: rgba(0,0,0,0.04); border-radius: 8px; display: flex; align-items: center; gap: 6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span style="font-size: 12px; color: #86868b;">Search</span>
+        </div>
+
+        <!-- User profile card -->
+        <div style="margin: 0 8px 12px; padding: 10px; background: rgba(0,0,0,0.04); border-radius: 10px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 36px; height: 36px; border-radius: 18px; background: linear-gradient(180deg, #FF6B5A, #E04D3D); display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-weight: 600; font-size: 14px;">AM</span>
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 600; color: #1d1d1f;">Alex Mercer</div>
+            <div style="font-size: 11px; color: #86868b;">Creative Nexus</div>
+          </div>
+        </div>
+
+        <!-- Items with colored icons -->
+        <div style="margin: 1px 8px; padding: 7px 8px; background: rgba(0, 122, 255, 0.12); border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #007AFF; display: flex; align-items: center; justify-content: center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          <span style="font-size: 13px; font-weight: 500; color: #1d1d1f;">Dashboard</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 7px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #FF6B5A; display: flex; align-items: center; justify-content: center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">Signal Engine</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 7px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #30D158; display: flex; align-items: center; justify-content: center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">Social Intel</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 7px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #5856D6; display: flex; align-items: center; justify-content: center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">AI SearchLens</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 7px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #FF9500; display: flex; align-items: center; justify-content: center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">GTM Engine</span>
+        </div>
+
+        <div style="margin: 16px 12px 0; height: 1px; background: rgba(0,0,0,0.08);"></div>
+
+        <div style="margin: 1px 8px; margin-top: 12px; padding: 7px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #64748b; display: flex; align-items: center; justify-content: center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">PeopleHub</span>
+        </div>
+        <div style="margin: 1px 8px; padding: 7px 8px; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 24px; height: 24px; border-radius: 6px; background: #34C759; display: flex; align-items: center; justify-content: center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <span style="font-size: 13px; color: #424245;">Finance</span>
+        </div>
+      </div>
+
+      <!-- Main content area -->
+      <div style="flex: 1; background: #ffffff; padding: 24px;">
+        <div style="font-size: 22px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.3px;">Overview</div>
+        <div style="font-size: 13px; color: #86868b; margin-top: 2px;">Your agency at a glance</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 20px;">
+          <div style="background: #f5f5f7; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 11px; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px;">Revenue</div>
+            <div style="font-size: 24px; font-weight: 600; color: #1d1d1f; margin-top: 4px;">$45,231</div>
+          </div>
+          <div style="background: #f5f5f7; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 11px; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px;">Clients</div>
+            <div style="font-size: 24px; font-weight: 600; color: #1d1d1f; margin-top: 4px;">124</div>
+          </div>
+          <div style="background: #f5f5f7; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 11px; color: #86868b; text-transform: uppercase; letter-spacing: 0.3px;">Uptime</div>
+            <div style="font-size: 24px; font-weight: 600; color: #1d1d1f; margin-top: 4px;">99.9%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>Key differences</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>A. Finder / Mail</h4>
+      <ul>
+        <li>Monochrome icons — quieter, more professional</li>
+        <li>Subtle gray hover/active states</li>
+        <li>Section labels in uppercase</li>
+        <li>Feels like a native macOS productivity app</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>B. System Settings</h4>
+      <ul>
+        <li>Colored icon badges — each module has identity</li>
+        <li>Search bar built into sidebar</li>
+        <li>User profile card at top</li>
+        <li>Feels like a polished settings/admin panel</li>
+      </ul>
+    </div>
+  </div>
+</div>
