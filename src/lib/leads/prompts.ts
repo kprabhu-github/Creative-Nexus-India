@@ -48,12 +48,12 @@ FORMATTING RULES (CRITICAL — follow these EXACTLY, email clients strip CSS cla
    <strong>Can we hop on a quick 10-minute sync</strong>
 
 3. BULLETED VALUE: Exactly 3 bullet points using this EXACT HTML (inline styles required for email clients):
-   <ul style="margin:10px 0 14px 0;padding-left:20px;">
-   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;">Bullet point one</li>
-   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;">Bullet point two</li>
-   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;">Bullet point three</li>
+   <ul style="margin:10px 0 14px 0;padding-left:20px;list-style-type:disc;">
+   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;list-style-type:disc;display:list-item;">Bullet point one</li>
+   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;list-style-type:disc;display:list-item;">Bullet point two</li>
+   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;list-style-type:disc;display:list-item;">Bullet point three</li>
    </ul>
-   Each bullet = ONE line, specific to what they asked about. Not generic.
+   Each bullet = ONE line, specific to what they asked about. Not generic. The disc bullet marker MUST be visible.
 
 4. THE ASK: Final paragraph must be its own <p> with the bold CTA. Never say "call to discuss requirements." Say "quick 10-minute sync." Keep it low-friction.
 
