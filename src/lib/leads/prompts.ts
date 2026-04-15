@@ -37,19 +37,27 @@ VOICE AND TONE:
 - Correct grammar, proper punctuation, no filler words.
 - Soft and professional, not salesy or pushy.
 
-FORMATTING RULES (CRITICAL — follow these exactly):
+FORMATTING RULES (CRITICAL — follow these EXACTLY, email clients strip CSS classes):
 
-1. SENTENCE LIMIT: No paragraph longer than 2 sentences. Maximize white space. Most leads read on mobile — short paragraphs prevent "wall of text" deletion. Use <p> tags for each paragraph with spacing.
+1. SENTENCE LIMIT: MAXIMUM 2 sentences per paragraph. One sentence is even better. Every paragraph MUST be its own <p> tag with inline margin:
+   <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#333;">One or two sentences here.</p>
+   NEVER write 3+ sentences in one <p> tag. If you catch yourself writing a long paragraph, split it.
 
-2. STRATEGIC BOLDING: Bold (<strong>) the specific benefit to the lead AND the call-to-action. People scan in an F-pattern — bolding ensures they get the point even if they skip the middle. Only bold 2-3 phrases per email, not entire sentences.
+2. STRATEGIC BOLDING: Bold (<strong>) ONLY the specific benefit and the CTA. Max 2 bold phrases per email. Example:
+   <strong>turn that debate into 6 scroll-stopping reels</strong>
+   <strong>Can we hop on a quick 10-minute sync</strong>
 
-3. BULLETED VALUE: Include exactly 3 punchy bullet points (<ul><li>) showing you understand the lead's specific needs. Each bullet should be one line, specific to what they asked about. Example for a pitch deck request: "• Investor-ready layout that meets DPIIT compliance standards" — not generic filler.
+3. BULLETED VALUE: Exactly 3 bullet points using this EXACT HTML (inline styles required for email clients):
+   <ul style="margin:10px 0 14px 0;padding-left:20px;">
+   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;">Bullet point one</li>
+   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;">Bullet point two</li>
+   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;">Bullet point three</li>
+   </ul>
+   Each bullet = ONE line, specific to what they asked about. Not generic.
 
-4. THE ASK: End with a low-friction CTA. Never say "a brief call to go over requirements and timeline" (sounds like work). Instead say "a quick 10-minute sync" (sounds like a chat). Keep the ask small and easy to say yes to.
+4. THE ASK: Final paragraph must be its own <p> with the bold CTA. Never say "call to discuss requirements." Say "quick 10-minute sync." Keep it low-friction.
 
-5. SIGN-OFF: Always end with:
-   Prabhu K
-   Co-founder at Creative Nexus
+5. SIGN-OFF: Do NOT include any sign-off text. No "Prabhu K", no "Co-founder", no "Best regards". The signature is appended automatically as a separate HTML block.
 
 CONTENT RULES:
 - Stay locked to exactly what the person filled in their form — their name, company, services they asked about, their specific message.
@@ -72,5 +80,7 @@ ${emailType === "followup_3" ? "Suggest a quick chat. 3 bullets on what you'd co
 ${emailType === "followup_4" ? "Final gentle nudge. 3 bullets offering a different angle or free resource. CTA: bold 'Whenever you are ready, we are here.'" : ""}
 ${previousContext}
 
-Return JSON only: { "subject": "<subject line>", "body": "<email body in HTML using <p>, <strong>, <ul><li> tags. NO signature — it is appended automatically.>" }`;
+IMPORTANT: Every <p>, <ul>, <li>, <strong> MUST have inline style attributes. Email clients (Gmail, Outlook) strip all CSS classes and <style> blocks. Without inline styles, the email will render as a wall of text with no spacing.
+
+Return JSON only: { "subject": "<subject line>", "body": "<email body — ONLY <p> and <ul><li> tags with inline styles. NO signature, NO sign-off name. Signature is appended automatically.>" }`;
 }
