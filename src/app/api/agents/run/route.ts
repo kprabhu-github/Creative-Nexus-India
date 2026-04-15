@@ -449,7 +449,7 @@ async function createBrandBriefAndDeliverable(
   agentOutputs: Record<string, Record<string, unknown>>,
 ): Promise<void> {
   const supabase = createAdminClient();
-  const orgId = (input.orgId as string) || null;
+  const orgId = (input.orgId as string) || "a0000000-0000-0000-0000-000000000001";
   const clientId = (input.clientId as string) || null;
 
   const a01Output = agentOutputs["A01"] ?? {};
@@ -546,6 +546,9 @@ export async function POST(request: Request) {
 
     const supabase = createAdminClient();
 
+    // Default to Creative Nexus org if not provided
+    const resolvedOrgId = orgId || "a0000000-0000-0000-0000-000000000001";
+
     // Create the run record
     const inputData = {
       workflowCode,
@@ -553,14 +556,14 @@ export async function POST(request: Request) {
       competitors,
       targetAudience,
       clientId: clientId ?? null,
-      orgId: orgId ?? null,
+      orgId: resolvedOrgId,
       additionalContext,
     };
 
     const { data: run, error: insertError } = await supabase
       .from("sig_runs")
       .insert({
-        org_id: orgId ?? null,
+        org_id: resolvedOrgId,
         client_id: clientId ?? null,
         workflow_code: workflowCode,
         status: "pending" as RunStatus,
