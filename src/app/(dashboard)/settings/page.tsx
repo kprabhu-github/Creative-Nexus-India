@@ -67,6 +67,10 @@ interface AgencyConfig {
   notification_slack?: boolean;
   notification_whatsapp?: boolean;
   notification_frequency?: string;
+  lead_auto_send_threshold?: number;
+  lead_review_threshold?: number;
+  lead_followup_intervals?: string;
+  lead_max_followups?: number;
   [key: string]: unknown;
 }
 
@@ -1480,6 +1484,100 @@ export default function SettingsPage() {
               />
             </div>
           </SectionCard>
+
+          {/* -------------------------------------------------------------- */}
+          {/* Section 7: Lead Qualification                                   */}
+          {/* -------------------------------------------------------------- */}
+          <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border">
+            <h3 className="text-[13px] font-semibold text-foreground mb-3">
+              Lead Qualification
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                  Auto-send threshold
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={config.lead_auto_send_threshold ?? 85}
+                  onChange={(e) =>
+                    setConfig({ ...config, lead_auto_send_threshold: parseInt(e.target.value) || 85 })
+                  }
+                  className="mt-1 w-full px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm"
+                />
+                <p className="text-[10px] text-foreground-tertiary mt-1">
+                  Score at or above this auto-sends email (0-100)
+                </p>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                  Spam threshold
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={config.lead_review_threshold ?? 50}
+                  onChange={(e) =>
+                    setConfig({ ...config, lead_review_threshold: parseInt(e.target.value) || 50 })
+                  }
+                  className="mt-1 w-full px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm"
+                />
+                <p className="text-[10px] text-foreground-tertiary mt-1">
+                  Score below this flagged as spam (0-100)
+                </p>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                  Follow-up intervals (days)
+                </label>
+                <input
+                  type="text"
+                  value={config.lead_followup_intervals ?? "2, 4, 7, 14"}
+                  onChange={(e) =>
+                    setConfig({ ...config, lead_followup_intervals: e.target.value })
+                  }
+                  className="mt-1 w-full px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm"
+                />
+                <p className="text-[10px] text-foreground-tertiary mt-1">
+                  Comma-separated days between follow-ups
+                </p>
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                  Max follow-ups
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={config.lead_max_followups ?? 4}
+                  onChange={(e) =>
+                    setConfig({ ...config, lead_max_followups: parseInt(e.target.value) || 4 })
+                  }
+                  className="mt-1 w-full px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm"
+                />
+                <p className="text-[10px] text-foreground-tertiary mt-1">
+                  Stop follow-up sequence after this many
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() =>
+                void saveSection("lead_qualification", {
+                  lead_auto_send_threshold: config.lead_auto_send_threshold,
+                  lead_review_threshold: config.lead_review_threshold,
+                  lead_followup_intervals: config.lead_followup_intervals,
+                  lead_max_followups: config.lead_max_followups,
+                })
+              }
+              className="mt-3 px-4 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors"
+            >
+              Save Lead Settings
+            </button>
+          </div>
         </div>
       )}
     </div>
