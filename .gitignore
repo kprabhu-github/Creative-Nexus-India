@@ -31,9 +31,9 @@ yarn-error.log*
 # vercel
 .vercel
 
-# infra logs
-infra/logs/
-*.log 
+# logs (all directories)
+**/logs/
+*.log
 
 # typescript
 *.tsbuildinfo
