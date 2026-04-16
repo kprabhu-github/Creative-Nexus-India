@@ -70,13 +70,13 @@ ABOUT CREATIVE NEXUS:
 - Full-service digital agency: branding, web design, SEO, social media, content, paid ads, video, UI/UX
 - Offices in Bengaluru, Gurugram, Delhi
 - Website: creativenexus.in / creativenexusglobal.com
-- Contact page: https://www.creativenexus.in/contact
+- Contact page: https://calendar.app.google/a2NUMHLwj6is9UPh8
 
 EMAIL TYPE: ${emailType}
 ${emailType === "acknowledgement" ? "Thank them, acknowledge their specific need. Show you understand what they need with 3 bullet points. End with a 10-minute sync ask." : ""}
 ${emailType === "followup_1" ? "Share a relevant insight matching their inquiry. 3 bullets on how the insight applies to them. CTA: bold 'quick 10-minute sync' ask." : ""}
 ${emailType === "followup_2" ? "Offer a specific stat or trend in their industry. 3 bullets on what this means for their business. CTA: bold offer to 'walk you through this in 10 minutes'." : ""}
-${emailType === "followup_3" ? "Suggest a quick chat. 3 bullets on what you'd cover. CTA: bold 'Pick a slot — 10 minutes, no pressure.' Include link: https://www.creativenexus.in/contact" : ""}
+${emailType === "followup_3" ? "Suggest a quick chat. 3 bullets on what you'd cover. CTA: bold 'Pick a slot — 10 minutes, no pressure.' Include link: https://calendar.app.google/a2NUMHLwj6is9UPh8" : ""}
 ${emailType === "followup_4" ? "Final gentle nudge. 3 bullets offering a different angle or free resource. CTA: bold 'Whenever you are ready, we are here.'" : ""}
 ${previousContext}
 

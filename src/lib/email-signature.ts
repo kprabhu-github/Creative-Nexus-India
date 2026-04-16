@@ -36,14 +36,14 @@ export const PRABHU_SIGNATURE_HTML = `
   </tr>
   <tr>
     <td style="font-size: 12px; color: #333333; padding: 0 0 12px 0;">
-      <strong>Mob:</strong> +91 9999212010 / 9019321894 &nbsp;|&nbsp;
+      <strong>Mob:</strong> +91 9999212010 &nbsp;|&nbsp;
       <strong>Email:</strong> <a href="mailto:prabhu@creativenexus.in" style="color: #2563eb; text-decoration: none;">prabhu@creativenexus.in</a> &nbsp;|&nbsp;
       <strong>Web:</strong> <a href="https://www.creativenexus.in" style="color: #2563eb; text-decoration: none;">www.creativenexus.in</a>
     </td>
   </tr>
   <tr>
     <td style="padding: 0 0 12px 0;">
-      <a href="https://www.creativenexus.in/contact" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #D90A2C; color: #ffffff; font-size: 13px; font-weight: bold; padding: 8px 20px; border-radius: 4px; text-decoration: none; font-family: Arial, Helvetica, sans-serif;">Book a Call Now</a>
+      <a href="https://calendar.app.google/a2NUMHLwj6is9UPh8" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #D90A2C; color: #ffffff; font-size: 13px; font-weight: bold; padding: 8px 20px; border-radius: 4px; text-decoration: none; font-family: Arial, Helvetica, sans-serif;">Book a Call Now</a>
     </td>
   </tr>
 </table>`;
