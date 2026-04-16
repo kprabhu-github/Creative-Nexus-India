@@ -574,19 +574,19 @@ function LeadDetail({
         </div>
       )}
 
-      {/* Action Buttons */}
+      {/* Action Bar */}
       {activeEmail && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="bg-background rounded-[10px] border border-divider p-3 flex items-center gap-3 flex-wrap">
           {activeEmail.status !== "sent" && (
             <button
               onClick={() => onSendEmail(activeEmail.id)}
               disabled={actionLoading === "send"}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50 shadow-sm"
             >
               {actionLoading === "send" ? (
-                <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
               ) : (
-                <Send className="w-3 h-3" strokeWidth={2} />
+                <Send className="w-3.5 h-3.5" strokeWidth={2} />
               )}
               Send Email
             </button>
@@ -594,28 +594,28 @@ function LeadDetail({
           <button
             onClick={() => onRegenerateDraft(lead)}
             disabled={actionLoading === "draft"}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-background-secondary text-foreground-secondary text-xs font-medium hover:bg-surface-hover/50 transition-colors disabled:opacity-50 dark:border dark:border-border"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-foreground-secondary text-xs font-medium hover:bg-surface-hover/50 transition-colors disabled:opacity-50"
           >
             {actionLoading === "draft" ? (
-              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
             ) : (
-              <RotateCcw className="w-3 h-3" strokeWidth={2} />
+              <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
             )}
-            Regenerate
+            Regenerate Draft
           </button>
           <div className="flex-1" />
           {!lead.score?.spam && (
             <button
               onClick={() => onMarkSpam(lead.id)}
               disabled={actionLoading === "spam"}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-foreground-tertiary text-xs font-medium hover:text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-50"
             >
               {actionLoading === "spam" ? (
-                <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
               ) : (
-                <Ban className="w-3 h-3" strokeWidth={2} />
+                <Ban className="w-3.5 h-3.5" strokeWidth={2} />
               )}
-              Mark Spam
+              Spam
             </button>
           )}
         </div>
@@ -623,19 +623,19 @@ function LeadDetail({
 
       {/* No email but actions still available */}
       {!activeEmail && !lead.score?.spam && (
-        <div className="flex items-center gap-2">
+        <div className="bg-background rounded-[10px] border border-divider p-3 flex items-center gap-3">
           <div className="flex-1" />
           <button
             onClick={() => onMarkSpam(lead.id)}
             disabled={actionLoading === "spam"}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-foreground-tertiary text-xs font-medium hover:text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-50"
           >
             {actionLoading === "spam" ? (
-              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
             ) : (
-              <Ban className="w-3 h-3" strokeWidth={2} />
+              <Ban className="w-3.5 h-3.5" strokeWidth={2} />
             )}
-            Mark Spam
+            Spam
           </button>
         </div>
       )}
