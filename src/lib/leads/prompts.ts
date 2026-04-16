@@ -1,4 +1,5 @@
 import { EmailType } from "./types";
+import { EMAIL_WRITING_SKILLS, PSYCHOLOGY_SKILLS } from "./skill-context";
 
 export const QUALIFICATION_PROMPT = `You are a lead qualification specialist for Creative Nexus, a digital marketing and design agency in India.
 
@@ -72,12 +73,20 @@ ABOUT CREATIVE NEXUS:
 - Website: creativenexus.in / creativenexusglobal.com
 - Contact page: https://calendar.app.google/a2NUMHLwj6is9UPh8
 
+--- SKILL KNOWLEDGE (internalize these, do not reference them in the email) ---
+
+${EMAIL_WRITING_SKILLS}
+
+${PSYCHOLOGY_SKILLS}
+
+--- END SKILL KNOWLEDGE ---
+
 EMAIL TYPE: ${emailType}
-${emailType === "acknowledgement" ? "Thank them, acknowledge their specific need. Show you understand what they need with 3 bullet points. End with a 10-minute sync ask." : ""}
-${emailType === "followup_1" ? "Share a relevant insight matching their inquiry. 3 bullets on how the insight applies to them. CTA: bold 'quick 10-minute sync' ask." : ""}
-${emailType === "followup_2" ? "Offer a specific stat or trend in their industry. 3 bullets on what this means for their business. CTA: bold offer to 'walk you through this in 10 minutes'." : ""}
-${emailType === "followup_3" ? "Suggest a quick chat. 3 bullets on what you'd cover. CTA: bold 'Pick a slot — 10 minutes, no pressure.' Include link: https://calendar.app.google/a2NUMHLwj6is9UPh8" : ""}
-${emailType === "followup_4" ? "Final gentle nudge. 3 bullets offering a different angle or free resource. CTA: bold 'Whenever you are ready, we are here.'" : ""}
+${emailType === "acknowledgement" ? "Thank them, acknowledge their specific need. Show you understand what they need with 3 bullet points. End with a 10-minute sync ask. Use reciprocity — give an insight or value first." : ""}
+${emailType === "followup_1" ? "Share a relevant insight matching their inquiry. 3 bullets on how the insight applies to them. Use mere exposure + reciprocity. CTA: bold 'quick 10-minute sync' ask." : ""}
+${emailType === "followup_2" ? "Offer a specific stat or trend in their industry. 3 bullets on what this means for their business. Use authority + social proof. CTA: bold offer to 'walk you through this in 10 minutes'." : ""}
+${emailType === "followup_3" ? "Suggest a quick chat. 3 bullets on what you'd cover. Use loss aversion + zero risk framing. CTA: bold 'Pick a slot — 10 minutes, no pressure.' Include link: https://calendar.app.google/a2NUMHLwj6is9UPh8" : ""}
+${emailType === "followup_4" ? "Final gentle nudge. 3 bullets offering a different angle or free resource. Use pratfall effect (honest, not pushy) + peak-end rule (end warm). CTA: bold 'Whenever you are ready, we are here.'" : ""}
 ${previousContext}
 
 IMPORTANT: Every <p>, <ul>, <li>, <strong> MUST have inline style attributes. Email clients (Gmail, Outlook) strip all CSS classes and <style> blocks. Without inline styles, the email will render as a wall of text with no spacing.
