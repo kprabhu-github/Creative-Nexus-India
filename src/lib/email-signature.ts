@@ -8,8 +8,15 @@ export const PRABHU_SIGNATURE_HTML = `
     </td>
   </tr>
   <tr>
-    <td style="padding: 0 0 10px 0;">
+    <td style="padding: 0 0 4px 0;">
       <strong style="font-size: 13px; color: #111111;">Creative Nexus, India</strong>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 0 0 10px 0;">
+      <a href="https://www.creativenexus.in" target="_blank" rel="noopener noreferrer">
+        <img src="https://creativenexus.in/wp-content/uploads/2026/01/Creative-Nexus-Digital-Marketing-Agency-Branding-Social-Media-Marketing-Company-logo_dark.png" alt="Creative Nexus" width="160" style="display: block; height: auto; border: 0;" />
+      </a>
     </td>
   </tr>
   <tr>
@@ -37,14 +44,6 @@ export const PRABHU_SIGNATURE_HTML = `
   <tr>
     <td style="padding: 0 0 12px 0;">
       <a href="https://www.creativenexus.in/contact" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #D90A2C; color: #ffffff; font-size: 13px; font-weight: bold; padding: 8px 20px; border-radius: 4px; text-decoration: none; font-family: Arial, Helvetica, sans-serif;">Book a Call Now</a>
-    </td>
-  </tr>
-  <tr>
-    <td style="padding: 0;">
-      <a href="https://www.creativenexus.in" target="_blank" rel="noopener noreferrer">
-        <img src="https://creativenexus.in/wp-content/uploads/2026/01/Creative-Nexus-Digital-Marketing-Agency-Branding-Social-Media-Marketing-Company-logo_dark.png" alt="Creative Nexus" width="160" style="display: block; height: auto; border: 0;" />
-      </a>
-      <span style="font-size: 10px; color: #999999;">Connect. Create. Thrive.</span>
     </td>
   </tr>
 </table>`;
