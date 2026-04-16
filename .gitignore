@@ -33,6 +33,7 @@ yarn-error.log*
 
 # infra logs
 infra/logs/
+*.log 
 
 # typescript
 *.tsbuildinfo
