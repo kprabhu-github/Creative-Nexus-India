@@ -1,1 +1,15 @@
 [2026-04-16 18:23:05] Staging all changes...
+[2026-04-16 18:23:05] Committing: Removed logs
+[2026-04-16 18:23:05] Pushing to origin/master...
+[2026-04-16 18:23:06] Done. Changes pushed to origin/master.
+[2026-04-16 18:23:12] WARNING: You have UNSTAGED changes (modified files):
+[2026-04-16 18:23:12]   (modified)  infra/git/logs/git-operations.log
+[2026-04-16 18:23:12] 
+[2026-04-16 18:23:12] Local changes detected. These must be saved before pulling.
+[2026-04-16 18:23:12] 
+[2026-04-16 18:23:12] Options:
+[2026-04-16 18:23:12]   1. Auto-save — commit & push all changes now, then pull  (recommended)
+[2026-04-16 18:23:12]   2. Abort    — exit so you can handle changes manually
+[2026-04-16 18:23:12] 
+[2026-04-16 18:23:19] 
+[2026-04-16 18:23:19] Staging all changes...
