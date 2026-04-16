@@ -9,7 +9,13 @@ set -euo pipefail
 source "$(dirname "$0")/config.sh"
 
 check_git_repo
-check_clean
+
+# Auto-save uncommitted changes before deploy
+if [ -n "$(git status --porcelain)" ]; then
+  log "Uncommitted changes detected. Saving before deploy..."
+  auto_commit_and_push "wip: auto-save before test deploy [$(date '+%Y-%m-%d %H:%M')]"
+  log ""
+fi
 
 log "============================================"
 log "  Deploying $BRANCH_DEV → $BRANCH_TEST"
