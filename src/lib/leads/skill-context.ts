@@ -74,32 +74,132 @@ PRICING PSYCHOLOGY (for proposals/follow-ups):
 - Framing: "90% of our clients see results in 30 days" beats "10% don't see immediate results."
 `;
 
-/** SEO audit principles for SearchLens agent */
+/** Full SEO skills for SearchLens agent (seo-audit + schema-markup + programmatic-seo) */
 export const SEO_SKILLS = `
-SEO AUDIT FRAMEWORK:
-- Technical: Site speed, mobile-friendly, crawlability, indexation, structured data
-- On-page: Title tags, meta descriptions, H1s, content quality, internal linking
-- Off-page: Backlink profile, domain authority, referring domains
-- Content: Keyword targeting, content gaps, thin content, duplicate content
-- AI-readiness: Schema markup, entity optimization, AI citation signals
+SEO AUDIT FRAMEWORK (from expert SEO audit skill):
+
+AUDIT PRIORITY ORDER:
+1. Crawlability & Indexation — can search engines find and index it?
+2. Technical Foundations — is the site fast and functional?
+3. On-Page Optimization — is content optimized?
+4. Content Quality — does it deserve to rank?
+5. Authority & Links — does it have credibility?
+
+TECHNICAL SEO:
+- Robots.txt: check for unintentional blocks, verify sitemap reference
+- XML Sitemap: exists, submitted to Search Console, contains only canonical indexable URLs
+- Site architecture: important pages within 3 clicks, logical hierarchy, no orphan pages
+- Core Web Vitals: LCP < 2.5s, INP < 200ms, CLS < 0.1
+- Mobile: responsive design, proper viewport, same content as desktop
+- HTTPS: valid SSL, no mixed content, HTTP→HTTPS redirects
+- URLs: readable, descriptive, lowercase, hyphen-separated
+
+ON-PAGE SEO:
+- Title tags: unique per page, primary keyword near beginning, 50-60 chars, compelling
+- Meta descriptions: unique, 150-160 chars, includes keyword, has CTA
+- Headings: one H1 per page with primary keyword, logical H1→H2→H3 hierarchy
+- Content: keyword in first 100 words, related keywords natural, sufficient depth
+- Images: descriptive filenames, alt text, compressed, WebP format, lazy loading
+- Internal linking: important pages well-linked, descriptive anchor text, no broken links
+
+CONTENT QUALITY (E-E-A-T):
+- Experience: first-hand experience demonstrated, original insights/data
+- Expertise: author credentials visible, accurate detailed information
+- Authoritativeness: recognized in space, cited by others
+- Trustworthiness: accurate info, transparent, contact info, privacy policy, HTTPS
+
+KEYWORD TARGETING:
+- Clear primary keyword per page
+- Title, H1, URL aligned to same keyword
+- Content satisfies search intent
+- No keyword cannibalization between pages
+- Topical clusters with hub-and-spoke linking
+
+SCHEMA MARKUP:
+- Use JSON-LD format (Google recommended)
+- Organization schema on homepage: name, url, logo, sameAs
+- Article/BlogPosting: headline, image, datePublished, author, dateModified
+- FAQPage: mainEntity with Q&A array
+- BreadcrumbList: itemListElement with position, name, item
+- LocalBusiness: name, address, phone, geo coordinates
+- Combine multiple types using @graph
+- Validate with Google Rich Results Test before deploying
+
+PROGRAMMATIC SEO (pages at scale):
+- Every page MUST provide unique value — not just variable swaps
+- Proprietary data wins: your data > user-generated > licensed > public
+- Use subfolders not subdomains: site.com/templates/resume/ NOT templates.site.com
+- 12 playbooks: Templates, Curation, Comparisons, Examples, Locations, Personas, Integrations, Glossary, Directory, Conversions, Translations, Profiles
+- Hub-and-spoke internal linking: category hub → individual pages → cross-links
+- Quality over quantity: 100 great pages beat 10,000 thin ones
+- Pre-launch checks: unique titles/metas, heading structure, schema, page speed, internal links
+
+COMMON ISSUES BY SITE TYPE:
+- SaaS: product pages lack depth, blog not integrated, missing comparison pages
+- Services: missing location pages, thin service pages, no case studies
+- E-commerce: duplicate product descriptions, missing product schema, faceted nav issues
+
+OUTPUT FORMAT FOR AUDIT:
+1. Executive Summary: overall health, top 3-5 priorities, quick wins
+2. Per issue: What's wrong → Impact (H/M/L) → Evidence → Fix → Priority
+3. Action plan: Critical fixes → High-impact → Quick wins → Long-term
 `;
 
-/** Content strategy principles for Signal Engine */
+/** Full content strategy for Signal Engine (content-strategy + social-content + competitor-alternatives) */
 export const CONTENT_STRATEGY_SKILLS = `
-CONTENT STRATEGY FRAMEWORK:
+CONTENT STRATEGY FRAMEWORK (from expert content strategy skill):
+
+AUDIENCE-FIRST PLANNING:
 - Start with audience pain points, not product features
 - Map content to buyer journey: Awareness → Consideration → Decision
-- Competitor gap analysis: What are they NOT covering?
 - Content types by intent: Blog (awareness), Case study (consideration), Landing page (decision)
 - Distribution > creation: One great piece across 5 channels beats 5 mediocre pieces
+
+COMPETITOR GAP ANALYSIS:
+- Map competitor content: what topics do they cover, what do they rank for?
+- Find gaps: what are they NOT covering? What questions aren't answered well?
+- Position on unique strength: don't compete head-on, find angles they miss
+- Alternative/comparison pages: "[Your Product] vs [Competitor]" pages convert well
+
+SOCIAL CONTENT:
+- Each platform has its own language and format — don't cross-post identical content
+- Hooks in first 3 seconds for video, first line for text
+- Engage don't broadcast: conversations > announcements
+- Platform priority: focus on 2-3 where audience actually is, not all of them
+
+CONTENT MEASUREMENT:
+- Track: organic traffic, rankings, engagement, conversions
+- Content that doesn't perform after 90 days: refresh or consolidate
+- Double down on what works: find your 20% producing 80% of results
 `;
 
-/** Paid ads principles for GTM Engine */
+/** Full paid ads for GTM Engine (paid-ads skill) */
 export const PAID_ADS_SKILLS = `
-PAID ADS FRAMEWORK:
-- Match ad message to landing page message (scent trail)
+PAID ADS FRAMEWORK (from expert paid ads skill):
+
+CAMPAIGN STRATEGY:
+- Match ad message to landing page message (scent trail) — break this and conversion dies
 - One audience, one message, one CTA per ad group
-- Test creative before scaling budget
-- Retargeting: Most conversions happen on 2nd-7th touch
-- Budget: 80% proven channels, 20% experimental
+- Test creative before scaling budget — never scale unproven creative
+- Retargeting: most conversions happen on 2nd-7th touch, not first click
+- Budget split: 80% proven channels, 20% experimental bets
+
+AUDIENCE TARGETING:
+- Start narrow, expand as you learn — broad targeting wastes budget
+- Lookalike audiences from best customers, not all customers
+- Exclude converters from acquisition campaigns
+- Layer demographics + interests + behaviors for precision
+
+AD COPY:
+- Headline: specific benefit, not generic claim
+- Description: address the objection, then CTA
+- Use numbers: "47% faster" beats "much faster"
+- Match search intent: informational queries get educational ads, commercial get offer ads
+
+OPTIMIZATION:
+- Conversion tracking MUST be verified before spending
+- Optimize for the metric that matters: CPA for lead gen, ROAS for e-commerce
+- Kill underperformers fast: no ad survives more than 2 weeks without positive signal
+- Test one variable at a time: headline OR image OR audience, never all three
 `;
+
