@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Zap, Share2, Radar, Target, Send,
   FileText, Briefcase, MessageCircle, Settings,
   Users, DollarSign, Clock, ListChecks, Hash, BrainCircuit, TrendingUp,
-  Receipt, FileSignature, CalendarDays, UserPlus, BookOpen,
+  Receipt, FileSignature, CalendarDays, UserPlus,
   ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,6 @@ const opsNav = [
   { name: "Sprints", href: "/ops/projects", icon: ListChecks },
   { name: "Channels", href: "/slack", icon: Hash },
   { name: "AI Lab", href: "/ops", icon: BrainCircuit },
-  { name: "Skills", href: "/skills", icon: BookOpen },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
