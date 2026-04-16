@@ -203,3 +203,236 @@ OPTIMIZATION:
 - Test one variable at a time: headline OR image OR audience, never all three
 `;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SEARCHLENS SKILL SUITE — 6 verticals for AI visibility scanning
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GEO — Generative Engine Optimization (AI search visibility) */
+export const GEO_SKILLS = `
+GEO — GENERATIVE ENGINE OPTIMIZATION:
+
+WHAT IT IS:
+GEO optimizes a brand's visibility in AI-powered search engines — ChatGPT, Claude, Gemini, Perplexity, Copilot. Unlike traditional SEO (ranking on a page), GEO is about being CITED in AI-generated answers.
+
+WHY IT MATTERS:
+- AI search is replacing "10 blue links" — users get direct answers
+- Brands not cited in AI responses lose 40-60% of search-assisted revenue
+- AI models have training data cutoffs — they only know what's in their corpus
+- Being cited in AI responses = being recommended to millions without any ad spend
+
+AI CITATION SCORING (0-100):
+- Does the AI mention this brand when asked about the category? (30 points)
+- Is the mention positive, neutral, or negative? (20 points)
+- Is the brand recommended as a top option? (20 points)
+- Does the AI provide accurate information about the brand? (15 points)
+- Is the brand mentioned across multiple AI platforms? (15 points)
+
+HOW TO IMPROVE AI CITATIONS:
+1. STRUCTURED DATA: Schema.org markup (Organization, Service, FAQ) helps AI models parse your site
+2. ENTITY OPTIMIZATION: Consistent NAP, Wikipedia/Wikidata presence, knowledge panel
+3. CONTENT DEPTH: Comprehensive, authoritative pages that answer questions fully
+4. BRAND MENTIONS: Get mentioned on authoritative sites AI models train on
+5. FAQ CONTENT: Direct Q&A format pages that AI models can easily extract
+6. FRESHNESS: Regular content updates signal active, trustworthy source
+7. CITATIONS: Cite sources, link to authoritative references — AI trusts well-cited content
+
+PROMPT TESTING:
+- Test 10-20 prompts across ChatGPT, Claude, Gemini, Perplexity
+- Categories: commercial ("best X agency"), informational ("what is X"), navigational ("X services")
+- Track: mentioned? position? sentiment? accuracy? recommendation?
+- Compare against 3-5 competitors on same prompts
+
+METRICS:
+- AI Citation Score: % of prompts where brand is mentioned
+- Share of Voice: % of category mentions vs competitors
+- Sentiment: positive/neutral/negative across platforms
+- Accuracy: is the AI saying correct things about you?
+`;
+
+/** LSO — Local Search Optimization */
+export const LSO_SKILLS = `
+LSO — LOCAL SEARCH OPTIMIZATION:
+
+WHAT IT IS:
+LSO optimizes visibility in location-based searches — Google Maps, "near me" queries, local pack results, and local AI search. Critical for agencies with physical offices.
+
+GOOGLE BUSINESS PROFILE (GBP):
+- Complete every field: name, address, phone, hours, categories, description, services
+- Primary category MUST match core service (e.g., "Digital Marketing Agency")
+- Add 5-10 secondary categories covering all services
+- Photos: 10+ high-quality photos of office, team, work, logo
+- Posts: Weekly updates (offers, events, blog links)
+- Q&A: Pre-populate with common questions and answers
+- Reviews: Actively request reviews from clients — respond to ALL reviews (positive and negative)
+
+LOCAL SCHEMA MARKUP:
+- LocalBusiness schema on every location page
+- Required: name, address, telephone, geo (lat/lng), openingHours
+- Add: areaServed, serviceArea, hasOfferCatalog
+- Multiple locations: separate LocalBusiness schema per office
+
+NAP CONSISTENCY (Name, Address, Phone):
+- EXACT same format everywhere: website, GBP, directories, social profiles
+- Common directories: Google, Bing Places, Justdial, Sulekha, IndiaMART, Yellow Pages India
+- Inconsistency = trust penalty from search engines
+
+LOCAL CONTENT:
+- Location-specific landing pages: "/digital-marketing-agency-bengaluru"
+- Local case studies: "How we helped [Bengaluru company] achieve X"
+- Area-specific service pages: "[Service] in [City]"
+- Local news/events content
+- Embed Google Maps on contact/location pages
+
+CITATION BUILDING:
+- Industry directories: Clutch, GoodFirms, DesignRush, Agency Spotter
+- Local directories: Justdial, Sulekha, TradeIndia
+- Social profiles: LinkedIn Company, Facebook Business, Instagram Business
+- All citations must have consistent NAP
+
+METRICS:
+- Local pack ranking for target keywords
+- GBP impressions, clicks, calls, direction requests
+- Review count and average rating
+- Citation accuracy score across directories
+`;
+
+/** VSO — Video Search Optimization */
+export const VSO_SKILLS = `
+VSO — VIDEO SEARCH OPTIMIZATION:
+
+WHAT IT IS:
+VSO optimizes video content for discovery on YouTube, Google Video results, social video feeds, and AI video search. Video is the fastest-growing search channel.
+
+YOUTUBE SEO:
+- Title: primary keyword in first 60 chars, compelling hook
+- Description: first 2 lines visible above fold — include keyword + CTA. Full description 200+ words with timestamps
+- Tags: primary keyword + variations + related terms (15-20 tags)
+- Thumbnail: custom, high-contrast, readable text, face if possible
+- Chapters: use timestamps in description for key sections
+- Cards + End screens: link to related videos and playlists
+- Captions: upload accurate SRT file — helps indexing and accessibility
+
+VIDEO SCHEMA:
+- VideoObject schema on pages embedding video
+- Required: name, description, thumbnailUrl, uploadDate, duration, contentUrl
+- Recommended: transcript, interactionStatistic (views), publisher
+
+CONTENT OPTIMIZATION:
+- Hook in first 5 seconds — state the value proposition immediately
+- Pattern interrupt every 30-60 seconds to maintain engagement
+- Keywords spoken in audio — YouTube transcribes and indexes spoken words
+- Playlists: group related videos for binge-watching sessions
+- Consistent posting schedule: algorithm rewards regularity
+
+GOOGLE VIDEO RESULTS:
+- Pages with embedded video + VideoObject schema rank in video carousels
+- Timestamp markup enables "key moments" in search results
+- Video must be publicly accessible (not behind login)
+- Host on YouTube OR self-host with proper sitemap
+
+SOCIAL VIDEO:
+- Instagram Reels: 30-90 seconds, vertical, caption-driven, trending audio
+- LinkedIn Video: 1-3 minutes, professional, subtitle overlay mandatory
+- Short-form: repurpose long videos into 15-60 second clips for TikTok/Reels/Shorts
+
+METRICS:
+- YouTube: impressions, CTR, average view duration, subscriber growth
+- Google: video carousel appearances, clicks from video results
+- Social: video views, completion rate, shares, saves
+- AI: video citations in AI search responses (Perplexity, Gemini)
+`;
+
+/** ASO — App Search Optimization */
+export const ASO_SKILLS = `
+ASO — APP SEARCH OPTIMIZATION:
+
+WHAT IT IS:
+ASO optimizes mobile app visibility in app store search results — Google Play Store and Apple App Store. Relevant when the brand has a mobile app.
+
+APP STORE LISTING:
+- App name: primary keyword in first 30 chars (Apple) / 50 chars (Google)
+- Subtitle (Apple) / Short description (Google): secondary keywords, value proposition
+- Full description: keyword-rich, benefit-focused, 4000 chars max
+- Keywords field (Apple only): 100 chars, comma-separated, no spaces after commas
+- Screenshots: first 3 are most important — show key features with text overlay
+- Preview video: 15-30 seconds showing core app experience
+
+KEYWORD RESEARCH:
+- Tools: App Annie, Sensor Tower, Mobile Action, AppTweak
+- Target: mid-volume keywords where you can rank top 10
+- Long-tail: "[category] app for [audience]" patterns
+- Competitor keywords: what are competitors ranking for?
+- Localize keywords per market
+
+RATINGS & REVIEWS:
+- Target 4.5+ star rating
+- Prompt for reviews after positive in-app moments (not on first open)
+- Respond to negative reviews — shows active developer
+- Fix issues mentioned in reviews — stores track sentiment improvement
+
+METRICS:
+- Keyword rankings in app store search
+- Impressions → page views → installs (conversion funnel)
+- Install velocity and retention rate
+- Rating and review volume/sentiment
+`;
+
+/** ISEO — International Search Engine Optimization */
+export const ISEO_SKILLS = `
+ISEO — INTERNATIONAL SEO:
+
+WHAT IT IS:
+ISEO optimizes visibility across multiple countries, languages, and regional search engines. Goes beyond translation — covers technical setup, local search behavior, and cultural adaptation.
+
+HREFLANG IMPLEMENTATION:
+- Add hreflang tags linking all language/region versions of each page
+- Format: <link rel="alternate" hreflang="en-in" href="https://creativenexus.in/" />
+- Include x-default for fallback: hreflang="x-default"
+- Every page in the set must reference ALL other versions (including itself)
+- Common errors: missing return tags, wrong language codes, inconsistent URLs
+
+URL STRUCTURE:
+- ccTLD: creativenexus.in (India), creativenexus.co.uk (UK) — strongest geo signal
+- Subdirectory: creativenexus.com/in/, creativenexus.com/uk/ — easier to manage
+- Subdomain: in.creativenexus.com — weaker signal, harder to maintain
+- Recommendation: subdirectory for most businesses, ccTLD for primary market
+
+CONTENT LOCALIZATION:
+- Translation is minimum — localization is the goal
+- Adapt: currency, date formats, phone formats, measurements
+- Local references: case studies, testimonials, team from that market
+- Local keywords: "digital marketing agency" vs "digital marketing company" — search volume differs by market
+- Cultural tone: formal vs casual varies by market
+
+REGIONAL SEARCH ENGINES:
+- India: Google dominates (95%+), but optimize for Google India (google.co.in)
+- China: Baidu (requires ICP license, separate strategy)
+- Russia: Yandex
+- South Korea: Naver
+- Japan: Google + Yahoo Japan
+
+TECHNICAL SETUP:
+- Google Search Console: set geographic targeting per property
+- Server location: use CDN with local PoPs for speed
+- Local backlinks: get links from .in, .co.uk etc. domains for geo relevance
+- Structured data: LocalBusiness schema per region with correct address
+
+METRICS:
+- Organic traffic by country/language
+- Rankings in target country's Google (google.co.in vs google.com)
+- Hreflang coverage and error rate in Search Console
+- Local conversion rates vs global average
+`;
+
+/** Combined SearchLens skill — all 6 verticals for AI visibility scanning */
+export const SEARCHLENS_SKILLS = `${SEO_SKILLS}
+
+${GEO_SKILLS}
+
+${LSO_SKILLS}
+
+${VSO_SKILLS}
+
+${ASO_SKILLS}
+
+${ISEO_SKILLS}`;
