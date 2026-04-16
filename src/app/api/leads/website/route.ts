@@ -1,26 +1,22 @@
 // ---------------------------------------------------------------------------
-// GET /api/leads/website — Fetch leads from WordPress/WooCommerce
+// GET /api/leads/website — Fetch leads from creativenexus.in
 // ---------------------------------------------------------------------------
-// Aggregates leads from multiple WooCommerce/WordPress sources:
-//   1. WooCommerce Orders
-//   2. WooCommerce Customers
-//   3. Contact Form 7 entries
-//   4. WordPress Comments
+// Aggregates leads from:
+//   1. Gravity Forms (primary — v1 REST API with HMAC-SHA1 auth)
+//   2. WordPress Comments (secondary — public REST API)
 //
-// Auth: WooCommerce endpoints use consumer_key/secret as query params.
-//       WordPress REST endpoints use Basic auth.
+// Auth: Gravity Forms uses HMAC-SHA1 signature via query params.
+//       WordPress comments are public (no auth needed).
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 type LeadSource =
-  | "woocommerce_order"
-  | "woocommerce_customer"
-  | "contact_form"
   | "gravity_form"
   | "comment";
 
@@ -37,12 +33,11 @@ interface Lead {
   value: number;
   status: LeadStatus;
   date: string;
+  services: string[];
   meta: Record<string, unknown>;
 }
 
 interface SourceCounts {
-  orders: number;
-  customers: number;
   forms: number;
   comments: number;
 }
@@ -51,302 +46,243 @@ interface LeadsResponse {
   leads: Lead[];
   total: number;
   sources: SourceCounts;
+  formBreakdown: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------
-// Environment helpers
+// Gravity Forms v1 API helper
 // ---------------------------------------------------------------------------
 
-function getWooConfig() {
-  const url = process.env.WOOCOMMERCE_URL;
-  const ck = process.env.WOOCOMMERCE_CONSUMER_KEY;
-  const cs = process.env.WOOCOMMERCE_CONSUMER_SECRET;
+const SITE_URL = (process.env.WOOCOMMERCE_URL || "https://creativenexus.in").replace(/\/+$/, "");
 
-  if (!url || !ck || !cs) {
-    return null;
+function gfSignedUrl(route: string, extraParams?: Record<string, string>): string | null {
+  const publicKey = process.env.GRAVITY_FORMS_PUBLIC_KEY;
+  const privateKey = process.env.GRAVITY_FORMS_PRIVATE_KEY;
+
+  if (!publicKey || !privateKey) return null;
+
+  const method = "GET";
+  const expires = Math.floor(Date.now() / 1000) + 3600;
+  const stringToSign = `${publicKey}:${method}:${route}:${expires}`;
+  const sig = crypto
+    .createHmac("sha1", privateKey)
+    .update(stringToSign)
+    .digest("base64");
+
+  const url = new URL(`${SITE_URL}/gravityformsapi/${route}`);
+  url.searchParams.set("api_key", publicKey);
+  url.searchParams.set("signature", sig);
+  url.searchParams.set("expires", String(expires));
+  if (extraParams) {
+    for (const [k, v] of Object.entries(extraParams)) {
+      url.searchParams.set(k, v);
+    }
   }
-
-  return { url: url.replace(/\/+$/, ""), ck, cs };
+  return url.toString();
 }
 
-// ---------------------------------------------------------------------------
-// Fetch helpers
-// ---------------------------------------------------------------------------
-
-/** Fetch from WooCommerce REST API (auth via query params) */
-async function wcFetch<T>(
-  path: string,
-  params: Record<string, string> = {},
-): Promise<{ data: T | null; error: string | null }> {
-  const config = getWooConfig();
-  if (!config) {
-    return { data: null, error: "WooCommerce credentials not configured" };
-  }
-
-  const url = new URL(`${config.url}/wp-json/wc/v3${path}`);
-  url.searchParams.set("consumer_key", config.ck);
-  url.searchParams.set("consumer_secret", config.cs);
-  for (const [k, v] of Object.entries(params)) {
-    url.searchParams.set(k, v);
+async function gfFetch<T>(route: string, extraParams?: Record<string, string>): Promise<{ data: T | null; error: string | null }> {
+  const url = gfSignedUrl(route, extraParams);
+  if (!url) {
+    return { data: null, error: "Gravity Forms API keys not configured" };
   }
 
   try {
-    const res = await fetch(url.toString(), {
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
       next: { revalidate: 0 },
     });
 
     if (res.status === 401 || res.status === 403) {
-      return {
-        data: null,
-        error: `WooCommerce authentication failed (${res.status}). Check consumer_key and consumer_secret.`,
-      };
+      return { data: null, error: `Gravity Forms auth failed (${res.status}). Check API keys in Forms > Settings > REST API.` };
     }
 
     if (res.status === 404) {
-      return { data: null, error: null }; // Endpoint not available — skip
+      return { data: null, error: null };
     }
 
     if (!res.ok) {
-      return { data: null, error: `WooCommerce returned ${res.status}` };
+      return { data: null, error: `Gravity Forms returned ${res.status}` };
     }
 
-    const json = (await res.json()) as T;
-    return { data: json, error: null };
+    const json = await res.json();
+    // v1 API wraps responses in { status, response }
+    const response = json.response ?? json;
+    return { data: response as T, error: null };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Network error";
-    return { data: null, error: `WooCommerce fetch failed: ${msg}` };
+    const msg = err instanceof Error ? err.message : "Gravity Forms fetch failed";
+    return { data: null, error: msg };
   }
 }
 
-/** Fetch from WordPress REST API (auth via Basic auth) */
-async function wpFetch<T>(
-  path: string,
-  params: Record<string, string> = {},
-): Promise<{ data: T | null; error: string | null }> {
-  const config = getWooConfig();
-  if (!config) {
-    return { data: null, error: "WordPress credentials not configured" };
-  }
+// ---------------------------------------------------------------------------
+// Gravity Forms field extraction
+// ---------------------------------------------------------------------------
 
-  const url = new URL(`${config.url}/wp-json${path}`);
-  for (const [k, v] of Object.entries(params)) {
-    url.searchParams.set(k, v);
-  }
+// Forms on creativenexus.in use consistent field IDs:
+//   1.3 = first name, 1.6 = last name
+//   3   = email
+//   4   = phone
+//   5   = company
+//   7.* = service checkboxes
+//   8   = message
+//   9   = website URL or category
 
-  const basicAuth = Buffer.from(`${config.ck}:${config.cs}`).toString(
-    "base64",
+interface GfEntry {
+  id: string;
+  form_id: string;
+  date_created: string;
+  source_url: string;
+  [key: string]: unknown;
+}
+
+interface GfFormSummary {
+  id: string;
+  title: string;
+  entries: string;
+}
+
+function extractName(entry: GfEntry): string {
+  const first = String(entry["1.3"] || entry["1"] || "").trim();
+  const last = String(entry["1.6"] || "").trim();
+  if (first && last) return `${first} ${last}`;
+  if (first) return first;
+  // Fallback: scan for a name-like field
+  return "";
+}
+
+function extractEmail(entry: GfEntry): string {
+  // Field 3 is email in most forms
+  const f3 = String(entry["3"] || "");
+  if (f3.includes("@")) return f3;
+  // Scan all fields for an email
+  for (const [key, val] of Object.entries(entry)) {
+    if (typeof val === "string" && val.includes("@") && val.includes(".") && !["id", "form_id", "source_url", "user_agent", "ip"].includes(key)) {
+      return val;
+    }
+  }
+  return "";
+}
+
+function extractPhone(entry: GfEntry): string {
+  const f4 = String(entry["4"] || "");
+  if (/\d{6,}/.test(f4.replace(/[\s\-+()]/g, ""))) return f4;
+  const f3 = String(entry["3"] || "");
+  if (!/[@.]/.test(f3) && /\d{6,}/.test(f3.replace(/[\s\-+()]/g, ""))) return f3;
+  return "";
+}
+
+function extractCompany(entry: GfEntry): string {
+  return String(entry["5"] || "").trim();
+}
+
+function extractMessage(entry: GfEntry): string {
+  return String(entry["8"] || "").trim();
+}
+
+function extractServices(entry: GfEntry): string[] {
+  const services: string[] = [];
+  for (const [key, val] of Object.entries(entry)) {
+    // Service checkboxes are 7.1, 7.11, 7.13, 7.21, etc.
+    if (key.startsWith("7.") && typeof val === "string" && val.length > 0) {
+      services.push(val);
+    }
+  }
+  return services;
+}
+
+function isSpam(entry: GfEntry): boolean {
+  const score = parseFloat(String(entry["gravityformsrecaptcha_score"] || "1"));
+  if (score < 0.3) return true;
+  // Check for garbled text in name
+  const name = extractName(entry);
+  if (name.length > 20 && !/\s/.test(name)) return true;
+  return false;
+}
+
+// Forms that are internal / not lead-generating
+const EXCLUDED_FORM_TITLES = ["job application"];
+
+// ---------------------------------------------------------------------------
+// Source: Gravity Forms
+// ---------------------------------------------------------------------------
+
+async function fetchGravityForms(): Promise<{
+  leads: Lead[];
+  formBreakdown: Record<string, number>;
+  error: string | null;
+}> {
+  // Step 1: Get all forms
+  const { data: formsData, error: formsError } = await gfFetch<Record<string, GfFormSummary>>("forms");
+
+  if (formsError) return { leads: [], formBreakdown: {}, error: formsError };
+  if (!formsData) return { leads: [], formBreakdown: {}, error: null };
+
+  const forms = Object.values(formsData).filter(
+    (f) => parseInt(f.entries) > 0 && !EXCLUDED_FORM_TITLES.includes(f.title.toLowerCase()),
   );
 
-  try {
-    const res = await fetch(url.toString(), {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${basicAuth}`,
-      },
-      next: { revalidate: 0 },
-    });
-
-    if (res.status === 401 || res.status === 403) {
-      return { data: null, error: null }; // WP endpoints may not accept these creds
-    }
-
-    if (res.status === 404) {
-      return { data: null, error: null }; // Plugin not installed — skip
-    }
-
-    if (!res.ok) {
-      return { data: null, error: `WordPress returned ${res.status}` };
-    }
-
-    const json = (await res.json()) as T;
-    return { data: json, error: null };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Network error";
-    return { data: null, error: `WordPress fetch failed: ${msg}` };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Source: WooCommerce Orders
-// ---------------------------------------------------------------------------
-
-interface WcOrder {
-  id: number;
-  status: string;
-  date_created: string;
-  total: string;
-  billing: {
-    first_name: string;
-    last_name: string;
-    company: string;
-    email: string;
-    phone: string;
-  };
-  line_items: Array<{ name: string }>;
-}
-
-function mapOrderStatus(wcStatus: string): LeadStatus {
-  switch (wcStatus) {
-    case "completed":
-      return "converted";
-    case "processing":
-    case "on-hold":
-      return "qualified";
-    case "pending":
-      return "new";
-    default:
-      return "contacted";
-  }
-}
-
-async function fetchOrders(
-  perPage: string,
-): Promise<{ leads: Lead[]; error: string | null }> {
-  const { data, error } = await wcFetch<WcOrder[]>("/orders", {
-    per_page: perPage,
-    orderby: "date",
-    order: "desc",
-  });
-
-  if (error) return { leads: [], error };
-  if (!data) return { leads: [], error: null };
-
-  const leads: Lead[] = data.map((order) => ({
-    id: `wc_order_${order.id}`,
-    source: "woocommerce_order",
-    name: `${order.billing.first_name} ${order.billing.last_name}`.trim(),
-    email: order.billing.email || "",
-    phone: order.billing.phone || "",
-    company: order.billing.company || "",
-    message: order.line_items.map((li) => li.name).join(", "),
-    value: parseFloat(order.total) || 0,
-    status: mapOrderStatus(order.status),
-    date: order.date_created,
-    meta: {
-      wc_status: order.status,
-      order_id: order.id,
-    },
-  }));
-
-  return { leads, error: null };
-}
-
-// ---------------------------------------------------------------------------
-// Source: WooCommerce Customers
-// ---------------------------------------------------------------------------
-
-interface WcCustomer {
-  id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
-  date_created: string;
-  billing: {
-    phone: string;
-    company: string;
-  };
-  orders_count: number;
-  total_spent: string;
-}
-
-async function fetchCustomers(
-  perPage: string,
-): Promise<{ leads: Lead[]; error: string | null }> {
-  const { data, error } = await wcFetch<WcCustomer[]>("/customers", {
-    per_page: perPage,
-    orderby: "registered_date",
-    order: "desc",
-  });
-
-  if (error) return { leads: [], error };
-  if (!data) return { leads: [], error: null };
-
-  const leads: Lead[] = data.map((cust) => ({
-    id: `wc_customer_${cust.id}`,
-    source: "woocommerce_customer",
-    name: `${cust.first_name} ${cust.last_name}`.trim(),
-    email: cust.email || "",
-    phone: cust.billing?.phone || "",
-    company: cust.billing?.company || "",
-    message: "",
-    value: parseFloat(cust.total_spent) || 0,
-    status:
-      cust.orders_count > 0
-        ? "converted"
-        : "new",
-    date: cust.date_created,
-    meta: {
-      orders_count: cust.orders_count,
-      total_spent: cust.total_spent,
-    },
-  }));
-
-  return { leads, error: null };
-}
-
-// ---------------------------------------------------------------------------
-// Source: Contact Form 7
-// ---------------------------------------------------------------------------
-
-interface Cf7Form {
-  id: number;
-  title: { rendered: string };
-}
-
-interface Cf7Message {
-  id: number;
-  date: string;
-  fields: Record<string, string>;
-  meta: Record<string, unknown>;
-}
-
-async function fetchContactForms(
-  perPage: string,
-): Promise<{ leads: Lead[]; error: string | null }> {
-  // Step 1: List forms
-  const { data: forms, error: formsError } = await wpFetch<Cf7Form[]>(
-    "/contact-form-7/v1/contact-forms",
-  );
-
-  if (formsError || !forms || forms.length === 0) {
-    return { leads: [], error: null }; // CF7 not installed or no forms — skip gracefully
-  }
-
-  // Step 2: Try fetching messages (Flamingo plugin stores CF7 submissions)
+  // Step 2: Fetch entries from each form (parallel, limit to 50 entries each)
   const allLeads: Lead[] = [];
+  const formBreakdown: Record<string, number> = {};
+  const entryPromises = forms.map(async (form) => {
+    try {
+      const { data: entriesData, error: entriesError } = await gfFetch<{
+        total_count: string;
+        entries: GfEntry[];
+      }>(`forms/${form.id}/entries`, {
+        "paging[page_size]": "50",
+        "sorting[key]": "date_created",
+        "sorting[direction]": "DESC",
+      });
 
-  for (const form of forms.slice(0, 3)) {
-    // Try Flamingo Inbound endpoint
-    const { data: messages } = await wpFetch<Cf7Message[]>(
-      `/flamingo/v1/inbound`,
-      { per_page: perPage, search: String(form.id) },
-    );
+      if (entriesError || !entriesData) return;
 
-    if (messages && Array.isArray(messages)) {
-      for (const msg of messages) {
-        allLeads.push({
-          id: `cf7_entry_${msg.id}`,
-          source: "contact_form",
-          name: msg.fields?.["your-name"] || msg.fields?.name || "",
-          email: msg.fields?.["your-email"] || msg.fields?.email || "",
-          phone: msg.fields?.["your-phone"] || msg.fields?.phone || msg.fields?.tel || "",
-          company: msg.fields?.["your-company"] || msg.fields?.company || "",
-          message: msg.fields?.["your-message"] || msg.fields?.message || "",
+      const entries = entriesData.entries || [];
+      let formCount = 0;
+
+      for (const entry of entries) {
+        if (isSpam(entry)) continue;
+
+        const name = extractName(entry);
+        const email = extractEmail(entry);
+        if (!name && !email) continue;
+
+        const lead: Lead = {
+          id: `gf_${form.id}_${entry.id}`,
+          source: "gravity_form",
+          name,
+          email,
+          phone: extractPhone(entry),
+          company: extractCompany(entry),
+          message: extractMessage(entry),
+          services: extractServices(entry),
           value: 0,
           status: "new",
-          date: msg.date || new Date().toISOString(),
+          date: entry.date_created || new Date().toISOString(),
           meta: {
             form_id: form.id,
-            form_title: form.title?.rendered,
-            fields: msg.fields,
+            form_title: form.title,
+            entry_id: entry.id,
+            source_url: entry.source_url || "",
           },
-        });
-      }
-    }
-  }
+        };
 
-  return { leads: allLeads, error: null };
+        allLeads.push(lead);
+        formCount++;
+      }
+
+      if (formCount > 0) {
+        formBreakdown[form.title] = formCount;
+      }
+    } catch {
+      // Skip individual form errors
+    }
+  });
+
+  await Promise.all(entryPromises);
+
+  return { leads: allLeads, formBreakdown, error: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -366,157 +302,39 @@ async function fetchComments(): Promise<{
   leads: Lead[];
   error: string | null;
 }> {
-  const { data, error } = await wpFetch<WpComment[]>("/wp/v2/comments", {
-    per_page: "10",
-    orderby: "date",
-    order: "desc",
-  });
+  try {
+    const res = await fetch(
+      `${SITE_URL}/wp-json/wp/v2/comments?per_page=20&orderby=date&order=desc`,
+      { signal: AbortSignal.timeout(10000), next: { revalidate: 0 } },
+    );
 
-  if (error) return { leads: [], error };
-  if (!data) return { leads: [], error: null };
+    if (!res.ok) {
+      if (res.status === 404) return { leads: [], error: null };
+      return { leads: [], error: `WordPress comments returned ${res.status}` };
+    }
 
-  const leads: Lead[] = data.map((comment) => {
-    // Strip HTML tags from rendered content
-    const plainText = comment.content.rendered
-      .replace(/<[^>]*>/g, "")
-      .trim();
+    const data = (await res.json()) as WpComment[];
 
-    return {
+    const leads: Lead[] = data.map((comment) => ({
       id: `wp_comment_${comment.id}`,
       source: "comment" as LeadSource,
       name: comment.author_name || "",
       email: comment.author_email || "",
       phone: "",
       company: "",
-      message: plainText,
+      message: comment.content.rendered.replace(/<[^>]*>/g, "").trim(),
+      services: [],
       value: 0,
       status: "new" as LeadStatus,
       date: comment.date,
-      meta: {
-        comment_status: comment.status,
-      },
-    };
-  });
+      meta: { comment_status: comment.status },
+    }));
 
-  return { leads, error: null };
-}
-
-// ---------------------------------------------------------------------------
-// Source 5: Gravity Forms entries
-// ---------------------------------------------------------------------------
-
-async function fetchGravityForms(): Promise<{
-  leads: Lead[];
-  error: string | null;
-}> {
-  const publicKey = process.env.GRAVITY_FORMS_PUBLIC_KEY;
-  const privateKey = process.env.GRAVITY_FORMS_PRIVATE_KEY;
-  const siteUrl = process.env.WOOCOMMERCE_URL || "https://creativenexus.in";
-
-  if (!publicKey || !privateKey) {
-    return { leads: [], error: null }; // silently skip if not configured
-  }
-
-  try {
-    // Gravity Forms REST API v2 — first get forms list
-    const formsUrl = `${siteUrl}/wp-json/gf/v2/forms`;
-    const authHeader = "Basic " + Buffer.from(`${publicKey}:${privateKey}`).toString("base64");
-
-    const formsRes = await fetch(formsUrl, {
-      headers: { Authorization: authHeader },
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (!formsRes.ok) {
-      if (formsRes.status === 404) return { leads: [], error: null };
-      return { leads: [], error: `Gravity Forms API: ${formsRes.status}` };
-    }
-
-    const formsData = await formsRes.json();
-    const forms = typeof formsData === "object" && !Array.isArray(formsData)
-      ? Object.values(formsData)
-      : Array.isArray(formsData) ? formsData : [];
-
-    const allLeads: Lead[] = [];
-
-    // Fetch entries from each form (limit to first 5 forms)
-    for (const form of (forms as Array<{ id: number | string; title?: string }>).slice(0, 5)) {
-      try {
-        const entriesUrl = `${siteUrl}/wp-json/gf/v2/forms/${form.id}/entries?paging[page_size]=20&sorting[key]=date_created&sorting[direction]=DESC`;
-        const entriesRes = await fetch(entriesUrl, {
-          headers: { Authorization: authHeader },
-          signal: AbortSignal.timeout(10000),
-        });
-
-        if (!entriesRes.ok) continue;
-
-        const entriesData = await entriesRes.json();
-        const entries = entriesData.entries || entriesData || [];
-
-        if (!Array.isArray(entries)) continue;
-
-        for (const entry of entries) {
-          // Gravity Forms entries have numbered field IDs
-          // Common mappings: field 1 = name, field 2 = email, field 3 = phone, field 4 = message
-          const name = entry["1"] || entry["1.3"] && entry["1.6"]
-            ? `${entry["1.3"] || ""} ${entry["1.6"] || ""}`.trim()
-            : entry["1"] || "";
-          const email = entry["2"] || entry["3"] || findFieldByPattern(entry, /@/);
-          const phone = entry["4"] || entry["3"] || findFieldByPattern(entry, /^\+?\d[\d\s-]{8,}/);
-          const message = entry["5"] || entry["4"] || entry["6"] || findLongestField(entry);
-
-          if (!name && !email) continue; // skip empty entries
-
-          allLeads.push({
-            id: `gf_entry_${entry.id}`,
-            source: "gravity_form" as LeadSource,
-            name: typeof name === "string" ? name : String(name || ""),
-            email: typeof email === "string" ? email : "",
-            phone: typeof phone === "string" ? phone : "",
-            company: "",
-            message: typeof message === "string" ? message : "",
-            value: 0,
-            status: "new" as LeadStatus,
-            date: entry.date_created || new Date().toISOString(),
-            meta: {
-              form_id: form.id,
-              form_title: form.title || `Form ${form.id}`,
-              entry_id: entry.id,
-              source_url: entry.source_url || "",
-            },
-          });
-        }
-      } catch {
-        // Skip individual form errors
-      }
-    }
-
-    return { leads: allLeads, error: null };
+    return { leads, error: null };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Gravity Forms fetch failed";
+    const msg = err instanceof Error ? err.message : "Comments fetch failed";
     return { leads: [], error: msg };
   }
-}
-
-// Helper: find a field value matching a pattern
-function findFieldByPattern(entry: Record<string, unknown>, pattern: RegExp): string {
-  for (const [key, val] of Object.entries(entry)) {
-    if (typeof val === "string" && pattern.test(val) && !["id", "form_id", "date_created", "source_url", "status"].includes(key)) {
-      return val;
-    }
-  }
-  return "";
-}
-
-// Helper: find the longest text field (likely the message)
-function findLongestField(entry: Record<string, unknown>): string {
-  let longest = "";
-  for (const [key, val] of Object.entries(entry)) {
-    if (typeof val === "string" && val.length > longest.length && !["id", "form_id", "date_created", "source_url", "status", "ip", "user_agent"].includes(key)) {
-      longest = val;
-    }
-  }
-  return longest;
 }
 
 // ---------------------------------------------------------------------------
@@ -526,67 +344,28 @@ function findLongestField(entry: Record<string, unknown>): string {
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const source = searchParams.get("source") || "all";
-  const perPage = searchParams.get("per_page") || "20";
-
-  // Validate WooCommerce config
-  const config = getWooConfig();
-  if (!config) {
-    return NextResponse.json(
-      {
-        error:
-          "WooCommerce API credentials not configured. Set WOOCOMMERCE_URL, WOOCOMMERCE_CONSUMER_KEY, and WOOCOMMERCE_CONSUMER_SECRET in .env.local",
-      },
-      { status: 500 },
-    );
-  }
 
   const errors: string[] = [];
   let allLeads: Lead[] = [];
-  const sources: SourceCounts = {
-    orders: 0,
-    customers: 0,
-    forms: 0,
-    comments: 0,
-  };
+  const sources: SourceCounts = { forms: 0, comments: 0 };
+  let formBreakdown: Record<string, number> = {};
 
-  // Fetch sources in parallel based on filter
   const shouldFetch = (s: string) => source === "all" || source === s;
 
-  const [ordersResult, customersResult, formsResult, gravityResult, commentsResult] =
-    await Promise.all([
-      shouldFetch("orders")
-        ? fetchOrders(perPage)
-        : Promise.resolve({ leads: [] as Lead[], error: null }),
-      shouldFetch("customers")
-        ? fetchCustomers(perPage)
-        : Promise.resolve({ leads: [] as Lead[], error: null }),
-      shouldFetch("forms")
-        ? fetchContactForms(perPage)
-        : Promise.resolve({ leads: [] as Lead[], error: null }),
-      shouldFetch("forms") || shouldFetch("all")
-        ? fetchGravityForms()
-        : Promise.resolve({ leads: [] as Lead[], error: null }),
-      shouldFetch("comments")
-        ? fetchComments()
-        : Promise.resolve({ leads: [] as Lead[], error: null }),
-    ]);
+  const [formsResult, commentsResult] = await Promise.all([
+    shouldFetch("forms")
+      ? fetchGravityForms()
+      : Promise.resolve({ leads: [] as Lead[], formBreakdown: {} as Record<string, number>, error: null }),
+    shouldFetch("comments")
+      ? fetchComments()
+      : Promise.resolve({ leads: [] as Lead[], error: null }),
+  ]);
 
   // Aggregate
-  if (ordersResult.error) errors.push(ordersResult.error);
-  sources.orders = ordersResult.leads.length;
-  allLeads = allLeads.concat(ordersResult.leads);
-
-  if (customersResult.error) errors.push(customersResult.error);
-  sources.customers = customersResult.leads.length;
-  allLeads = allLeads.concat(customersResult.leads);
-
   if (formsResult.error) errors.push(formsResult.error);
   sources.forms = formsResult.leads.length;
+  formBreakdown = formsResult.formBreakdown;
   allLeads = allLeads.concat(formsResult.leads);
-
-  if (gravityResult.error) errors.push(gravityResult.error);
-  sources.forms += gravityResult.leads.length;
-  allLeads = allLeads.concat(gravityResult.leads);
 
   if (commentsResult.error) errors.push(commentsResult.error);
   sources.comments = commentsResult.leads.length;
@@ -597,28 +376,22 @@ export async function GET(request: NextRequest) {
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   );
 
-  // If ALL sources returned auth errors, return a clear error
+  // If ALL sources failed, return error with details
   if (allLeads.length === 0 && errors.length > 0) {
-    const isAuthError = errors.some(
-      (e) => e.includes("authentication") || e.includes("401") || e.includes("403"),
+    return NextResponse.json(
+      {
+        error: "Could not fetch leads from any source.",
+        details: errors,
+      },
+      { status: 502 },
     );
-
-    if (isAuthError) {
-      return NextResponse.json(
-        {
-          error:
-            "WooCommerce authentication failed. Verify your consumer_key and consumer_secret have Read permissions, and that the site URL is correct.",
-          details: errors,
-        },
-        { status: 401 },
-      );
-    }
   }
 
   const response: LeadsResponse = {
     leads: allLeads,
     total: allLeads.length,
     sources,
+    formBreakdown,
   };
 
   return NextResponse.json({

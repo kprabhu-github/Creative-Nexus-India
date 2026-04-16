@@ -1,0 +1,63 @@
+[2026-04-16 18:02:38] Checking GitHub CLI...
+[2026-04-16 18:02:39] Authenticated as: kprabhu-github
+[2026-04-16 18:02:39] 
+[2026-04-16 18:02:39] Checking if repository kprabhu-github/CreativeNexus2.0 exists...
+[2026-04-16 18:02:39] Creating repository: kprabhu-github/CreativeNexus2.0...
+[2026-04-16 18:02:41] Repository created successfully.
+[2026-04-16 18:02:41] 
+[2026-04-16 18:02:41] Renaming branch 'main' → 'master'...
+[2026-04-16 18:02:41] Branch renamed.
+[2026-04-16 18:02:41] 
+[2026-04-16 18:02:41] Configuring remote 'origin'...
+[2026-04-16 18:02:41] Added remote → https://github.com/kprabhu-github/CreativeNexus2.0.git
+[2026-04-16 18:02:41] 
+[2026-04-16 18:02:41] Pushing master to origin...
+[2026-04-16 18:02:44] master pushed.
+[2026-04-16 18:02:44] 
+[2026-04-16 18:02:44] Creating 'test' branch from master...
+[2026-04-16 18:02:44] Branch 'test' created.
+[2026-04-16 18:02:45] test pushed.
+[2026-04-16 18:02:45] 
+[2026-04-16 18:02:45] Creating 'prod' branch from master...
+[2026-04-16 18:02:45] Branch 'prod' created.
+[2026-04-16 18:02:46] prod pushed.
+[2026-04-16 18:02:46] 
+[2026-04-16 18:02:46] Setting 'master' as default branch on GitHub...
+[2026-04-16 18:02:47] Default branch set to master.
+[2026-04-16 18:02:47] 
+[2026-04-16 18:02:47] Setup completed successfully.
+[2026-04-16 18:06:15] WARNING: You have UNSTAGED changes (modified files):
+[2026-04-16 18:06:15]   (modified)  .gitignore
+[2026-04-16 18:06:15]   (modified)  src/app/api/leads/website/route.ts
+[2026-04-16 18:06:15] WARNING: You have UNTRACKED files (new files not yet added):
+[2026-04-16 18:06:15]   (untracked) .agents/skills/caveman/SKILL.md
+[2026-04-16 18:06:15]   (untracked) .claude/settings.json
+[2026-04-16 18:06:15]   (untracked) .claude/skills/caveman
+[2026-04-16 18:06:15]   (untracked) .superpowers/brainstorm/38889-1776292981/content/layout-options.html
+[2026-04-16 18:06:15]   (untracked) .superpowers/brainstorm/38889-1776292981/content/split-panel-detail.html
+[2026-04-16 18:06:15]   (untracked) .superpowers/brainstorm/38889-1776292981/state/events
+[2026-04-16 18:06:15]   (untracked) .superpowers/brainstorm/38889-1776292981/state/server-stopped
+[2026-04-16 18:06:15]   (untracked) .superpowers/brainstorm/38889-1776292981/state/server.log
+[2026-04-16 18:06:15]   (untracked) .superpowers/brainstorm/38889-1776292981/state/server.pid
+[2026-04-16 18:06:15]   (untracked) docs/superpowers/plans/2026-04-16-leads-ai-agents.md
+[2026-04-16 18:06:15]   (untracked) docs/superpowers/specs/2026-04-16-leads-ai-agents-design.md
+[2026-04-16 18:06:15]   (untracked) infra/git/config.sh
+[2026-04-16 18:06:15]   (untracked) infra/git/git-pull.sh
+[2026-04-16 18:06:15]   (untracked) infra/git/git-push.sh
+[2026-04-16 18:06:15]   (untracked) infra/git/logs/git-operations.log
+[2026-04-16 18:06:15]   (untracked) infra/git/prod-deploy.sh
+[2026-04-16 18:06:15]   (untracked) infra/git/setup-repo.sh
+[2026-04-16 18:06:15]   (untracked) infra/git/test-deploy.sh
+[2026-04-16 18:06:15]   (untracked) skills-lock.json
+[2026-04-16 18:06:15]   (untracked) skills/caveman
+[2026-04-16 18:06:15] 
+[2026-04-16 18:06:15] Pulling now could overwrite or conflict with these local changes.
+[2026-04-16 18:06:15] Recommended actions:
+[2026-04-16 18:06:15]   1. Commit first:  ./infra/git-push.sh "save work in progress"
+[2026-04-16 18:06:15]   2. Or stash:      git stash
+[2026-04-16 18:06:15]   3. Or force pull:  git pull origin master  (at your own risk)
+[2026-04-16 18:06:15] 
+[2026-04-16 18:06:15] ERROR: Pull aborted. Local changes detected — commit or stash them first.
+[2026-04-16 18:07:07] ERROR: Usage: ./infra/git-push.sh "your commit message"
+[2026-04-16 18:12:05] ERROR: Usage: ./infra/git-push.sh "your commit message"
+[2026-04-16 18:14:29] Staging all changes...
