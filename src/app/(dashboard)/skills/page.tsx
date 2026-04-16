@@ -1,287 +1,176 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Search, BookOpen, Loader2 } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  Globe,
+  Zap,
+  Clock,
+  Layers,
+  Bot,
+  CheckCircle,
+  Search,
+  ArrowRight,
+  Inbox,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { MetricCard } from "@/components/ui/metric-card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  SKILLS_REGISTRY,
+  SKILL_CATEGORIES,
+  type SkillDefinition,
+  type SkillCategory,
+  getSkillStats,
+} from "@/lib/skills/registry";
 
 // ---------------------------------------------------------------------------
-// Types
+// Status filter type
 // ---------------------------------------------------------------------------
 
-interface Skill {
-  slug: string;
-  name: string;
-  displayName: string;
-  description: string;
-  content: string;
-  category: string;
-}
-
-type CategoryFilter =
-  | "All"
-  | "CRO"
-  | "SEO"
-  | "Content"
-  | "Paid Media"
-  | "Email"
-  | "Analytics"
-  | "Strategy";
-
-const CATEGORIES: CategoryFilter[] = [
-  "All",
-  "CRO",
-  "SEO",
-  "Content",
-  "Paid Media",
-  "Email",
-  "Analytics",
-  "Strategy",
-];
+type StatusFilter = "all" | "active" | "ready" | "planned";
 
 // ---------------------------------------------------------------------------
-// Category badge type mapping
+// Helpers
 // ---------------------------------------------------------------------------
 
-type BadgeType = "success" | "warning" | "error" | "info" | "neutral";
+const statusDot: Record<SkillDefinition["status"], string> = {
+  active: "bg-success",
+  ready: "bg-warning",
+  planned: "bg-foreground-tertiary/40",
+};
 
-const categoryBadgeType: Record<string, BadgeType> = {
-  CRO: "success",
-  SEO: "info",
-  Content: "warning",
-  "Paid Media": "error",
-  Email: "neutral",
-  Analytics: "info",
-  Strategy: "neutral",
+const statusLabel: Record<SkillDefinition["status"], string> = {
+  active: "Active",
+  ready: "Ready",
+  planned: "Planned",
 };
 
 // ---------------------------------------------------------------------------
-// Simple markdown-to-HTML converter
-// ---------------------------------------------------------------------------
-
-function markdownToHtml(md: string): string {
-  let html = md;
-
-  // Code blocks: ```lang ... ```
-  html = html.replace(/```[\w]*\n([\s\S]*?)```/g, (_match, code: string) => {
-    const escaped = code
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    return `<pre class="bg-surface-active rounded-lg p-4 overflow-x-auto text-[13px] leading-relaxed my-4"><code>${escaped}</code></pre>`;
-  });
-
-  // Split into blocks by double newlines
-  const blocks = html.split(/\n\n+/);
-  const processed: string[] = [];
-
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i].trim();
-    if (!block) continue;
-
-    // Already processed code block
-    if (block.startsWith("<pre")) {
-      processed.push(block);
-      continue;
-    }
-
-    // Headings
-    if (block.startsWith("### ")) {
-      const text = block.slice(4);
-      processed.push(
-        `<h4 class="text-[14px] font-semibold text-foreground mt-6 mb-2">${text}</h4>`
-      );
-      continue;
-    }
-    if (block.startsWith("## ")) {
-      const text = block.slice(3);
-      processed.push(
-        `<h3 class="text-[16px] font-semibold text-foreground mt-8 mb-3">${text}</h3>`
-      );
-      continue;
-    }
-    if (block.startsWith("# ")) {
-      const text = block.slice(2);
-      processed.push(
-        `<h2 class="text-[18px] font-bold text-foreground mt-8 mb-3">${text}</h2>`
-      );
-      continue;
-    }
-
-    // Unordered list
-    const lines = block.split("\n");
-    if (lines.every((l) => /^[-*]\s/.test(l.trim()))) {
-      const items = lines
-        .map((l) => {
-          let text = l.trim().replace(/^[-*]\s+/, "");
-          text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-          text = text.replace(/`(.*?)`/g, '<code class="bg-surface-active px-1.5 py-0.5 rounded text-[12px]">$1</code>');
-          return `<li class="text-[13px] text-foreground-secondary leading-relaxed">${text}</li>`;
-        })
-        .join("");
-      processed.push(`<ul class="list-disc list-inside space-y-1 my-3">${items}</ul>`);
-      continue;
-    }
-
-    // Mixed block with headings + list items (multi-line block)
-    if (lines.some((l) => /^[-*]\s/.test(l.trim())) || lines.some((l) => /^#{1,4}\s/.test(l.trim()))) {
-      // Process each line individually
-      const subItems: string[] = [];
-      let listBuffer: string[] = [];
-
-      const flushList = () => {
-        if (listBuffer.length > 0) {
-          const items = listBuffer
-            .map((l) => {
-              let text = l.trim().replace(/^[-*]\s+/, "");
-              text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-              text = text.replace(/`(.*?)`/g, '<code class="bg-surface-active px-1.5 py-0.5 rounded text-[12px]">$1</code>');
-              return `<li class="text-[13px] text-foreground-secondary leading-relaxed">${text}</li>`;
-            })
-            .join("");
-          subItems.push(`<ul class="list-disc list-inside space-y-1 my-2">${items}</ul>`);
-          listBuffer = [];
-        }
-      };
-
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (/^[-*]\s/.test(trimmedLine)) {
-          listBuffer.push(trimmedLine);
-        } else {
-          flushList();
-          if (trimmedLine.startsWith("### ")) {
-            subItems.push(`<h4 class="text-[14px] font-semibold text-foreground mt-4 mb-2">${trimmedLine.slice(4)}</h4>`);
-          } else if (trimmedLine.startsWith("## ")) {
-            subItems.push(`<h3 class="text-[16px] font-semibold text-foreground mt-6 mb-3">${trimmedLine.slice(3)}</h3>`);
-          } else if (trimmedLine.startsWith("# ")) {
-            subItems.push(`<h2 class="text-[18px] font-bold text-foreground mt-6 mb-3">${trimmedLine.slice(2)}</h2>`);
-          } else if (trimmedLine) {
-            let text = trimmedLine;
-            text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-            text = text.replace(/`(.*?)`/g, '<code class="bg-surface-active px-1.5 py-0.5 rounded text-[12px]">$1</code>');
-            subItems.push(`<p class="text-[13px] text-foreground-secondary leading-relaxed my-1">${text}</p>`);
-          }
-        }
-      }
-      flushList();
-      processed.push(subItems.join(""));
-      continue;
-    }
-
-    // Paragraph: apply inline formatting
-    let text = block.replace(/\n/g, " ");
-    text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-    text = text.replace(/`(.*?)`/g, '<code class="bg-surface-active px-1.5 py-0.5 rounded text-[12px]">$1</code>');
-    processed.push(
-      `<p class="text-[13px] text-foreground-secondary leading-relaxed my-3">${text}</p>`
-    );
-  }
-
-  return processed.join("\n");
-}
-
-// ---------------------------------------------------------------------------
-// Page component
+// Page
 // ---------------------------------------------------------------------------
 
 export default function SkillsPage() {
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("All");
+  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [activeStatus, setActiveStatus] = useState<StatusFilter>("all");
 
-  // Fetch skills
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/api/skills");
-        const json = await res.json() as { data?: { skills: Skill[] } };
-        if (json.data?.skills) {
-          setSkills(json.data.skills);
-        }
-      } catch {
-        // Silently handle fetch errors
-      } finally {
-        setLoading(false);
-      }
-    }
-    void load();
-  }, []);
+  const stats = useMemo(() => getSkillStats(), []);
 
   // Category counts
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { All: skills.length };
-    for (const skill of skills) {
+    const counts: Record<string, number> = { all: SKILLS_REGISTRY.length };
+    for (const skill of SKILLS_REGISTRY) {
       counts[skill.category] = (counts[skill.category] || 0) + 1;
     }
     return counts;
-  }, [skills]);
+  }, []);
 
   // Filtered skills
   const filtered = useMemo(() => {
-    let result = skills;
+    let result = SKILLS_REGISTRY;
 
-    if (activeCategory !== "All") {
+    if (activeCategory !== "all") {
       result = result.filter((s) => s.category === activeCategory);
+    }
+
+    if (activeStatus !== "all") {
+      result = result.filter((s) => s.status === activeStatus);
     }
 
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
         (s) =>
-          s.displayName.toLowerCase().includes(q) ||
+          s.name.toLowerCase().includes(q) ||
           s.description.toLowerCase().includes(q) ||
-          s.category.toLowerCase().includes(q)
+          SKILL_CATEGORIES[s.category].label.toLowerCase().includes(q)
       );
     }
 
     return result;
-  }, [skills, activeCategory, search]);
+  }, [activeCategory, activeStatus, search]);
 
   // Selected skill
   const selectedSkill = useMemo(
-    () => skills.find((s) => s.slug === selectedSlug) ?? null,
-    [skills, selectedSlug]
+    () => SKILLS_REGISTRY.find((s) => s.slug === selectedSlug) ?? null,
+    [selectedSlug]
   );
-
-  // Rendered HTML for selected skill
-  const renderedContent = useMemo(() => {
-    if (!selectedSkill) return "";
-    return markdownToHtml(selectedSkill.content);
-  }, [selectedSkill]);
-
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-5 h-5 animate-spin text-foreground-tertiary" />
-      </div>
-    );
-  }
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <PageHeader
-        title="Skills Library"
-        description={`${skills.length} marketing skills ready to deploy`}
+        title="AI Skills Engine"
+        description="Marketing intelligence powering your AI agents"
       />
 
-      <div className="flex gap-4 h-[calc(100vh-140px)]">
-        {/* ----- Left panel: skill list ----- */}
-        <div className="w-[280px] shrink-0 flex flex-col bg-background-secondary rounded-[10px] dark:border dark:border-border overflow-hidden">
+      {/* ── Metric cards ── */}
+      <div className="grid grid-cols-5 gap-3 mb-5">
+        <MetricCard
+          title="Total Skills"
+          value={String(stats.total)}
+          icon={Globe}
+          description="Marketing skills loaded"
+        />
+        <MetricCard
+          title="Active"
+          value={String(stats.active)}
+          icon={Zap}
+          description="Wired into agents"
+        />
+        <MetricCard
+          title="Ready"
+          value={String(stats.ready)}
+          icon={Clock}
+          description="Ready to wire"
+        />
+        <MetricCard
+          title="Planned"
+          value={String(stats.planned)}
+          icon={Layers}
+          description="Future skills"
+        />
+        <MetricCard
+          title="Agents Powered"
+          value={String(stats.agentCount)}
+          icon={Bot}
+          description="Unique agents using skills"
+        />
+      </div>
+
+      {/* ── Split panel ── */}
+      <div className="flex gap-4 h-[calc(100vh-280px)] min-h-[500px]">
+        {/* ── Left panel: skill list ── */}
+        <div className="w-[300px] shrink-0 flex flex-col bg-background-secondary rounded-[10px] dark:border dark:border-border overflow-hidden">
           {/* Title */}
-          <div className="px-4 pt-4 pb-3">
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
-              Marketing Skills
-            </span>
+          <div className="px-4 pt-4 pb-2">
+            <h2 className="text-[13px] font-semibold text-foreground">
+              Skills Engine
+            </h2>
+            <p className="text-[11px] text-foreground-tertiary mt-0.5">
+              Marketing intelligence powering your AI agents
+            </p>
           </div>
 
           {/* Category filter pills */}
-          <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-            {CATEGORIES.map((cat) => {
+          <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setActiveCategory("all")}
+              className={`
+                inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors
+                ${
+                  activeCategory === "all"
+                    ? "bg-foreground text-background"
+                    : "bg-surface-hover text-foreground-secondary hover:bg-surface-active"
+                }
+              `}
+            >
+              All
+              <span className="opacity-60">{categoryCounts["all"]}</span>
+            </button>
+            {(Object.keys(SKILL_CATEGORIES) as SkillCategory[]).map((cat) => {
               const count = categoryCounts[cat] ?? 0;
-              if (cat !== "All" && count === 0) return null;
+              if (count === 0) return null;
               return (
                 <button
                   key={cat}
@@ -295,11 +184,33 @@ export default function SkillsPage() {
                     }
                   `}
                 >
-                  {cat}
+                  {SKILL_CATEGORIES[cat].label}
                   <span className="opacity-60">{count}</span>
                 </button>
               );
             })}
+          </div>
+
+          {/* Status filter pills */}
+          <div className="px-4 pb-3 flex gap-1.5">
+            {(["all", "active", "ready", "planned"] as StatusFilter[]).map(
+              (st) => (
+                <button
+                  key={st}
+                  onClick={() => setActiveStatus(st)}
+                  className={`
+                    inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors capitalize
+                    ${
+                      activeStatus === st
+                        ? "bg-foreground text-background"
+                        : "bg-surface-hover text-foreground-tertiary hover:bg-surface-active"
+                    }
+                  `}
+                >
+                  {st === "all" ? "All" : st}
+                </button>
+              )
+            )}
           </div>
 
           {/* Search */}
@@ -340,26 +251,31 @@ export default function SkillsPage() {
                 >
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[13px] font-semibold text-foreground truncate flex-1">
-                      {skill.displayName}
+                      {skill.name}
                     </span>
-                    <StatusBadge
-                      type={categoryBadgeType[skill.category] ?? "neutral"}
-                      className="text-[10px] shrink-0"
+                    <span
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${SKILL_CATEGORIES[skill.category].color}`}
                     >
-                      {skill.category}
-                    </StatusBadge>
+                      {SKILL_CATEGORIES[skill.category].label}
+                    </span>
                   </div>
-                  <p className="text-[11px] text-foreground-tertiary leading-snug line-clamp-2">
-                    {skill.description.slice(0, 60)}
-                    {skill.description.length > 60 ? "..." : ""}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot[skill.status]}`}
+                    />
+                    <span className="text-[11px] text-foreground-tertiary">
+                      {skill.agents.length > 0
+                        ? `${skill.agents.length} agent${skill.agents.length !== 1 ? "s" : ""}`
+                        : "No agents yet"}
+                    </span>
+                  </div>
                 </button>
               ))
             )}
           </div>
         </div>
 
-        {/* ----- Right panel: skill detail ----- */}
+        {/* ── Right panel: skill detail ── */}
         <div className="flex-1 bg-background-secondary rounded-[10px] dark:border dark:border-border overflow-hidden flex flex-col">
           {selectedSkill ? (
             <div className="flex-1 overflow-y-auto p-6">
@@ -367,12 +283,23 @@ export default function SkillsPage() {
               <div className="mb-6 pb-4 border-b border-border">
                 <div className="flex items-center gap-3 mb-2">
                   <h1 className="text-[22px] font-bold text-foreground tracking-tight">
-                    {selectedSkill.displayName}
+                    {selectedSkill.name}
                   </h1>
-                  <StatusBadge
-                    type={categoryBadgeType[selectedSkill.category] ?? "neutral"}
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${SKILL_CATEGORIES[selectedSkill.category].color}`}
                   >
-                    {selectedSkill.category}
+                    {SKILL_CATEGORIES[selectedSkill.category].label}
+                  </span>
+                  <StatusBadge
+                    type={
+                      selectedSkill.status === "active"
+                        ? "success"
+                        : selectedSkill.status === "ready"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    {statusLabel[selectedSkill.status]}
                   </StatusBadge>
                 </div>
                 <p className="text-[13px] text-foreground-tertiary leading-relaxed max-w-2xl">
@@ -380,22 +307,94 @@ export default function SkillsPage() {
                 </p>
               </div>
 
-              {/* Rendered markdown content */}
-              <div
-                className="prose-custom max-w-3xl"
-                dangerouslySetInnerHTML={{ __html: renderedContent }}
-              />
+              {/* Agents section */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Bot className="w-4 h-4 text-foreground-tertiary" />
+                  <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                    Powering {selectedSkill.agents.length} agent
+                    {selectedSkill.agents.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+
+                {selectedSkill.agents.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedSkill.agents.map((agent, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-background rounded-lg p-3 border border-border"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <ArrowRight className="w-3 h-3 text-accent shrink-0" />
+                          <span className="text-[13px] font-semibold text-foreground">
+                            {agent.agent}
+                          </span>
+                          <span className="text-[11px] text-foreground-tertiary">
+                            &mdash; {agent.module}
+                          </span>
+                        </div>
+                        <p className="text-[12px] text-foreground-secondary leading-relaxed pl-5">
+                          {agent.usage}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-background rounded-lg p-4 border border-border text-center">
+                    <Inbox className="w-5 h-5 text-foreground-tertiary/40 mx-auto mb-2" />
+                    <p className="text-[12px] text-foreground-tertiary">
+                      Not yet wired into any agent
+                    </p>
+                    <StatusBadge type="neutral" className="mt-2 text-[10px]">
+                      Planned
+                    </StatusBadge>
+                  </div>
+                )}
+              </div>
+
+              {/* Principles section */}
+              {selectedSkill.principles.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle className="w-4 h-4 text-foreground-tertiary" />
+                    <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
+                      Core Principles
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {selectedSkill.principles.map((principle, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-2 py-1.5"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5 text-success shrink-0 mt-0.5" />
+                        <span className="text-[13px] text-foreground-secondary leading-relaxed">
+                          {principle}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Source */}
+              <div className="pt-4 border-t border-border">
+                <p className="text-[11px] text-foreground-tertiary">
+                  From Corey Haines Marketing Skills
+                </p>
+              </div>
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <BookOpen className="w-10 h-10 text-foreground-tertiary/30 mx-auto mb-3" />
+                <Inbox className="w-10 h-10 text-foreground-tertiary/30 mx-auto mb-3" />
                 <p className="text-[14px] font-medium text-foreground-tertiary">
-                  Select a skill to view details
+                  Select a skill to see how it powers your agents
                 </p>
                 <p className="text-[12px] text-foreground-tertiary/60 mt-1">
-                  {skills.length} skills available across{" "}
-                  {Object.keys(categoryCounts).length - 1} categories
+                  {stats.total} skills across{" "}
+                  {Object.keys(SKILL_CATEGORIES).length} categories
                 </p>
               </div>
             </div>
