@@ -101,6 +101,7 @@ interface Campaign {
   meetings: number;
   createdAt: string;
   steps: number;
+  funnelSteps: FunnelStep[];
 }
 
 interface FunnelStep {
@@ -117,16 +118,18 @@ interface FunnelStep {
 
 // ─── Static data ───────────────────────────────────────────────────────────
 const SOURCES = [
-  { id: "company_employees", label: "Company employees", icon: "🏢", cost: "$0.003–0.01" },
-  { id: "post_likers", label: "Post likers", icon: "❤️", cost: "$0.002" },
-  { id: "post_commenters", label: "Post commenters", icon: "💬", cost: "$0.002" },
-  { id: "linkedin_search", label: "LinkedIn search", icon: "🔍", cost: "free" },
-  { id: "group_members", label: "Group members", icon: "👥", cost: "TBD" },
-  { id: "event_attendees", label: "Event attendees", icon: "📅", cost: "TBD" },
-  { id: "connections", label: "1st connections", icon: "🔗", cost: "$0.01" },
-  { id: "alumni", label: "School alumni", icon: "🎓", cost: "$0.01" },
-  { id: "csv_import", label: "CSV import", icon: "📂", cost: "free" },
+  { id: "company_employees", label: "Company employees", icon: "🏢", cost: "$0.003–0.01", automated: true },
+  { id: "post_likers", label: "Post likers", icon: "❤️", cost: "$0.002", automated: true },
+  { id: "post_commenters", label: "Post commenters", icon: "💬", cost: "$0.002", automated: true },
+  { id: "csv_import", label: "CSV import", icon: "📂", cost: "free", automated: false },
+  { id: "linkedin_search", label: "LinkedIn search", icon: "🔍", cost: "manual", automated: false },
+  { id: "group_members", label: "Group members", icon: "👥", cost: "manual", automated: false },
+  { id: "event_attendees", label: "Event attendees", icon: "📅", cost: "manual", automated: false },
+  { id: "connections", label: "1st connections", icon: "🔗", cost: "manual", automated: false },
+  { id: "alumni", label: "School alumni", icon: "🎓", cost: "manual", automated: false },
 ];
+
+const AUTOMATED_SOURCE_IDS = new Set(SOURCES.filter((s) => s.automated).map((s) => s.id));
 
 const ACTION_TYPES = [
   { id: "follow", label: "Follow profile", icon: "F", bg: "#E1F5EE", fg: "#0F6E56", defaultDelay: 0, defaultLimit: 40, hasTemplate: false, defaultTemplate: "" },
@@ -199,6 +202,7 @@ function campaignFromApi(c: CampaignApi): Campaign {
     meetings: c.meetings,
     createdAt: c.created_at,
     steps: Array.isArray(c.funnel_steps) ? c.funnel_steps.length : 0,
+    funnelSteps: Array.isArray(c.funnel_steps) ? c.funnel_steps : [],
   };
 }
 
@@ -465,7 +469,18 @@ function LimitsModal({ acc, onClose, onSave, saving }: { acc: Account; onClose: 
           {Object.entries(lim).map(([k, v]) => (
             <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <label style={{ fontSize: 12, color: "#374151", textTransform: "capitalize" }}>{k.replace(/([A-Z])/g, " $1").toLowerCase()}</label>
-              <input type="number" value={v} min={0} max={500} onChange={(e) => setLim((p) => ({ ...p, [k]: Number(e.target.value) }))} style={{ width: 64, padding: "5px 8px", borderRadius: 7, border: "1px solid #E5E7EB", fontSize: 12, textAlign: "center", outline: "none", fontFamily: "inherit" }} />
+              <input
+                type="number"
+                value={Number.isFinite(v) ? v : 0}
+                min={0}
+                max={500}
+                onChange={(e) => {
+                  const raw = parseInt(e.target.value, 10);
+                  const safe = Number.isFinite(raw) ? Math.max(0, Math.min(500, raw)) : 0;
+                  setLim((p) => ({ ...p, [k]: safe }));
+                }}
+                style={{ width: 64, padding: "5px 8px", borderRadius: 7, border: "1px solid #E5E7EB", fontSize: 12, textAlign: "center", outline: "none", fontFamily: "inherit" }}
+              />
             </div>
           ))}
         </div>
@@ -827,14 +842,20 @@ export default function LinkedInPage() {
     })();
   }, [loadAccounts, loadLog, loadCampaigns]);
 
-  // Reload prospects when selected campaign changes
+  // Reload prospects + sync funnel when selected campaign changes
   useEffect(() => {
     if (selectedCampaignId) {
       loadProspects(selectedCampaignId);
+      const camp = campaigns.find((c) => c.id === selectedCampaignId);
+      if (camp && camp.funnelSteps.length > 0) {
+        setFunnelSteps(camp.funnelSteps);
+        setSelFunnelStep(0);
+      }
     } else {
       setProspects([]);
     }
-  }, [selectedCampaignId, loadProspects]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCampaignId]);
 
   // ── Account handlers ──────────────────────────────────────────────────
   async function handleAddAccount(url: string, name: string) {
@@ -845,10 +866,13 @@ export default function LinkedInPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, name }),
       });
-      const json = (await res.json()) as { data?: Account; error?: string };
+      const json = (await res.json()) as { data?: Account; warning?: string | null; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       await Promise.all([loadAccounts(), loadLog()]);
       if (json.data) setSelectedAccId(json.data.id);
+      if (json.warning) {
+        alert(`Account saved as a stub.\n\n${json.warning}\n\nClick Re-scrape on the card once a working actor is configured.`);
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Add failed");
     } finally {
@@ -916,28 +940,32 @@ export default function LinkedInPage() {
           template: step?.template,
         }),
       });
-      const json = (await res.json()) as { data?: { message: string }; error?: string };
+      const json = (await res.json()) as { data?: { message: string; ai_failed?: boolean }; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       setMsgDraft(json.data?.message ?? "");
+      if (json.data?.ai_failed) {
+        alert("AI generation failed — used raw template as fallback. Check ANTHROPIC_API_KEY on Hostinger.");
+      }
     } catch (err) {
-      // Fallback: template substitution locally
+      // Fallback: template substitution locally (offline-safe)
       const step = funnelSteps[stepIdx];
       const tmpl = step?.template ?? "";
+      const firstName = p.firstName || p.name.split(" ")[0] || "there";
       const filled = tmpl
-        .replace(/\{firstName\}/g, p.firstName)
-        .replace(/\{company\}/g, p.company)
-        .replace(/\{industry\}/g, p.industry)
-        .replace(/\{headline\}/g, p.headline)
+        .replace(/\{firstName\}/g, firstName)
+        .replace(/\{company\}/g, p.company || "your company")
+        .replace(/\{industry\}/g, p.industry || "your industry")
+        .replace(/\{headline\}/g, p.headline || "")
         .replace(/\{service\}/g, "digital marketing & SEO");
       setMsgDraft(filled);
-      console.warn("AI draft failed, used template:", err);
+      alert(`AI draft failed — used raw template. (${err instanceof Error ? err.message : "unknown error"})`);
     } finally {
       setGenerating(false);
     }
   }
 
   async function handleSendAdvance(p: Prospect) {
-    const nextStep = Math.max(p.step, 0) + 1;
+    const nextStep = Math.min(Math.max(p.step, 0) + 1, funnelSteps.length);
     try {
       const res = await fetch(`/api/linkedin/prospects/${p.id}`, {
         method: "PATCH",
@@ -1124,6 +1152,29 @@ export default function LinkedInPage() {
     }
   }
 
+  async function saveFunnelToCampaign() {
+    if (!selectedCampaignId) {
+      alert("Pick a campaign first (Queue tab → dropdown).");
+      return;
+    }
+    setLaunching(true);
+    try {
+      const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ funnel_steps: funnelSteps }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([loadCampaigns(), loadLog()]);
+      alert("Funnel saved to campaign.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Save funnel failed");
+    } finally {
+      setLaunching(false);
+    }
+  }
+
   async function deleteCampaign(id: string) {
     if (!confirm("Delete this campaign and all its prospects?")) return;
     try {
@@ -1290,7 +1341,25 @@ export default function LinkedInPage() {
         )}
 
         {tab === "funnel" && (
-          <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14 }}>
+          <div>
+            {/* Funnel context + Save button */}
+            <div style={{ background: "white", borderRadius: 12, padding: "10px 16px", border: "1px solid #E5E7EB", marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase" }}>Campaign</div>
+              <select value={selectedCampaignId ?? ""} onChange={(e) => setSelectedCampaignId(e.target.value || null)} style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #E5E7EB", fontSize: 12, outline: "none", fontFamily: "inherit", background: "white", minWidth: 240 }}>
+                <option value="">Default funnel (new campaigns)…</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button onClick={saveFunnelToCampaign} disabled={!selectedCampaignId || launching} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: selectedCampaignId && !launching ? C.navy : "#F3F4F6", color: selectedCampaignId && !launching ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: selectedCampaignId && !launching ? "pointer" : "default", fontFamily: "inherit" }}>
+                {launching ? "Saving…" : "💾 Save Funnel"}
+              </button>
+              <span style={{ fontSize: 10, color: C.gray, marginLeft: "auto" }}>
+                {selectedCampaignId ? "Edits apply only when saved" : "Create/select a campaign to save edits"}
+              </span>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14 }}>
             {/* Left: step list + action picker */}
             <div>
               <div style={{ background: "white", borderRadius: 12, padding: 14, border: "1px solid #E5E7EB", marginBottom: 12 }}>
@@ -1320,6 +1389,7 @@ export default function LinkedInPage() {
                 <div style={{ background: "white", borderRadius: 12, padding: 20, border: "1px solid #E5E7EB", color: C.gray, fontSize: 12 }}>Select a step to configure.</div>
               )}
             </div>
+            </div>
           </div>
         )}
 
@@ -1334,9 +1404,21 @@ export default function LinkedInPage() {
                   <option key={c.id} value={c.id}>{c.name} ({c.prospects} prospects)</option>
                 ))}
               </select>
-              <button onClick={handleDiscover} disabled={!selectedCampaignId || discovering} style={{ padding: "7px 16px", borderRadius: 7, border: "none", background: selectedCampaignId && !discovering ? C.navy : "#F3F4F6", color: selectedCampaignId && !discovering ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: selectedCampaignId && !discovering ? "pointer" : "default", fontFamily: "inherit" }}>
-                {discovering ? "⏳ Discovering via Apify…" : "🔍 Discover Prospects"}
-              </button>
+              {(() => {
+                const camp = campaigns.find((c) => c.id === selectedCampaignId);
+                const canDiscover = camp ? AUTOMATED_SOURCE_IDS.has(camp.source) : false;
+                const discoverDisabled = !selectedCampaignId || discovering || !canDiscover;
+                return (
+                  <button
+                    onClick={handleDiscover}
+                    disabled={discoverDisabled}
+                    title={canDiscover ? "" : "This source type is not automated — use Import CSV / URLs instead."}
+                    style={{ padding: "7px 16px", borderRadius: 7, border: "none", background: !discoverDisabled ? C.navy : "#F3F4F6", color: !discoverDisabled ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: !discoverDisabled ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+                  >
+                    {discovering ? "⏳ Discovering via Apify…" : canDiscover ? "🔍 Discover Prospects" : "🔍 Discover (manual source)"}
+                  </button>
+                );
+              })()}
               <button onClick={() => setShowImport(true)} disabled={!selectedCampaignId} style={{ padding: "7px 16px", borderRadius: 7, border: `1px solid ${selectedCampaignId ? C.navy : "#E5E7EB"}`, background: "white", color: selectedCampaignId ? C.navy : C.gray, fontSize: 12, fontWeight: 700, cursor: selectedCampaignId ? "pointer" : "default", fontFamily: "inherit" }}>
                 📁 Import CSV / URLs
               </button>
@@ -1348,7 +1430,7 @@ export default function LinkedInPage() {
             <div style={{ width: 340, background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden", display: "flex", flexDirection: "column" }}>
               <div style={{ padding: "10px 14px", borderBottom: "1px solid #F3F4F6" }}>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                  {(["all", "pending", "in_sequence", "replied", "meeting"] as const).map((f) => (
+                  {(["all", "pending", "in_sequence", "replied", "meeting", "opted_out"] as const).map((f) => (
                     <button key={f} onClick={() => setFilterStatus(f)} style={{ padding: "3px 9px", borderRadius: 20, border: "1px solid", borderColor: filterStatus === f ? C.navy : "#E5E7EB", background: filterStatus === f ? C.navy : "transparent", color: filterStatus === f ? "white" : "#6B7280", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize" }}>
                       {f.replace("_", " ")}
                     </button>
@@ -1399,8 +1481,13 @@ export default function LinkedInPage() {
                   <textarea value={msgDraft} onChange={(e) => setMsgDraft(e.target.value)} rows={7} placeholder={generating ? "✨ Personalising message…" : "Click a Step number above to generate a personalised message for this prospect…"} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: `1.5px solid ${generating ? C.coral : "#E5E7EB"}`, fontSize: 13, lineHeight: 1.6, color: "#1F2937", fontFamily: "inherit", outline: "none", resize: "vertical", boxSizing: "border-box", transition: "border-color 0.2s" }} />
 
                   <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
-                    <button disabled={!msgDraft || generating} onClick={() => handleSendAdvance(selectedPros)} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: msgDraft && !generating ? C.coral : "#F3F4F6", color: msgDraft && !generating ? "white" : C.gray, fontWeight: 700, fontSize: 12, cursor: msgDraft && !generating ? "pointer" : "default", fontFamily: "inherit" }}>
-                      Send & Advance
+                    <button
+                      disabled={!msgDraft || generating}
+                      onClick={() => handleSendAdvance(selectedPros)}
+                      title="Marks this step as sent and advances the prospect. You still need to paste the message into LinkedIn manually — LinkedIn has no public send API."
+                      style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: msgDraft && !generating ? C.coral : "#F3F4F6", color: msgDraft && !generating ? "white" : C.gray, fontWeight: 700, fontSize: 12, cursor: msgDraft && !generating ? "pointer" : "default", fontFamily: "inherit" }}
+                    >
+                      ✓ Mark Sent & Advance
                     </button>
                     {msgDraft && (
                       <button onClick={() => navigator.clipboard?.writeText(msgDraft)} style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid #E5E7EB", background: "white", color: "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Copy</button>

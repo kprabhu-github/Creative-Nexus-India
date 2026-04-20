@@ -2,7 +2,7 @@
 // Generates an AI-personalised LinkedIn message for a prospect + funnel step.
 
 import { NextRequest, NextResponse } from "next/server";
-import { callClaude } from "@/lib/anthropic";
+import { callClaude, parseClaudeJson } from "@/lib/anthropic";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -97,6 +97,7 @@ Template to personalise: "${template || "(no template — write from scratch)"}"
 Write the LinkedIn message now. Max ${actionId === "connect" ? 280 : 480} characters. Return JSON only.`;
 
   let messageText = "";
+  let aiFailed = false;
   try {
     const { text } = await callClaude({
       tier: "execution",
@@ -105,14 +106,24 @@ Write the LinkedIn message now. Max ${actionId === "connect" ? 280 : 480} charac
       maxTokens: 400,
       temperature: 0.5,
     });
-    const match = text.match(/"message"\s*:\s*"([^"]+(?:\\"[^"]*)*)"/);
-    messageText = match ? match[1].replace(/\\"/g, '"').replace(/\\n/g, "\n").trim() : text.trim();
+    // Try structured JSON parse first (handles fences, escapes, unicode)
+    try {
+      const parsed = parseClaudeJson(text) as { message?: string };
+      if (typeof parsed?.message === "string" && parsed.message.trim().length > 0) {
+        messageText = parsed.message.trim();
+      } else {
+        messageText = text.trim();
+      }
+    } catch {
+      messageText = text.trim();
+    }
   } catch (err) {
+    aiFailed = true;
     // Fallback: simple template substitution
     messageText = (template || "")
-      .replace(/\{firstName\}/g, prospect.first_name || "")
-      .replace(/\{company\}/g, prospect.company || "")
-      .replace(/\{industry\}/g, prospect.industry || "")
+      .replace(/\{firstName\}/g, prospect.first_name || prospect.name.split(" ")[0] || "there")
+      .replace(/\{company\}/g, prospect.company || "your company")
+      .replace(/\{industry\}/g, prospect.industry || "your industry")
       .replace(/\{headline\}/g, prospect.headline || "")
       .replace(/\{service\}/g, "digital marketing & SEO");
     console.warn("Claude draft fallback:", err);
@@ -129,6 +140,11 @@ Write the LinkedIn message now. Max ${actionId === "connect" ? 280 : 480} charac
   }
 
   return NextResponse.json({
-    data: { message: messageText, step_index: body.step_index, action_id: actionId },
+    data: {
+      message: messageText,
+      step_index: body.step_index,
+      action_id: actionId,
+      ai_failed: aiFailed,
+    },
   });
 }
