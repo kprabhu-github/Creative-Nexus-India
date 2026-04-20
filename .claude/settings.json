@@ -34,7 +34,9 @@
       "Bash(mkdir -p \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/linkedin/accounts/[id]/rescrape\")",
       "Bash(brew install *)",
       "Bash(supabase --version)",
-      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase B - live Apify scraping, Supabase persistence, CRUD API routes + wired UI\")"
+      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase B - live Apify scraping, Supabase persistence, CRUD API routes + wired UI\")",
+      "Bash(open -a TextEdit \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/supabase/migrations/20260420090000_linkedin_accounts.sql\")",
+      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase C1 - 5-tab outreach platform \\(Accounts real, Campaigns/Funnel/Queue/Analytics functional mocks\\)\")"
     ],
     "additionalDirectories": [
       "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]",
