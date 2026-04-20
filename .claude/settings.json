@@ -25,7 +25,8 @@
       "Bash(open -a TextEdit \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/.mcp.json\")",
       "Bash(./infra/git/git-push.sh \"feat\\(leads\\): editable draft \\(subject+body\\), regenerate replaces old draft, plain-paragraph AI emails\")",
       "Bash(./infra/git/git-push.sh \"feat\\(leads\\): tighter AI email prompt - 90-word limit, 3 paragraphs, do/don't examples, banned phrases, lower temp\")",
-      "Bash(./infra/git/git-push.sh \"feat\\(leads\\): keep calendar CTA only in signature - remove URLs from body\")"
+      "Bash(./infra/git/git-push.sh \"feat\\(leads\\): keep calendar CTA only in signature - remove URLs from body\")",
+      "Bash(./infra/git/git-push.sh \"feat\\(leads\\): add live email preview showing body + signature below editor\")"
     ],
     "additionalDirectories": [
       "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]",

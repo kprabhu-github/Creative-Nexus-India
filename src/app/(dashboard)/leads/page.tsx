@@ -791,19 +791,19 @@ function DraftEditor({
           htmlFor={`body-${email.id}`}
           className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider"
         >
-          Body
+          Body (plain text — edit freely)
         </label>
         <textarea
           id={`body-${email.id}`}
           value={bodyText}
           onChange={(e) => setBodyText(e.target.value)}
-          rows={12}
+          rows={10}
           spellCheck
           className="w-full px-3 py-2 rounded-md bg-background border border-divider text-[13px] leading-relaxed text-foreground font-[inherit] focus:outline-none focus:ring-1 focus:ring-accent/40 resize-y"
         />
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-foreground-tertiary">
-            {bodyText.length} chars · {bodyText.split(/\s+/).filter(Boolean).length} words · signature auto-added when sent
+            {bodyText.length} chars · {bodyText.split(/\s+/).filter(Boolean).length} words
           </span>
           <button
             onClick={() => onSave(email.id, subject, bodyText)}
@@ -818,6 +818,24 @@ function DraftEditor({
             {saving ? "Saving…" : dirty ? "Save Draft" : "Saved"}
           </button>
         </div>
+      </div>
+
+      {/* Live preview with signature */}
+      <div className="space-y-1 pt-2 border-t border-divider">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider">
+            Preview (what recipient will see)
+          </label>
+          {dirty && (
+            <span className="text-[10px] text-warning font-medium">
+              Unsaved changes — click Save Draft to refresh preview
+            </span>
+          )}
+        </div>
+        <div
+          className="bg-white rounded-md border border-divider p-4 text-[13px] max-h-[500px] overflow-y-auto [&_a]:text-accent"
+          dangerouslySetInnerHTML={{ __html: email.body_html }}
+        />
       </div>
     </div>
   );
