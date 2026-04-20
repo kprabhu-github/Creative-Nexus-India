@@ -14,7 +14,11 @@
       "Bash(chmod +x \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/\"*.sh)",
       "Bash(chmod +x \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/git/zip-for-hostinger.sh\")",
       "Bash(./infra/git/zip-for-hostinger.sh)",
-      "Bash(./infra/git/git-push.sh \"feat: add zip-for-hostinger script, improve deploy scripts with auto-save and trap handlers\")"
+      "Bash(./infra/git/git-push.sh \"feat: add zip-for-hostinger script, improve deploy scripts with auto-save and trap handlers\")",
+      "Bash(npm run *)",
+      "Bash(git ls-tree *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(./infra/git/git-push.sh \"chore: update signup placeholder to Creative Nexus\")"
     ],
     "additionalDirectories": [
       "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]"

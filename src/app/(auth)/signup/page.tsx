@@ -46,7 +46,7 @@ export default function SignupPage() {
         )}
         <div className="space-y-1.5">
           <Label htmlFor="orgName" className="text-[13px] font-medium">Organisation Name</Label>
-          <Input id="orgName" placeholder="Acme Agency" required value={orgName} onChange={(e) => setOrgName(e.target.value)} />
+          <Input id="orgName" placeholder="Creative Nexus" required value={orgName} onChange={(e) => setOrgName(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="email" className="text-[13px] font-medium">Work Email</Label>
