@@ -312,6 +312,7 @@ function AccountCard({
   acc,
   selected,
   onSelect,
+  onRunCampaign,
   onSettings,
   onRescrape,
   onDelete,
@@ -321,6 +322,7 @@ function AccountCard({
   acc: Account;
   selected: boolean;
   onSelect: () => void;
+  onRunCampaign: (id: string) => void;
   onSettings: (id: string) => void;
   onRescrape: (id: string) => void;
   onDelete: (id: string) => void;
@@ -413,8 +415,8 @@ function AccountCard({
         </button>
         <button onClick={(e) => { e.stopPropagation(); onSettings(acc.id); }} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "1px solid #E5E7EB", background: "transparent", color: "#6B7280", fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>⚙ Limits</button>
         <button onClick={(e) => { e.stopPropagation(); if (confirm(`Remove ${acc.name}?`)) onDelete(acc.id); }} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #FECACA", background: "transparent", color: "#DC2626", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>×</button>
-        <button onClick={(e) => { e.stopPropagation(); onSelect(); }} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: selected ? "#F3F4F6" : C.navy, color: selected ? C.gray : "white", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-          {selected ? "✓ Selected" : "Use"}
+        <button onClick={(e) => { e.stopPropagation(); onRunCampaign(acc.id); }} style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: C.coral, color: "white", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+          Run Campaign →
         </button>
       </div>
       <div style={{ textAlign: "right", padding: "0 14px 8px", fontSize: 9, color: C.gray }}>
@@ -745,6 +747,10 @@ export default function LinkedInPage() {
   // Shared
   const [tab, setTab] = useState<TabId>("accounts");
 
+  // Active workflow context — set by "Run Campaign" on an AccountCard.
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  const [showNewCampaignForm, setShowNewCampaignForm] = useState(false);
+
   // Accounts state (real backend)
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [usage, setUsage] = useState<UsageMap>({});
@@ -856,6 +862,16 @@ export default function LinkedInPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCampaignId]);
+
+  // When user clicks "Run Campaign" on an account, pre-fill the campaign form.
+  // If that account has no campaigns yet, auto-open the new-campaign form.
+  useEffect(() => {
+    if (!activeAccountId) return;
+    setSelectedAccId(activeAccountId);
+    const scoped = campaigns.filter((c) => c.accountId === activeAccountId);
+    if (scoped.length === 0) setShowNewCampaignForm(true);
+    else setShowNewCampaignForm(false);
+  }, [activeAccountId, campaigns]);
 
   // ── Account handlers ──────────────────────────────────────────────────
   async function handleAddAccount(url: string, name: string) {
@@ -1274,19 +1290,80 @@ export default function LinkedInPage() {
         <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", fontSize: 12, padding: "10px 14px", borderRadius: 10, margin: "14px 0" }}>{error}</div>
       )}
 
+      {/* Workflow breadcrumb — visible when on Campaigns / Funnel / Queue */}
+      {(tab === "campaigns" || tab === "funnel" || tab === "queue") && (() => {
+        const activeAcc = activeAccountId ? accounts.find((a) => a.id === activeAccountId) : null;
+        const activeCamp = selectedCampaignId ? campaigns.find((c) => c.id === selectedCampaignId) : null;
+        const crumb = (isActive: boolean, label: string, onClick: () => void, disabled = false) => (
+          <button
+            onClick={disabled ? undefined : onClick}
+            disabled={disabled}
+            style={{ background: "none", border: "none", padding: 0, cursor: disabled ? "default" : "pointer", color: isActive ? C.coral : disabled ? C.gray : C.navy, fontWeight: isActive ? 700 : 500, fontSize: 12, fontFamily: "inherit" }}
+          >
+            {label}
+          </button>
+        );
+        const sep = <span style={{ color: C.gray, fontSize: 12 }}>›</span>;
+        return (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 0", fontSize: 12 }}>
+            {crumb(false, activeAcc ? activeAcc.name : "Accounts", () => setTab("accounts"))}
+            {sep}
+            {crumb(tab === "campaigns", activeCamp?.name ?? "Campaign", () => setTab("campaigns"))}
+            {sep}
+            {crumb(tab === "funnel", "Funnel", () => selectedCampaignId && setTab("funnel"), !selectedCampaignId)}
+            {sep}
+            {crumb(tab === "queue", "Queue", () => selectedCampaignId && setTab("queue"), !selectedCampaignId)}
+          </div>
+        );
+      })()}
+
       {/* Tab content */}
       <div style={{ minHeight: 480, padding: "16px 0" }}>
         {tab === "accounts" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 14 }}>
             {accounts.map((acc) => (
-              <AccountCard key={acc.id} acc={acc} selected={selectedAccId === acc.id} onSelect={() => setSelectedAccId(acc.id)} onSettings={(id) => setSettingsId(id)} onRescrape={handleRescrape} onDelete={handleDeleteAccount} usage={usage[acc.id]} rescrapingId={rescrapingId} />
+              <AccountCard key={acc.id} acc={acc} selected={selectedAccId === acc.id} onSelect={() => setSelectedAccId(acc.id)} onRunCampaign={(id) => { setSelectedAccId(id); setActiveAccountId(id); setSelectedCampaignId(null); setTab("campaigns"); window.scrollTo({ top: 0, behavior: "smooth" }); }} onSettings={(id) => setSettingsId(id)} onRescrape={handleRescrape} onDelete={handleDeleteAccount} usage={usage[acc.id]} rescrapingId={rescrapingId} />
             ))}
             {!loading && <AddAccountCard onAdd={handleAddAccount} scraping={scraping} />}
           </div>
         )}
 
-        {tab === "campaigns" && (
+        {tab === "campaigns" && (() => {
+          const activeAcc = activeAccountId ? accounts.find((a) => a.id === activeAccountId) : null;
+          const scopedCampaigns = activeAccountId ? campaigns.filter((c) => c.accountId === activeAccountId) : campaigns;
+          const shouldShowPicker = !!activeAcc && scopedCampaigns.length > 0 && !showNewCampaignForm && !selectedCampaignId;
+          const shouldShowForm = !activeAcc || showNewCampaignForm || scopedCampaigns.length === 0;
+          return (
           <div>
+            {activeAcc && (
+              <div style={{ marginBottom: 14, padding: "10px 16px", background: C.navy, color: "white", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 13 }}>
+                  Running as <span style={{ fontWeight: 700 }}>{activeAcc.name}</span>
+                </div>
+                <button onClick={() => { setActiveAccountId(null); setShowNewCampaignForm(false); }} style={{ background: "none", border: "none", color: C.coral, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
+                  change
+                </button>
+              </div>
+            )}
+
+            {shouldShowPicker && (
+              <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <button onClick={() => setShowNewCampaignForm(true)} style={{ padding: 20, borderRadius: 12, border: `2px solid ${C.coral}`, background: "white", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.coral }}>+ New Campaign</div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+                    Start a fresh sequence for {activeAcc!.name}.
+                  </div>
+                </button>
+                <button onClick={() => { setSelectedCampaignId(scopedCampaigns[0].id); setTab("queue"); }} style={{ padding: 20, borderRadius: 12, border: `2px solid ${C.navy}`, background: "white", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.navy }}>▶ Continue {scopedCampaigns[0].name}</div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+                    Resume most recent campaign ({scopedCampaigns.length} total).
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {shouldShowForm && (
             <div style={{ marginBottom: 16, padding: "14px 18px", background: "white", borderRadius: 12, border: "1px solid #E5E7EB" }}>
               <div style={{ fontWeight: 700, fontSize: 13, color: C.navy, marginBottom: 12 }}>New Campaign</div>
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -1324,6 +1401,7 @@ export default function LinkedInPage() {
                 <span style={{ fontSize: 10, color: C.gray, alignSelf: "center" }}>Once launched, go to Queue and click Discover Prospects.</span>
               </div>
             </div>
+            )}
 
             <div style={{ fontWeight: 700, fontSize: 13, color: C.navy, marginBottom: 10 }}>Existing Campaigns</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 12 }}>
@@ -1349,26 +1427,47 @@ export default function LinkedInPage() {
               ))}
               {campaigns.length === 0 && <div style={{ color: C.gray, fontSize: 12, padding: 16 }}>No campaigns yet. Create one above.</div>}
             </div>
+
+            {selectedCampaignId && (
+              <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={() => setTab("funnel")} style={{ padding: "10px 22px", borderRadius: 10, border: "none", background: C.coral, color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 6px rgba(255,107,74,0.3)" }}>
+                  Next: Build Funnel →
+                </button>
+              </div>
+            )}
           </div>
-        )}
+          );
+        })()}
 
         {tab === "funnel" && (
           <div>
-            {/* Funnel context + Save button */}
-            <div style={{ background: "white", borderRadius: 12, padding: "10px 16px", border: "1px solid #E5E7EB", marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase" }}>Campaign</div>
-              <select value={selectedCampaignId ?? ""} onChange={(e) => setSelectedCampaignId(e.target.value || null)} style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #E5E7EB", fontSize: 12, outline: "none", fontFamily: "inherit", background: "white", minWidth: 240 }}>
-                <option value="">Default funnel (new campaigns)…</option>
+            {!selectedCampaignId ? (
+              <div style={{ background: "white", borderRadius: 12, padding: 40, border: "1px solid #E5E7EB", textAlign: "center" }}>
+                <div style={{ fontSize: 32, marginBottom: 10 }}>🎯</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.navy, marginBottom: 6 }}>No campaign selected</div>
+                <div style={{ fontSize: 12, color: C.gray, marginBottom: 16 }}>Select or create a campaign to build its outreach funnel.</div>
+                <button onClick={() => setTab("campaigns")} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: C.coral, color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  Go to Campaigns →
+                </button>
+              </div>
+            ) : (
+            <>
+            {/* Funnel context header */}
+            <div style={{ background: "white", borderRadius: 12, padding: "14px 18px", border: "1px solid #E5E7EB", marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: "0.3px" }}>Funnel for</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.navy, marginTop: 2 }}>
+                  {campaigns.find((c) => c.id === selectedCampaignId)?.name ?? "—"}
+                </div>
+              </div>
+              <select value={selectedCampaignId ?? ""} onChange={(e) => setSelectedCampaignId(e.target.value || null)} style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid #E5E7EB", fontSize: 12, outline: "none", fontFamily: "inherit", background: "white", minWidth: 200, marginLeft: "auto" }}>
                 {campaigns.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <button onClick={saveFunnelToCampaign} disabled={!selectedCampaignId || launching} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: selectedCampaignId && !launching ? C.navy : "#F3F4F6", color: selectedCampaignId && !launching ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: selectedCampaignId && !launching ? "pointer" : "default", fontFamily: "inherit" }}>
+              <button onClick={saveFunnelToCampaign} disabled={launching} style={{ padding: "6px 14px", borderRadius: 7, border: "none", background: !launching ? C.navy : "#F3F4F6", color: !launching ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: !launching ? "pointer" : "default", fontFamily: "inherit" }}>
                 {launching ? "Saving…" : "💾 Save Funnel"}
               </button>
-              <span style={{ fontSize: 10, color: C.gray, marginLeft: "auto" }}>
-                {selectedCampaignId ? "Edits apply only when saved" : "Create/select a campaign to save edits"}
-              </span>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 14 }}>
@@ -1402,11 +1501,41 @@ export default function LinkedInPage() {
               )}
             </div>
             </div>
+
+            <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button onClick={async () => { await saveFunnelToCampaign(); await handleDiscover(); setTab("queue"); }} disabled={launching || discovering} style={{ padding: "10px 22px", borderRadius: 10, border: "none", background: !launching && !discovering ? C.coral : "#F3F4F6", color: !launching && !discovering ? "white" : C.gray, fontSize: 13, fontWeight: 700, cursor: !launching && !discovering ? "pointer" : "default", fontFamily: "inherit", boxShadow: "0 2px 6px rgba(255,107,74,0.3)" }}>
+                {discovering ? "Discovering…" : launching ? "Saving…" : "Save & Next: Discover Prospects →"}
+              </button>
+            </div>
+            </>
+            )}
           </div>
         )}
 
         {tab === "queue" && (
           <div>
+            {/* Status stats strip */}
+            {selectedCampaignId && prospects.length > 0 && (() => {
+              const pendingCt = prospects.filter((p) => p.status === "pending").length;
+              const inSeqCt = prospects.filter((p) => p.status === "in_sequence").length;
+              const repliedCt = prospects.filter((p) => p.status === "replied").length;
+              const meetingCt = prospects.filter((p) => p.status === "meeting").length;
+              const optedCt = prospects.filter((p) => p.status === "opted_out").length;
+              const pill = (bg: string, bd: string, fg: string, icon: string, n: number, lbl: string) => (
+                <span style={{ padding: "5px 12px", borderRadius: 20, background: bg, border: `1px solid ${bd}`, color: fg, fontSize: 12, fontWeight: 600 }}>
+                  {icon} {n} {lbl}
+                </span>
+              );
+              return (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                  {pill("#FEF3C7", "#FCD34D", "#92400E", "🟡", pendingCt, "pending")}
+                  {pill("#DBEAFE", "#93C5FD", "#1E40AF", "🔵", inSeqCt, "in sequence")}
+                  {pill("#D1FAE5", "#6EE7B7", "#065F46", "🟢", repliedCt, "replied")}
+                  {pill("#FCE7F3", "#F9A8D4", "#9D174D", "🤝", meetingCt, "meetings")}
+                  {pill("#FEE2E2", "#FCA5A5", "#991B1B", "⛔", optedCt, "opted out")}
+                </div>
+              );
+            })()}
             {/* Campaign picker + discover */}
             <div style={{ background: "white", borderRadius: 12, padding: "12px 16px", border: "1px solid #E5E7EB", marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase" }}>Campaign</div>
@@ -1550,10 +1679,25 @@ export default function LinkedInPage() {
               )}
             </div>
             </div>
+
+            {selectedCampaignId && (
+              <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={() => setTab("analytics")} style={{ padding: "10px 22px", borderRadius: 10, border: "none", background: C.coral, color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 6px rgba(255,107,74,0.3)" }}>
+                  Next: View Analytics →
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        {tab === "analytics" && <AnalyticsView prospects={prospects} campaigns={campaigns} />}
+        {tab === "analytics" && (
+          <div>
+            <button onClick={() => setTab("queue")} style={{ marginBottom: 14, background: "none", border: "none", color: C.navy, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+              ← Back to Queue
+            </button>
+            <AnalyticsView prospects={prospects} campaigns={campaigns} />
+          </div>
+        )}
       </div>
 
       {/* Activity log (only on Accounts tab) */}
