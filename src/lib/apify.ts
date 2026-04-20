@@ -13,6 +13,7 @@ export const APIFY_ACTORS = {
   instagramScraper: "apify/instagram-scraper",
   twitterScraper: "apify/tweet-scraper",
   linkedinScraper: "apify/linkedin-profile-scraper",
+  linkedinCompanyScraper: "apify/linkedin-company-scraper",
   googleSearch: "apify/google-search-scraper",
 } as const;
 
@@ -275,6 +276,127 @@ export async function ragBrowse(
     text: item.text ?? item.markdown ?? "",
     metadata: item.metadata,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// LinkedIn scraping
+// ---------------------------------------------------------------------------
+
+export interface LinkedInProfileRaw {
+  fullName?: string;
+  headline?: string;
+  subHeader?: string;
+  summary?: string;
+  addressWithCountry?: string;
+  addressWithoutCountry?: string;
+  addressCountryOnly?: string;
+  location?: string;
+  connections?: number | string;
+  followers?: number | string;
+  recommendationsReceived?: number;
+  experience?: number;
+  experiences?: unknown[];
+  profilePic?: string;
+  profilePicAllDimensions?: Array<{ url?: string; width?: number; height?: number }>;
+  profilePicHighQuality?: string;
+  profilePicUrl?: string;
+  backgroundPicAllDimensions?: Array<{ url?: string }>;
+  backgroundPic?: string;
+  isTopVoice?: boolean;
+  isCreator?: boolean;
+  isPremium?: boolean;
+  isVerified?: boolean;
+  isOpenToWork?: boolean;
+  skills?: Array<{ title?: string; name?: string } | string>;
+  educations?: Array<{ title?: string; subtitle?: string; schoolName?: string; degreeName?: string }>;
+  [k: string]: unknown;
+}
+
+export interface LinkedInCompanyRaw {
+  name?: string;
+  title?: string;
+  universalName?: string;
+  description?: string;
+  tagline?: string;
+  headline?: string;
+  followerCount?: number;
+  followers?: number;
+  employeeCount?: number;
+  staffCount?: number;
+  foundedYear?: number;
+  founded?: number;
+  companyType?: string;
+  companySize?: string;
+  staffCountRange?: string;
+  specialties?: string[];
+  industries?: string[];
+  industry?: string;
+  headquartersAddress?: { line1?: string; city?: string; country?: string };
+  headquarter?: { city?: string; country?: string; line1?: string };
+  logoResolutionResult?: string;
+  logoUrl?: string;
+  logo?: string;
+  [k: string]: unknown;
+}
+
+/**
+ * Scrape a single LinkedIn personal profile.
+ * Uses apify/linkedin-profile-scraper by default (cookie-based, may require
+ * session cookie in input depending on the actor's current requirements).
+ */
+export async function scrapeLinkedInProfile(
+  url: string,
+  options?: { actorId?: string; timeoutSecs?: number },
+): Promise<LinkedInProfileRaw | null> {
+  const actorId = options?.actorId ?? APIFY_ACTORS.linkedinScraper;
+  const input = {
+    profileUrls: [url],
+    urls: [url],
+    startUrls: [{ url }],
+  };
+
+  const run = await startRun({
+    actorId,
+    input,
+    timeoutSecs: options?.timeoutSecs ?? 180,
+    memoryMbytes: 2048,
+  });
+
+  const completedRun = await waitForRun(run.id, 240_000);
+  const items = await getDatasetItems<LinkedInProfileRaw>(
+    completedRun.defaultDatasetId,
+    { limit: 5 },
+  );
+  return items[0] ?? null;
+}
+
+/**
+ * Scrape a single LinkedIn company page.
+ */
+export async function scrapeLinkedInCompany(
+  url: string,
+  options?: { actorId?: string; timeoutSecs?: number },
+): Promise<LinkedInCompanyRaw | null> {
+  const actorId = options?.actorId ?? APIFY_ACTORS.linkedinCompanyScraper;
+  const input = {
+    companyUrls: [url],
+    urls: [url],
+    startUrls: [{ url }],
+  };
+
+  const run = await startRun({
+    actorId,
+    input,
+    timeoutSecs: options?.timeoutSecs ?? 180,
+    memoryMbytes: 2048,
+  });
+
+  const completedRun = await waitForRun(run.id, 240_000);
+  const items = await getDatasetItems<LinkedInCompanyRaw>(
+    completedRun.defaultDatasetId,
+    { limit: 5 },
+  );
+  return items[0] ?? null;
 }
 
 export interface ScrapeInstagramOptions {

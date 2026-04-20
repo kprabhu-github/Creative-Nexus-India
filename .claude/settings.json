@@ -29,7 +29,12 @@
       "Bash(./infra/git/git-push.sh \"feat\\(leads\\): add live email preview showing body + signature below editor\")",
       "Bash(./infra/git/git-push.sh \"feat\\(signature\\): add 2nd mobile, Book a Call Now text link in contact row + prominent button\")",
       "Bash(node -e \"const icons = Object.keys\\(require\\('lucide-react'\\)\\); console.log\\(icons.filter\\(n => n.toLowerCase\\(\\).includes\\('link'\\)\\).join\\('\\\\n'\\)\\)\")",
-      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): add LinkedIn Accounts page with K Prabhu + Creative Nexus India scraped data \\(Phase A - UI only, Apify/Supabase wiring in Phase B\\)\")"
+      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): add LinkedIn Accounts page with K Prabhu + Creative Nexus India scraped data \\(Phase A - UI only, Apify/Supabase wiring in Phase B\\)\")",
+      "Bash(mkdir -p \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/linkedin/accounts/[id]\")",
+      "Bash(mkdir -p \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/linkedin/accounts/[id]/rescrape\")",
+      "Bash(brew install *)",
+      "Bash(supabase --version)",
+      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase B - live Apify scraping, Supabase persistence, CRUD API routes + wired UI\")"
     ],
     "additionalDirectories": [
       "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]",

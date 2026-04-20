@@ -1,24 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // ─── CNX brand tokens ──────────────────────────────────────────────────────
 const NAVY = "#0B1C3D";
 const CORAL = "#FF6B4A";
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// ─── Types (match DB schema) ──────────────────────────────────────────────
 interface WorkingHours {
   from: string;
   to: string;
   days: string[];
 }
 
-interface DailyLimits {
-  [key: string]: number;
-}
+type DailyLimits = Record<string, number>;
 
 interface Account {
   id: string;
+  slug: string;
   type: "personal" | "company";
   url: string;
   name: string;
@@ -27,156 +26,42 @@ interface Account {
   location: string;
   connections: number | null;
   followers: number | null;
-  recommendations?: number;
-  experience?: number;
-  employeeCount?: number;
-  founded?: number;
-  companySize?: string;
+  recommendations?: number | null;
+  experience?: number | null;
+  employee_count?: number | null;
+  founded?: number | null;
+  company_size?: string | null;
   pic: string | null;
-  bg?: string;
+  bg?: string | null;
   verified?: boolean;
   premium?: boolean;
   skills?: string[];
-  prevCompanies?: string[];
-  education?: string;
+  prev_companies?: string[];
   specialties?: string[];
-  allowedActions: string[];
-  dailyLimits: DailyLimits;
-  workingHours: WorkingHours;
-  activeCampaigns: number;
-  totalSent: number;
-  replies: number;
-  meetings: number;
+  education?: string | null;
+  allowed_actions: string[];
+  daily_limits: DailyLimits;
+  working_hours: WorkingHours;
   status: "ready" | "active" | "paused";
   role: string;
-  scrapedAt: string;
+  scraped_at: string;
+  created_at: string;
 }
 
 interface LogEntry {
-  msg: string;
+  id: string;
+  account_id: string | null;
+  message: string;
   type: "info" | "success" | "warn" | "error";
-  ts: string;
+  created_at: string;
 }
 
 type UsageMap = Record<string, Record<string, number>>;
 
-// ─── Real data — live scrape 20 April 2026 ─────────────────────────────────
-const REAL_ACCOUNTS: Account[] = [
-  {
-    id: "kprabhu",
-    type: "personal",
-    url: "https://www.linkedin.com/in/k-prabhu-2062ba14/",
-    name: "K. Prabhu",
-    headline:
-      "Co-founder | Ex-BCG | KPMG | ZS Associates | Branding & Marketing Communication Strategist",
-    subline: "Building Creative Nexus · 9 yrs 1 mo",
-    location: "Delhi, India",
-    connections: 3933,
-    followers: 3898,
-    recommendations: 7,
-    experience: 25,
-    pic: "https://media.licdn.com/dms/image/v2/D5603AQFUSrmW-aaEQg/profile-displayphoto-crop_800_800/B56ZuzVIF7GoAM-/0/1768240219006?e=1778112000&v=beta&t=wygRIBmINn5KwMR32TmmFm9EHadhBLYI-mNoA7Oyjbw",
-    bg: "https://media.licdn.com/dms/image/v2/D5616AQERYSH7xS32-A/profile-displaybackgroundimage-shrink_350_1400/B56ZuzWPAIJoAY-/0/1768240510041?e=1778112000&v=beta&t=wJ_0MjPvzCcpplr3KuhIczxDn9ttiSdMRWxPLzfsKOQ",
-    verified: true,
-    premium: false,
-    skills: [
-      "Branding & Identity",
-      "Corporate Branding",
-      "Email Marketing",
-      "Business Development",
-      "Marketing",
-      "Project Management",
-    ],
-    prevCompanies: ["BCG", "KPMG", "ZS Associates", "Copal (Moody's)"],
-    education: "Symbiosis Institute of Management Studies — MBA",
-    allowedActions: [
-      "follow",
-      "visit",
-      "endorse",
-      "like",
-      "connect",
-      "message",
-      "inmail",
-    ],
-    dailyLimits: {
-      connections: 20,
-      messages: 50,
-      follows: 40,
-      likes: 80,
-      endorsements: 20,
-    },
-    workingHours: { from: "09:00", to: "18:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-    activeCampaigns: 0,
-    totalSent: 0,
-    replies: 0,
-    meetings: 0,
-    status: "ready",
-    role: "Personal outreach — connection requests, direct messages, endorsements, profile warm-up",
-    scrapedAt: "2026-04-20T03:30:00Z",
-  },
-  {
-    id: "creativenexus",
-    type: "company",
-    url: "https://www.linkedin.com/company/creativenexus.in/",
-    name: "Creative Nexus India",
-    headline: "Digital Marketing · Video Production · UI/UX · Branding & Strategy",
-    subline: "Marketing Services · Founded 2016 · Partnership",
-    location: "Gurugram, Haryana · Plot 1SP, 122002",
-    connections: null,
-    followers: 729,
-    employeeCount: 16,
-    founded: 2016,
-    companySize: "11–50 employees",
-    pic: "https://media.licdn.com/dms/image/v2/C560BAQHwe65ToGg2NQ/company-logo_200_200/company-logo_200_200/0/1676881616293/creativenexusin_logo?e=2147483647&v=beta&t=Nu2so7xKTQgPZhh-PZd7u_Jwv4-SNttY5cQD1GgdZHw",
-    specialties: [
-      "SEO",
-      "Video Production",
-      "Shopify",
-      "Branding",
-      "Social Media",
-      "PPT Design",
-      "Website",
-      "BigCommerce",
-      "Animation",
-      "Photography",
-    ],
-    allowedActions: [
-      "invite_follow",
-      "boost_post",
-      "company_message",
-      "event_invite",
-      "employee_advocate",
-    ],
-    dailyLimits: {
-      inviteFollowers: 100,
-      companyMessages: 20,
-      postEngagement: 50,
-      eventInvites: 50,
-    },
-    workingHours: { from: "09:00", to: "18:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-    activeCampaigns: 0,
-    totalSent: 0,
-    replies: 0,
-    meetings: 0,
-    status: "ready",
-    role: "Company page — grow followers, company awareness, post engagement, event invitations",
-    scrapedAt: "2026-04-20T03:33:00Z",
-  },
-];
-
-const INITIAL_USAGE: UsageMap = {
-  kprabhu: { connections: 0, messages: 0, follows: 0, likes: 0, endorsements: 0 },
-  creativenexus: {
-    inviteFollowers: 0,
-    companyMessages: 0,
-    postEngagement: 0,
-    eventInvites: 0,
-  },
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────
 function timeAgo(iso: string): string {
   const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "just now";
   return m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / 1440)}d ago`;
 }
 
@@ -187,6 +72,14 @@ function initials(name: string): string {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function fmtClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────
@@ -243,19 +136,24 @@ function AccountCard({
   onSelect,
   onSettings,
   onRescrape,
+  onDelete,
   usage,
+  rescrapingId,
 }: {
   acc: Account;
   selected: boolean;
   onSelect: () => void;
   onSettings: (id: string) => void;
   onRescrape: (id: string) => void;
+  onDelete: (id: string) => void;
   usage: Record<string, number> | undefined;
+  rescrapingId: string | null;
 }) {
   const [imgErr, setImgErr] = useState(false);
   const isCompany = acc.type === "company";
-  const lim = acc.dailyLimits;
+  const lim = acc.daily_limits;
   const use = usage || {};
+  const rescraping = rescrapingId === acc.id;
 
   return (
     <div
@@ -380,14 +278,19 @@ function AccountCard({
       </div>
 
       <div style={{ display: "flex", borderBottom: "1px solid #F3F4F6" }}>
-        {([
-          !isCompany && ["connections", acc.connections?.toLocaleString() ?? "-", "Connections"],
-          ["followers", acc.followers?.toLocaleString() ?? "-", "Followers"],
-          isCompany
-            ? ["employees", acc.employeeCount ?? "-", "Employees"]
-            : ["recommendations", acc.recommendations ?? "-", "Recommendations"],
-        ]
-          .filter(Boolean) as [string, string | number, string][]).map(([key, val, label]) => (
+        {(
+          [
+            !isCompany && [
+              "connections",
+              acc.connections?.toLocaleString() ?? "—",
+              "Connections",
+            ],
+            ["followers", acc.followers?.toLocaleString() ?? "—", "Followers"],
+            isCompany
+              ? ["employees", acc.employee_count ?? "—", "Employees"]
+              : ["recommendations", acc.recommendations ?? "—", "Recommendations"],
+          ].filter(Boolean) as [string, string | number, string][]
+        ).map(([key, val, label]) => (
           <div
             key={key}
             style={{
@@ -440,7 +343,7 @@ function AccountCard({
           Allowed actions
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {acc.allowedActions.map((a) => (
+          {acc.allowed_actions.map((a) => (
             <span
               key={a}
               style={{
@@ -488,7 +391,8 @@ function AccountCard({
       >
         <span style={{ fontSize: 10, color: "#9CA3AF" }}>Working hours</span>
         <span style={{ fontSize: 10, fontWeight: 600, color: NAVY }}>
-          {acc.workingHours.from}–{acc.workingHours.to} IST · {acc.workingHours.days.slice(0, 3).join(" ")}…
+          {acc.working_hours.from}–{acc.working_hours.to} IST ·{" "}
+          {acc.working_hours.days.slice(0, 3).join(" ")}…
         </span>
       </div>
 
@@ -498,6 +402,7 @@ function AccountCard({
             e.stopPropagation();
             onRescrape(acc.id);
           }}
+          disabled={rescraping}
           style={{
             flex: 1,
             padding: "6px 0",
@@ -507,11 +412,12 @@ function AccountCard({
             color: "#6B7280",
             fontSize: 10,
             fontWeight: 600,
-            cursor: "pointer",
+            cursor: rescraping ? "default" : "pointer",
             fontFamily: "inherit",
+            opacity: rescraping ? 0.5 : 1,
           }}
         >
-          ↺ Re-scrape
+          {rescraping ? "Scraping…" : "↺ Re-scrape"}
         </button>
         <button
           onClick={(e) => {
@@ -536,6 +442,28 @@ function AccountCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
+            if (confirm(`Remove ${acc.name} from your LinkedIn accounts?`)) {
+              onDelete(acc.id);
+            }
+          }}
+          style={{
+            padding: "6px 8px",
+            borderRadius: 8,
+            border: "1px solid #FECACA",
+            background: "transparent",
+            color: "#DC2626",
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+          aria-label="Delete account"
+        >
+          ×
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
             onSelect();
           }}
           style={{
@@ -555,8 +483,8 @@ function AccountCard({
         </button>
       </div>
 
-      <div style={{ textAlign: "right", padding: "0 14px 8px", fontSize: 9, color: "#E5E7EB" }}>
-        Scraped {timeAgo(acc.scrapedAt)} via Apify
+      <div style={{ textAlign: "right", padding: "0 14px 8px", fontSize: 9, color: "#9CA3AF" }}>
+        Scraped {timeAgo(acc.scraped_at)} via Apify
       </div>
     </div>
   );
@@ -620,7 +548,7 @@ function AddAccountCard({
       >
         Personal profile or company page.
         <br />
-        Scraped live via Apify — no cookies or login needed.
+        Scraped live via Apify — server-side, no cookies needed.
       </div>
 
       <div style={{ width: "100%", marginBottom: 10 }}>
@@ -768,7 +696,7 @@ function AddAccountCard({
           fontFamily: "inherit",
         }}
       >
-        {scraping ? "⏳ Scraping via Apify..." : "Add Account"}
+        {scraping ? "⏳ Scraping via Apify…" : "Add Account"}
       </button>
     </div>
   );
@@ -778,13 +706,15 @@ function LimitsModal({
   acc,
   onClose,
   onSave,
+  saving,
 }: {
   acc: Account;
   onClose: () => void;
   onSave: (id: string, lim: DailyLimits, hrs: WorkingHours) => void;
+  saving: boolean;
 }) {
-  const [lim, setLim] = useState<DailyLimits>({ ...acc.dailyLimits });
-  const [hrs, setHrs] = useState<WorkingHours>({ ...acc.workingHours });
+  const [lim, setLim] = useState<DailyLimits>({ ...acc.daily_limits });
+  const [hrs, setHrs] = useState<WorkingHours>({ ...acc.working_hours });
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   return (
@@ -958,6 +888,7 @@ function LimitsModal({
         <div style={{ display: "flex", gap: 8 }}>
           <button
             onClick={onClose}
+            disabled={saving}
             style={{
               flex: 1,
               padding: "10px",
@@ -975,6 +906,7 @@ function LimitsModal({
           </button>
           <button
             onClick={() => onSave(acc.id, lim, hrs)}
+            disabled={saving}
             style={{
               flex: 1,
               padding: "10px",
@@ -984,11 +916,12 @@ function LimitsModal({
               color: "white",
               fontSize: 12,
               fontWeight: 700,
-              cursor: "pointer",
+              cursor: saving ? "default" : "pointer",
               fontFamily: "inherit",
+              opacity: saving ? 0.6 : 1,
             }}
           >
-            Save Limits
+            {saving ? "Saving…" : "Save Limits"}
           </button>
         </div>
       </div>
@@ -998,83 +931,122 @@ function LimitsModal({
 
 // ─── Main page ────────────────────────────────────────────────────────────
 export default function LinkedInPage() {
-  const [accounts, setAccounts] = useState<Account[]>(REAL_ACCOUNTS);
-  const [selectedId, setSelectedId] = useState<string>("kprabhu");
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [scraping, setScraping] = useState(false);
-  const [log, setLog] = useState<LogEntry[]>([
-    {
-      msg: "K. Prabhu profile scraped — 3,933 connections, 3,898 followers",
-      type: "success",
-      ts: "03:30:12",
-    },
-    {
-      msg: "Creative Nexus company scraped — 729 followers, 16 employees",
-      type: "success",
-      ts: "03:33:10",
-    },
-    {
-      msg: "Both accounts ready. Live Apify scraping wiring is in Phase B.",
-      type: "info",
-      ts: "03:33:11",
-    },
-  ]);
-  const [usage, setUsage] = useState<UsageMap>(INITIAL_USAGE);
+  const [rescrapingId, setRescrapingId] = useState<string | null>(null);
+  const [savingLimits, setSavingLimits] = useState(false);
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const [usage, setUsage] = useState<UsageMap>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  function addLog(msg: string, type: LogEntry["type"] = "info") {
-    const ts = new Date().toLocaleTimeString("en-IN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    setLog((p) => [{ msg, type, ts }, ...p.slice(0, 29)]);
-  }
+  const loadAccounts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/linkedin/accounts");
+      const json = (await res.json()) as {
+        data?: { accounts: Account[]; usage: UsageMap };
+        error?: string;
+      };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setAccounts(json.data?.accounts ?? []);
+      setUsage(json.data?.usage ?? {});
+      if (!selectedId && json.data && json.data.accounts.length > 0) {
+        setSelectedId(json.data.accounts[0].id);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load accounts");
+    }
+  }, [selectedId]);
+
+  const loadLog = useCallback(async () => {
+    try {
+      const res = await fetch("/api/linkedin/log");
+      const json = (await res.json()) as { data?: LogEntry[]; error?: string };
+      if (!res.ok || json.error) return;
+      setLog(json.data ?? []);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      await Promise.all([loadAccounts(), loadLog()]);
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleAddAccount(url: string, name: string) {
     setScraping(true);
-    addLog(`Adding: ${url}`, "info");
-    await new Promise((r) => setTimeout(r, 800));
-    const isCompany = url.includes("/company/");
-    const newAcc: Account = {
-      id: `acc_${Date.now()}`,
-      type: isCompany ? "company" : "personal",
-      url,
-      name: name || (isCompany ? "New Company Page" : "New Profile"),
-      headline: isCompany ? "LinkedIn Company Page" : "LinkedIn Profile",
-      subline: "Just added",
-      location: "India",
-      connections: null,
-      followers: 0,
-      pic: null,
-      allowedActions: isCompany
-        ? ["invite_follow", "boost_post", "company_message", "event_invite"]
-        : ["follow", "visit", "endorse", "like", "connect", "message"],
-      dailyLimits: isCompany
-        ? { inviteFollowers: 100, companyMessages: 20, postEngagement: 50, eventInvites: 50 }
-        : { connections: 20, messages: 50, follows: 40, likes: 80, endorsements: 20 },
-      workingHours: { from: "09:00", to: "18:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
-      activeCampaigns: 0,
-      totalSent: 0,
-      replies: 0,
-      meetings: 0,
-      status: "ready",
-      role: isCompany ? "Company page outreach" : "Personal outreach",
-      scrapedAt: new Date().toISOString(),
-    };
-    setAccounts((p) => [...p, newAcc]);
-    setUsage((p) => ({ ...p, [newAcc.id]: {} }));
-    addLog(`Added: ${newAcc.name} — wire Phase B Apify scrape for full profile data`, "success");
-    setScraping(false);
+    try {
+      const res = await fetch("/api/linkedin/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, name }),
+      });
+      const json = (await res.json()) as { data?: Account; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([loadAccounts(), loadLog()]);
+      if (json.data) setSelectedId(json.data.id);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to add account");
+    } finally {
+      setScraping(false);
+    }
   }
 
-  function handleSaveLimits(id: string, lim: DailyLimits, hrs: WorkingHours) {
-    setAccounts((p) => p.map((a) => (a.id === id ? { ...a, dailyLimits: lim, workingHours: hrs } : a)));
-    setSettingsId(null);
-    addLog("Limits saved", "success");
+  async function handleRescrape(id: string) {
+    setRescrapingId(id);
+    try {
+      const res = await fetch(`/api/linkedin/accounts/${id}/rescrape`, {
+        method: "POST",
+      });
+      const json = (await res.json()) as { data?: Account; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([loadAccounts(), loadLog()]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Rescrape failed");
+    } finally {
+      setRescrapingId(null);
+    }
   }
 
-  const selected = accounts.find((a) => a.id === selectedId);
-  const settingsAcc = accounts.find((a) => a.id === settingsId);
+  async function handleSaveLimits(id: string, lim: DailyLimits, hrs: WorkingHours) {
+    setSavingLimits(true);
+    try {
+      const res = await fetch(`/api/linkedin/accounts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ daily_limits: lim, working_hours: hrs }),
+      });
+      const json = (await res.json()) as { data?: Account; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([loadAccounts(), loadLog()]);
+      setSettingsId(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save limits");
+    } finally {
+      setSavingLimits(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/linkedin/accounts/${id}`, { method: "DELETE" });
+      const json = (await res.json()) as { data?: { deleted: boolean }; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([loadAccounts(), loadLog()]);
+      if (selectedId === id) setSelectedId(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  const selected = accounts.find((a) => a.id === selectedId) ?? null;
+  const settingsAcc = accounts.find((a) => a.id === settingsId) ?? null;
 
   return (
     <div style={{ fontFamily: "'Inter',system-ui,sans-serif", color: NAVY }}>
@@ -1083,10 +1055,10 @@ export default function LinkedInPage() {
           acc={settingsAcc}
           onClose={() => setSettingsId(null)}
           onSave={handleSaveLimits}
+          saving={savingLimits}
         />
       )}
 
-      {/* Page header */}
       <div style={{ paddingBottom: 10 }}>
         <div
           style={{
@@ -1097,12 +1069,21 @@ export default function LinkedInPage() {
           }}
         >
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: NAVY, margin: 0, letterSpacing: "-0.4px" }}>
+            <h1
+              style={{
+                fontSize: 20,
+                fontWeight: 800,
+                color: NAVY,
+                margin: 0,
+                letterSpacing: "-0.4px",
+              }}
+            >
               LinkedIn Accounts
             </h1>
             <p style={{ fontSize: 12, color: "#6B7280", margin: "3px 0 0" }}>
-              {accounts.length} accounts configured ·{" "}
-              {accounts.filter((a) => a.status === "active").length} running · Select an account to run campaigns from it
+              {loading
+                ? "Loading accounts…"
+                : `${accounts.length} account${accounts.length === 1 ? "" : "s"} configured · ${accounts.filter((a) => a.status === "active").length} running · Scraped live via Apify`}
             </p>
           </div>
           {selected && (
@@ -1114,7 +1095,22 @@ export default function LinkedInPage() {
         </div>
       </div>
 
-      {/* Account cards grid */}
+      {error && (
+        <div
+          style={{
+            background: "#FEF2F2",
+            border: "1px solid #FECACA",
+            color: "#991B1B",
+            fontSize: 12,
+            padding: "10px 14px",
+            borderRadius: 10,
+            marginBottom: 14,
+          }}
+        >
+          {error}
+        </div>
+      )}
+
       <div
         style={{
           padding: "6px 0",
@@ -1130,17 +1126,15 @@ export default function LinkedInPage() {
             selected={selectedId === acc.id}
             onSelect={() => setSelectedId(acc.id)}
             onSettings={(id) => setSettingsId(id)}
-            onRescrape={(id) => {
-              const name = accounts.find((a) => a.id === id)?.name;
-              addLog(`Re-scraping ${name} — live Apify integration in Phase B`, "warn");
-            }}
+            onRescrape={handleRescrape}
+            onDelete={handleDelete}
             usage={usage[acc.id]}
+            rescrapingId={rescrapingId}
           />
         ))}
-        <AddAccountCard onAdd={handleAddAccount} scraping={scraping} />
+        {!loading && <AddAccountCard onAdd={handleAddAccount} scraping={scraping} />}
       </div>
 
-      {/* Selected account summary bar */}
       {selected && (
         <div
           style={{
@@ -1207,8 +1201,8 @@ export default function LinkedInPage() {
               Working hours
             </div>
             <div style={{ fontSize: 11, fontWeight: 600, color: NAVY, marginTop: 2 }}>
-              {selected.workingHours.from}–{selected.workingHours.to} IST ·{" "}
-              {selected.workingHours.days.join(" · ")}
+              {selected.working_hours.from}–{selected.working_hours.to} IST ·{" "}
+              {selected.working_hours.days.join(" · ")}
             </div>
           </div>
           <div>
@@ -1254,7 +1248,6 @@ export default function LinkedInPage() {
         </div>
       )}
 
-      {/* Activity log */}
       <div
         style={{
           background: "#0B1C3D",
@@ -1262,7 +1255,7 @@ export default function LinkedInPage() {
           padding: "12px 16px",
           fontFamily: "monospace",
           fontSize: 11,
-          maxHeight: 160,
+          maxHeight: 180,
           overflowY: "auto",
         }}
       >
@@ -1278,9 +1271,12 @@ export default function LinkedInPage() {
         >
           Activity Log
         </div>
-        {log.map((l, i) => (
+        {log.length === 0 && (
+          <div style={{ color: "rgba(255,255,255,0.4)" }}>No activity yet.</div>
+        )}
+        {log.map((l) => (
           <div
-            key={i}
+            key={l.id}
             style={{
               marginBottom: 3,
               color:
@@ -1293,8 +1289,8 @@ export default function LinkedInPage() {
                       : "rgba(255,255,255,0.6)",
             }}
           >
-            <span style={{ color: "rgba(255,255,255,0.25)" }}>{l.ts} </span>
-            {l.msg}
+            <span style={{ color: "rgba(255,255,255,0.25)" }}>{fmtClock(l.created_at)} </span>
+            {l.message}
           </div>
         ))}
       </div>
