@@ -43,6 +43,9 @@ infra/builds/
 .claude/worktrees/
 _claude_skills_temp/
 
+# MCP config (contains API keys)
+.mcp.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

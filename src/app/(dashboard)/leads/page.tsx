@@ -334,6 +334,7 @@ function LeadDetail({
   onDraftEmail,
   onSendEmail,
   onRegenerateDraft,
+  onSaveDraftEdits,
   onMarkSpam,
   onMarkReplied,
   onStopFollowups,
@@ -343,6 +344,7 @@ function LeadDetail({
   onDraftEmail: (lead: MergedLead) => void;
   onSendEmail: (emailId: string) => void;
   onRegenerateDraft: (lead: MergedLead) => void;
+  onSaveDraftEdits: (emailId: string, subject: string, bodyText: string) => void;
   onMarkSpam: (leadId: string) => void;
   onMarkReplied: (leadId: string) => void;
   onStopFollowups: (leadId: string) => void;
@@ -500,8 +502,15 @@ function LeadDetail({
               <StatusBadge type="warning">
                 {activeEmail.status === "queued" ? "Queued" : "Draft"}
               </StatusBadge>
+              <span className="text-[11px] text-foreground-tertiary">
+                Edit the draft below, then Save before sending.
+              </span>
             </div>
-            <EmailPreviewCard email={activeEmail} />
+            <DraftEditor
+              email={activeEmail}
+              onSave={onSaveDraftEdits}
+              saving={actionLoading === "save"}
+            />
           </div>
         ) : (
           <div className="mt-2 bg-background rounded-[8px] p-4 dark:bg-foreground-tertiary/5 text-center">
@@ -725,7 +734,97 @@ function LeadDetail({
 }
 
 // ---------------------------------------------------------------------------
-// Email Preview Card
+// Draft Editor (editable subject + plain-text body with Save)
+// ---------------------------------------------------------------------------
+
+function DraftEditor({
+  email,
+  onSave,
+  saving,
+}: {
+  email: LeadEmail;
+  onSave: (emailId: string, subject: string, bodyText: string) => void;
+  saving: boolean;
+}) {
+  const [subject, setSubject] = useState(email.subject);
+  const [bodyText, setBodyText] = useState(email.body_text || "");
+
+  useEffect(() => {
+    setSubject(email.subject);
+    setBodyText(email.body_text || "");
+  }, [email.id, email.subject, email.body_text]);
+
+  const dirty = subject !== email.subject || bodyText !== (email.body_text || "");
+
+  return (
+    <div className="bg-background rounded-[8px] p-3 dark:bg-foreground-tertiary/5 space-y-3 border border-divider">
+      <div className="space-y-1">
+        <label className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider">
+          To
+        </label>
+        <div className="text-xs text-foreground-secondary">
+          {email.to_email}
+          {email.cc_emails && email.cc_emails.length > 0 && (
+            <span className="text-foreground-tertiary"> · cc: {email.cc_emails.join(", ")}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label
+          htmlFor={`subject-${email.id}`}
+          className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider"
+        >
+          Subject
+        </label>
+        <input
+          id={`subject-${email.id}`}
+          type="text"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          className="w-full px-3 py-1.5 rounded-md bg-background border border-divider text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent/40"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label
+          htmlFor={`body-${email.id}`}
+          className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider"
+        >
+          Body
+        </label>
+        <textarea
+          id={`body-${email.id}`}
+          value={bodyText}
+          onChange={(e) => setBodyText(e.target.value)}
+          rows={12}
+          spellCheck
+          className="w-full px-3 py-2 rounded-md bg-background border border-divider text-[13px] leading-relaxed text-foreground font-[inherit] focus:outline-none focus:ring-1 focus:ring-accent/40 resize-y"
+        />
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-foreground-tertiary">
+            {bodyText.length} chars · {bodyText.split(/\s+/).filter(Boolean).length} words · signature auto-added when sent
+          </span>
+          <button
+            onClick={() => onSave(email.id, subject, bodyText)}
+            disabled={!dirty || saving}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent text-white text-[11px] font-medium hover:bg-accent/90 transition-colors disabled:opacity-40"
+          >
+            {saving ? (
+              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+            ) : (
+              <FileText className="w-3 h-3" strokeWidth={2} />
+            )}
+            {saving ? "Saving…" : dirty ? "Save Draft" : "Saved"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Email Preview Card (read-only, used for sent emails)
 // ---------------------------------------------------------------------------
 
 function EmailPreviewCard({ email }: { email: LeadEmail }) {
@@ -1041,7 +1140,7 @@ export default function LeadsPage() {
     }
   };
 
-  const handleDraftEmail = async (lead: MergedLead) => {
+  const handleDraftEmail = async (lead: MergedLead, replaceEmailId?: string) => {
     if (!lead.email) return;
     setActionLoading("draft");
     try {
@@ -1062,6 +1161,7 @@ export default function LeadsPage() {
             meta: lead.meta,
           },
           email_type: emailType,
+          replace_email_id: replaceEmailId,
         }),
       });
 
@@ -1071,10 +1171,32 @@ export default function LeadsPage() {
       }
 
       await fetchEmails();
-      showToast("Email draft generated", "success");
+      showToast(replaceEmailId ? "Draft regenerated" : "Email draft generated", "success");
     } catch (err) {
       console.error("Draft error:", err);
       showToast("Failed to generate draft", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSaveDraftEdits = async (emailId: string, subject: string, bodyText: string) => {
+    setActionLoading("save");
+    try {
+      const res = await fetch("/api/leads/draft-email", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email_id: emailId, subject, body_text: bodyText }),
+      });
+      if (!res.ok) {
+        const json = (await res.json()) as { error?: string };
+        throw new Error(json.error ?? "Save failed");
+      }
+      await fetchEmails();
+      showToast("Draft saved", "success");
+    } catch (err) {
+      console.error("Save draft error:", err);
+      showToast("Failed to save draft", "error");
     } finally {
       setActionLoading(null);
     }
@@ -1105,7 +1227,10 @@ export default function LeadsPage() {
   };
 
   const handleRegenerateDraft = async (lead: MergedLead) => {
-    await handleDraftEmail(lead);
+    const existingDraft = lead.emails.find(
+      (e) => e.status === "draft" || e.status === "queued",
+    );
+    await handleDraftEmail(lead, existingDraft?.id);
   };
 
   const handleMarkSpam = async (leadId: string) => {
@@ -1406,6 +1531,7 @@ export default function LeadsPage() {
               onDraftEmail={handleDraftEmail}
               onSendEmail={handleSendEmail}
               onRegenerateDraft={handleRegenerateDraft}
+              onSaveDraftEdits={handleSaveDraftEdits}
               onMarkSpam={handleMarkSpam}
               onMarkReplied={handleMarkReplied}
               onStopFollowups={handleStopFollowups}

@@ -28,7 +28,7 @@ export function buildEmailPrompt(emailType: EmailType, previousEmails?: string[]
     ? `\n\nPREVIOUS EMAILS SENT TO THIS LEAD (do NOT repeat content):\n${previousEmails.join("\n---\n")}`
     : "";
 
-  return `You are writing an email on behalf of Prabhu K, Co-founder at Creative Nexus India — a digital marketing, branding, and design agency.
+  return `You are writing an email on behalf of Prabhu K, Co-founder at Creative Nexus India — a full-service digital marketing, branding, and design agency. Offices in Bengaluru, Gurugram, and Delhi. Founded 2016. Clients include Fortune 100 companies.
 
 VOICE AND TONE:
 - Write exactly like a real person. Warm, genuine, and direct.
@@ -38,42 +38,32 @@ VOICE AND TONE:
 - Correct grammar, proper punctuation, no filler words.
 - Soft and professional, not salesy or pushy.
 
-FORMATTING RULES (CRITICAL — follow these EXACTLY, email clients strip CSS classes):
+FORMATTING RULES (CRITICAL — follow these EXACTLY):
 
-1. SENTENCE LIMIT: MAXIMUM 2 sentences per paragraph. One sentence is even better. Every paragraph MUST be its own <p> tag with inline margin:
-   <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#333;">One or two sentences here.</p>
-   NEVER write 3+ sentences in one <p> tag. If you catch yourself writing a long paragraph, split it.
-
-2. STRATEGIC BOLDING: Bold (<strong>) ONLY the specific benefit and the CTA. Max 2 bold phrases per email. Example:
-   <strong>turn that debate into 6 scroll-stopping reels</strong>
-   <strong>Can we hop on a quick 10-minute sync</strong>
-
-3. BULLETED VALUE: Exactly 3 bullet points using this EXACT HTML (inline styles required for email clients):
-   <ul style="margin:10px 0 14px 0;padding-left:20px;list-style-type:disc;">
-   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;list-style-type:disc;display:list-item;">Bullet point one</li>
-   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;list-style-type:disc;display:list-item;">Bullet point two</li>
-   <li style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#333;list-style-type:disc;display:list-item;">Bullet point three</li>
-   </ul>
-   Each bullet = ONE line, specific to what they asked about. Not generic. The disc bullet marker MUST be visible.
-
-4. THE ASK: Final paragraph must be its own <p> with the bold CTA. Never say "call to discuss requirements." Say "quick 10-minute sync." Keep it low-friction.
-
-5. SIGN-OFF: Do NOT include any sign-off text. No "Prabhu K", no "Co-founder", no "Best regards". The signature is appended automatically as a separate HTML block.
+1. PLAIN PARAGRAPHS ONLY — NO bullet points, NO lists, NO markdown, NO HTML tags.
+2. Write the email as 3 to 4 short paragraphs.
+3. Each paragraph must be 1 to 2 sentences. Never 3+ sentences in one paragraph.
+4. Separate paragraphs with a single blank line (one empty line between them).
+5. Do NOT include a subject line inside the body.
+6. Do NOT include a sign-off (no "Regards", no "Prabhu K", no "Co-founder"). The signature is appended automatically as a separate block.
+7. Do NOT use asterisks, hashes, hyphens, or any markdown characters to emphasise text or create structure.
 
 CONTENT RULES:
-- Stay locked to exactly what the person filled in their form — their name, company, services they asked about, their specific message.
-- Reference their actual words or needs. Show you read what they wrote.
-- Every email MUST have the 3 bullet points and a bold CTA.
-- Never make up details about Creative Nexus's work that weren't provided.
-- For follow-ups: provide NEW value each time (case study, stat, insight, resource). Never just "checking in".
+- Reference their actual words or specific need. Show you read what they wrote.
+- Paragraph 1: Acknowledge their specific inquiry warmly. Reference their company or stated need by name.
+- Paragraph 2: Show understanding of their situation with one or two concrete observations. No generic claims.
+- Paragraph 3: Suggest a clear, low-friction next step (a short 10–15 minute call). Include the scheduling link exactly once: https://calendar.app.google/a2NUMHLwj6is9UPh8
+- Paragraph 4 (optional): One warm closing line. One sentence max.
+- Never invent facts about Creative Nexus's past work that were not provided.
+- For follow-ups: give NEW value each time (a relevant insight, stat, or resource). Never say "just checking in".
 
 ABOUT CREATIVE NEXUS:
-- Full-service digital agency: branding, web design, SEO, social media, content, paid ads, video, UI/UX
-- Offices in Bengaluru, Gurugram, Delhi
-- Website: creativenexus.in / creativenexusglobal.com
-- Contact page: https://calendar.app.google/a2NUMHLwj6is9UPh8
+- Services: branding, web design, SEO, social media, content, paid ads, video, UI/UX
+- Offices: Bengaluru, Gurugram, Delhi
+- Websites: creativenexus.in / creativenexusglobal.com
+- Scheduling link: https://calendar.app.google/a2NUMHLwj6is9UPh8
 
---- SKILL KNOWLEDGE (internalize these, do not reference them in the email) ---
+--- SKILL KNOWLEDGE (internalise these, do not reference them in the email) ---
 
 ${EMAIL_WRITING_SKILLS}
 
@@ -82,14 +72,12 @@ ${PSYCHOLOGY_SKILLS}
 --- END SKILL KNOWLEDGE ---
 
 EMAIL TYPE: ${emailType}
-${emailType === "acknowledgement" ? "Thank them, acknowledge their specific need. Show you understand what they need with 3 bullet points. End with a 10-minute sync ask. Use reciprocity — give an insight or value first." : ""}
-${emailType === "followup_1" ? "Share a relevant insight matching their inquiry. 3 bullets on how the insight applies to them. Use mere exposure + reciprocity. CTA: bold 'quick 10-minute sync' ask." : ""}
-${emailType === "followup_2" ? "Offer a specific stat or trend in their industry. 3 bullets on what this means for their business. Use authority + social proof. CTA: bold offer to 'walk you through this in 10 minutes'." : ""}
-${emailType === "followup_3" ? "Suggest a quick chat. 3 bullets on what you'd cover. Use loss aversion + zero risk framing. CTA: bold 'Pick a slot — 10 minutes, no pressure.' Include link: https://calendar.app.google/a2NUMHLwj6is9UPh8" : ""}
-${emailType === "followup_4" ? "Final gentle nudge. 3 bullets offering a different angle or free resource. Use pratfall effect (honest, not pushy) + peak-end rule (end warm). CTA: bold 'Whenever you are ready, we are here.'" : ""}
+${emailType === "acknowledgement" ? "Acknowledge their specific need. Show you understand exactly what they asked for. End with a warm, low-pressure invitation for a short call." : ""}
+${emailType === "followup_1" ? "Share a relevant insight or observation that applies to their specific situation. Use reciprocity. Offer another quick call." : ""}
+${emailType === "followup_2" ? "Share a concrete stat, trend, or short case observation relevant to their industry. Offer to walk them through it in 10 minutes." : ""}
+${emailType === "followup_3" ? "Suggest a quick chat. Frame it as low-risk and short. Include the scheduling link prominently." : ""}
+${emailType === "followup_4" ? "Final gentle nudge. Honest, not pushy. End warmly — make it easy for them to come back whenever they're ready." : ""}
 ${previousContext}
 
-IMPORTANT: Every <p>, <ul>, <li>, <strong> MUST have inline style attributes. Email clients (Gmail, Outlook) strip all CSS classes and <style> blocks. Without inline styles, the email will render as a wall of text with no spacing.
-
-Return JSON only: { "subject": "<subject line>", "body": "<email body — ONLY <p> and <ul><li> tags with inline styles. NO signature, NO sign-off name. Signature is appended automatically.>" }`;
+Return JSON only: { "subject": "<subject line>", "body": "<plain text body with paragraphs separated by blank lines. NO HTML. NO bullets. NO sign-off. NO signature.>" }`;
 }

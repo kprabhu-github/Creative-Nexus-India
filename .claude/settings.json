@@ -18,10 +18,16 @@
       "Bash(npm run *)",
       "Bash(git ls-tree *)",
       "Bash(grep -v \"^$\")",
-      "Bash(./infra/git/git-push.sh \"chore: update signup placeholder to Creative Nexus\")"
+      "Bash(./infra/git/git-push.sh \"chore: update signup placeholder to Creative Nexus\")",
+      "Edit(~/.claude/skills/ui-ux-pro-max/**)",
+      "Bash(gh repo *)",
+      "Bash(gh api *)",
+      "Bash(open -a TextEdit \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/.mcp.json\")",
+      "Bash(./infra/git/git-push.sh \"feat\\(leads\\): editable draft \\(subject+body\\), regenerate replaces old draft, plain-paragraph AI emails\")"
     ],
     "additionalDirectories": [
-      "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]"
+      "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]",
+      "/Users/creativenexusindia/.claude/skills"
     ]
   }
 }

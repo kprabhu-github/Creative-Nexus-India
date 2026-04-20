@@ -6,6 +6,22 @@ import { buildEmailPrompt } from "@/lib/leads/prompts";
 import { EmailType, EmailStatus, LeadData, ORG_ID } from "@/lib/leads/types";
 import { getDefaultCc } from "@/lib/email";
 
+// Convert plain-text body (paragraphs separated by blank lines) to styled HTML.
+// Inline styles are required — email clients strip CSS classes.
+function plainTextToHtml(text: string): string {
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  return paragraphs
+    .map((p) => {
+      const withBreaks = p.replace(/\n/g, "<br />");
+      return `<p style="margin:0 0 14px 0;font-size:14px;line-height:1.7;color:#333;">${withBreaks}</p>`;
+    })
+    .join("\n");
+}
+
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     lead_id: string;
@@ -13,9 +29,10 @@ export async function POST(request: NextRequest) {
     email_type: EmailType;
     previous_emails?: string[];
     auto_send?: boolean;
+    replace_email_id?: string;
   };
 
-  const { lead_id, lead_data, email_type, previous_emails } = body;
+  const { lead_id, lead_data, email_type, previous_emails, replace_email_id } = body;
 
   if (!lead_id || !lead_data || !email_type) {
     return NextResponse.json(
@@ -71,12 +88,23 @@ Source page: ${sourceUrl}`;
       );
     }
 
-    const fullBodyHtml = parsed.body + PRABHU_SIGNATURE_HTML;
-    const fullBodyText = fullBodyHtml.replace(/<[^>]*>/g, "");
+    // AI returns plain text; convert to HTML for email clients.
+    const bodyHtml = plainTextToHtml(parsed.body);
+    const fullBodyHtml = bodyHtml + PRABHU_SIGNATURE_HTML;
+    const fullBodyText = parsed.body;
 
     let status: EmailStatus = "draft";
     if (body.auto_send && email_type === "acknowledgement") {
       status = "queued";
+    }
+
+    // If regenerating, delete the old draft/queued row before inserting a fresh one.
+    if (replace_email_id) {
+      await supabase
+        .from("lead_emails")
+        .delete()
+        .eq("id", replace_email_id)
+        .in("status", ["draft", "queued"]);
     }
 
     const { data: emailRow, error: insertError } = await supabase
@@ -107,6 +135,7 @@ Source page: ${sourceUrl}`;
         email_id: emailRow.id,
         subject: parsed.subject,
         body_html: fullBodyHtml,
+        body_text: fullBodyText,
         status,
         auto_send: status === "queued",
       },
@@ -116,4 +145,71 @@ Source page: ${sourceUrl}`;
       err instanceof Error ? err.message : "Email draft failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+// Save manual edits to a draft email (subject and/or body).
+export async function PATCH(request: NextRequest) {
+  const body = (await request.json()) as {
+    email_id: string;
+    subject?: string;
+    body_text?: string;
+  };
+
+  const { email_id, subject, body_text } = body;
+
+  if (!email_id) {
+    return NextResponse.json({ error: "Missing email_id" }, { status: 400 });
+  }
+
+  if (subject === undefined && body_text === undefined) {
+    return NextResponse.json(
+      { error: "Nothing to update — provide subject and/or body_text" },
+      { status: 400 },
+    );
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("lead_emails")
+    .select("status")
+    .eq("id", email_id)
+    .single();
+
+  if (fetchError || !existing) {
+    return NextResponse.json(
+      { error: `Email not found: ${fetchError?.message || "no record"}` },
+      { status: 404 },
+    );
+  }
+
+  if (existing.status === "sent") {
+    return NextResponse.json(
+      { error: "Cannot edit a sent email" },
+      { status: 400 },
+    );
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (subject !== undefined) {
+    updates.subject = subject;
+  }
+  if (body_text !== undefined) {
+    updates.body_text = body_text;
+    updates.body_html = plainTextToHtml(body_text) + PRABHU_SIGNATURE_HTML;
+  }
+
+  const { error: updateError } = await supabase
+    .from("lead_emails")
+    .update(updates)
+    .eq("id", email_id);
+
+  if (updateError) {
+    return NextResponse.json(
+      { error: `Failed to update email: ${updateError.message}` },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ data: { email_id, ...updates } });
 }
