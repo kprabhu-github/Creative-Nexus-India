@@ -1290,6 +1290,22 @@ export default function LinkedInPage() {
         <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", fontSize: 12, padding: "10px 14px", borderRadius: 10, margin: "14px 0" }}>{error}</div>
       )}
 
+      {/* Running-as banner — visible on Campaigns / Funnel / Queue when activeAccountId set */}
+      {activeAccountId && (tab === "campaigns" || tab === "funnel" || tab === "queue") && (() => {
+        const activeAcc = accounts.find((a) => a.id === activeAccountId);
+        if (!activeAcc) return null;
+        return (
+          <div style={{ marginTop: 10, padding: "10px 16px", background: C.navy, color: "white", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13 }}>
+              Running as <span style={{ fontWeight: 700 }}>{activeAcc.name}</span>
+            </div>
+            <button onClick={() => { setActiveAccountId(null); setShowNewCampaignForm(false); }} style={{ background: "none", border: "none", color: C.coral, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
+              change
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Workflow breadcrumb — visible when on Campaigns / Funnel / Queue */}
       {(tab === "campaigns" || tab === "funnel" || tab === "queue") && (() => {
         const activeAcc = activeAccountId ? accounts.find((a) => a.id === activeAccountId) : null;
@@ -1335,17 +1351,6 @@ export default function LinkedInPage() {
           const shouldShowForm = !activeAcc || showNewCampaignForm || scopedCampaigns.length === 0;
           return (
           <div>
-            {activeAcc && (
-              <div style={{ marginBottom: 14, padding: "10px 16px", background: C.navy, color: "white", borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 13 }}>
-                  Running as <span style={{ fontWeight: 700 }}>{activeAcc.name}</span>
-                </div>
-                <button onClick={() => { setActiveAccountId(null); setShowNewCampaignForm(false); }} style={{ background: "none", border: "none", color: C.coral, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
-                  change
-                </button>
-              </div>
-            )}
-
             {shouldShowPicker && (
               <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <button onClick={() => setShowNewCampaignForm(true)} style={{ padding: 20, borderRadius: 12, border: `2px solid ${C.coral}`, background: "white", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
@@ -1354,7 +1359,7 @@ export default function LinkedInPage() {
                     Start a fresh sequence for {activeAcc!.name}.
                   </div>
                 </button>
-                <button onClick={() => { setSelectedCampaignId(scopedCampaigns[0].id); setTab("queue"); }} style={{ padding: 20, borderRadius: 12, border: `2px solid ${C.navy}`, background: "white", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                <button onClick={() => { setSelectedCampaignId(scopedCampaigns[0].id); setTab("funnel"); }} style={{ padding: 20, borderRadius: 12, border: `2px solid ${C.navy}`, background: "white", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: C.navy }}>▶ Continue {scopedCampaigns[0].name}</div>
                   <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
                     Resume most recent campaign ({scopedCampaigns.length} total).
@@ -1521,18 +1526,28 @@ export default function LinkedInPage() {
               const repliedCt = prospects.filter((p) => p.status === "replied").length;
               const meetingCt = prospects.filter((p) => p.status === "meeting").length;
               const optedCt = prospects.filter((p) => p.status === "opted_out").length;
-              const pill = (bg: string, bd: string, fg: string, icon: string, n: number, lbl: string) => (
-                <span style={{ padding: "5px 12px", borderRadius: 20, background: bg, border: `1px solid ${bd}`, color: fg, fontSize: 12, fontWeight: 600 }}>
-                  {icon} {n} {lbl}
-                </span>
-              );
+              const pill = (bg: string, bd: string, fg: string, icon: string, n: number, lbl: string, key: "all" | ProspectStatus) => {
+                const active = filterStatus === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setFilterStatus(key)}
+                    style={{ padding: "5px 12px", borderRadius: 20, background: bg, border: `${active ? 2 : 1}px solid ${active ? C.navy : bd}`, color: fg, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", boxShadow: active ? `0 0 0 2px ${C.navy}20` : "none" }}
+                  >
+                    {icon} {n} {lbl}
+                  </button>
+                );
+              };
               return (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                  {pill("#FEF3C7", "#FCD34D", "#92400E", "🟡", pendingCt, "pending")}
-                  {pill("#DBEAFE", "#93C5FD", "#1E40AF", "🔵", inSeqCt, "in sequence")}
-                  {pill("#D1FAE5", "#6EE7B7", "#065F46", "🟢", repliedCt, "replied")}
-                  {pill("#FCE7F3", "#F9A8D4", "#9D174D", "🤝", meetingCt, "meetings")}
-                  {pill("#FEE2E2", "#FCA5A5", "#991B1B", "⛔", optedCt, "opted out")}
+                  <button onClick={() => setFilterStatus("all")} style={{ padding: "5px 12px", borderRadius: 20, background: filterStatus === "all" ? C.navy : "white", border: `1px solid ${filterStatus === "all" ? C.navy : "#E5E7EB"}`, color: filterStatus === "all" ? "white" : "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                    All {prospects.length}
+                  </button>
+                  {pill("#FEF3C7", "#FCD34D", "#92400E", "🟡", pendingCt, "pending", "pending")}
+                  {pill("#DBEAFE", "#93C5FD", "#1E40AF", "🔵", inSeqCt, "in sequence", "in_sequence")}
+                  {pill("#D1FAE5", "#6EE7B7", "#065F46", "🟢", repliedCt, "replied", "replied")}
+                  {pill("#FCE7F3", "#F9A8D4", "#9D174D", "🤝", meetingCt, "meetings", "meeting")}
+                  {pill("#FEE2E2", "#FCA5A5", "#991B1B", "⛔", optedCt, "opted out", "opted_out")}
                 </div>
               );
             })()}
