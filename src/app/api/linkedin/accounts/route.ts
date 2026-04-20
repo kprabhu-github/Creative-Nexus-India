@@ -5,7 +5,17 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { scrapeLinkedInUrl, typeFromUrl, ORG_ID } from "@/lib/linkedin";
+import {
+  scrapeLinkedInUrl,
+  typeFromUrl,
+  slugFromUrl,
+  DEFAULT_PERSONAL_ACTIONS,
+  DEFAULT_COMPANY_ACTIONS,
+  DEFAULT_PERSONAL_LIMITS,
+  DEFAULT_COMPANY_LIMITS,
+  DEFAULT_WORKING_HOURS,
+  ORG_ID,
+} from "@/lib/linkedin";
 
 export const dynamic = "force-dynamic";
 
@@ -76,23 +86,82 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const isCompany = typeFromUrl(url) === "company";
   let row: Awaited<ReturnType<typeof scrapeLinkedInUrl>>;
+  let scrapeWarning: string | null = null;
+
   try {
     row = await scrapeLinkedInUrl(url, body.name);
   } catch (err) {
-    // Log the failure but still create a minimal row so the user has something
+    // Fallback: build a minimal stub row so the user can keep working.
+    // They can click Re-scrape later once their Apify actor is configured.
     const message = err instanceof Error ? err.message : "Scrape failed";
+    scrapeWarning = message;
     await supabase.from("linkedin_activity_log").insert({
-      message: `Apify scrape failed for ${url}: ${message}`,
-      type: "error",
+      message: `Apify scrape failed for ${url} — added as stub. (${message.slice(0, 200)})`,
+      type: "warn",
       org_id: ORG_ID,
     });
-    return NextResponse.json(
-      {
-        error: `Apify scrape failed: ${message}. Check APIFY_API_TOKEN and actor subscription.`,
-      },
-      { status: 502 },
-    );
+
+    const slug = slugFromUrl(url);
+    const placeholderName =
+      body.name?.trim() ||
+      slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+    if (isCompany) {
+      row = {
+        slug,
+        type: "company" as const,
+        url,
+        name: placeholderName,
+        headline: "",
+        subline: "",
+        location: "",
+        connections: null,
+        followers: 0,
+        employee_count: null,
+        founded: null,
+        company_size: null,
+        pic: null,
+        specialties: [],
+        allowed_actions: DEFAULT_COMPANY_ACTIONS,
+        daily_limits: DEFAULT_COMPANY_LIMITS,
+        working_hours: DEFAULT_WORKING_HOURS,
+        status: "ready" as const,
+        role: "Company page — grow followers, company awareness, post engagement, event invitations",
+        scraped_at: new Date().toISOString(),
+        raw_apify: null,
+      };
+    } else {
+      row = {
+        slug,
+        type: "personal" as const,
+        url,
+        name: placeholderName,
+        headline: "",
+        subline: "",
+        location: "",
+        connections: null,
+        followers: 0,
+        recommendations: null,
+        experience: null,
+        pic: null,
+        bg: null,
+        verified: false,
+        premium: false,
+        skills: [],
+        prev_companies: [],
+        specialties: [],
+        education: null,
+        allowed_actions: DEFAULT_PERSONAL_ACTIONS,
+        daily_limits: DEFAULT_PERSONAL_LIMITS,
+        working_hours: DEFAULT_WORKING_HOURS,
+        status: "ready" as const,
+        role: "Personal outreach — connection requests, direct messages, endorsements, profile warm-up",
+        scraped_at: new Date().toISOString(),
+        raw_apify: null,
+      };
+    }
   }
 
   const { data: inserted, error: insertErr } = await supabase
@@ -110,10 +179,17 @@ export async function POST(request: NextRequest) {
 
   await supabase.from("linkedin_activity_log").insert({
     account_id: inserted.id,
-    message: `Added ${typeFromUrl(url) === "company" ? "company page" : "profile"}: ${inserted.name}`,
-    type: "success",
+    message: scrapeWarning
+      ? `Added ${isCompany ? "company page" : "profile"} as stub (scrape failed — click Re-scrape when ready): ${inserted.name}`
+      : `Added ${isCompany ? "company page" : "profile"}: ${inserted.name}`,
+    type: scrapeWarning ? "warn" : "success",
     org_id: ORG_ID,
   });
 
-  return NextResponse.json({ data: inserted });
+  return NextResponse.json({
+    data: inserted,
+    warning: scrapeWarning
+      ? `Saved as stub — Apify scrape failed: ${scrapeWarning}. Set APIFY_LINKEDIN_PROFILE_ACTOR / APIFY_LINKEDIN_COMPANY_ACTOR env vars on Hostinger with actors you've subscribed to on Apify.`
+      : null,
+  });
 }

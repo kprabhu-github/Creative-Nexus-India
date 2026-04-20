@@ -6,14 +6,29 @@
 
 const APIFY_BASE_URL = "https://api.apify.com/v2";
 
-/** Well-known actor IDs used across the platform. */
+/**
+ * Well-known actor IDs used across the platform.
+ *
+ * LinkedIn actors are env-overridable because Apify's marketplace actors
+ * change names/owners over time. Override via:
+ *   APIFY_LINKEDIN_PROFILE_ACTOR=dev_fusion/linkedin-profile-scraper
+ *   APIFY_LINKEDIN_COMPANY_ACTOR=dev_fusion/linkedin-company-scraper
+ *
+ * Default to widely-available community actors that work without LinkedIn
+ * cookies. You may need to subscribe/install them in your Apify account first:
+ *   https://apify.com/store
+ */
 export const APIFY_ACTORS = {
   websiteCrawler: "apify/website-content-crawler",
   ragBrowser: "apify/rag-web-browser",
   instagramScraper: "apify/instagram-scraper",
   twitterScraper: "apify/tweet-scraper",
-  linkedinScraper: "apify/linkedin-profile-scraper",
-  linkedinCompanyScraper: "apify/linkedin-company-scraper",
+  linkedinScraper:
+    process.env.APIFY_LINKEDIN_PROFILE_ACTOR ||
+    "dev_fusion/linkedin-profile-scraper",
+  linkedinCompanyScraper:
+    process.env.APIFY_LINKEDIN_COMPANY_ACTOR ||
+    "dev_fusion/linkedin-company-scraper",
   googleSearch: "apify/google-search-scraper",
 } as const;
 

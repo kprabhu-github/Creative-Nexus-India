@@ -46,7 +46,8 @@
       "Bash(open -a TextEdit \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/builds/linkedin-migrations-combined.sql\")",
       "Bash(open \"https://supabase.com/dashboard/project/anbdkioadfhvbqptylee/sql/new\")",
       "Bash(cat supabase/migrations/20260420090000_linkedin_accounts.sql supabase/migrations/20260420100000_linkedin_campaigns.sql supabase/migrations/20260420110000_linkedin_seed_campaigns.sql)",
-      "Bash(open -a TextEdit \"infra/builds/linkedin-complete-setup.sql\")"
+      "Bash(open -a TextEdit \"infra/builds/linkedin-complete-setup.sql\")",
+      "Bash(./infra/git/git-push.sh \"fix\\(linkedin\\): env-configurable Apify actors + stub fallback when scrape fails\")"
     ],
     "additionalDirectories": [
       "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]",

@@ -40,7 +40,9 @@ export async function POST(
       org_id: ORG_ID,
     });
     return NextResponse.json(
-      { error: `Apify scrape failed: ${message}` },
+      {
+        error: `Apify scrape failed: ${message}. Configure APIFY_LINKEDIN_PROFILE_ACTOR / APIFY_LINKEDIN_COMPANY_ACTOR env vars on Hostinger to pick an actor you've subscribed to.`,
+      },
       { status: 502 },
     );
   }
