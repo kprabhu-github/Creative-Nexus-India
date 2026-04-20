@@ -2,14 +2,18 @@ export const PRABHU_SIGNATURE_HTML = `
 <br>
 <table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #333333; line-height: 1.5; border-collapse: collapse;">
   <tr>
-    <td style="padding: 16px 0 8px 0; border-top: 1px solid #e0e0e0;">
-      <strong style="font-size: 14px; color: #111111;">Prabhu K</strong><br>
-      <span style="font-size: 12px; color: #555555;">Co-founder &amp; Managing Director</span>
+    <td style="padding: 16px 0 4px 0; border-top: 1px solid #e0e0e0;">
+      <strong style="font-size: 15px; color: #111111;">Prabhu K</strong>
     </td>
   </tr>
   <tr>
-    <td style="padding: 0 0 4px 0;">
-      <strong style="font-size: 13px; color: #111111;">Creative Nexus, India</strong>
+    <td style="padding: 0 0 4px 0; font-size: 12px; color: #555555;">
+      Co-founder &amp; Managing Director
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 0 0 10px 0; font-size: 13px; color: #111111;">
+      <strong>Creative Nexus, India</strong>
     </td>
   </tr>
   <tr>
@@ -30,20 +34,27 @@ export const PRABHU_SIGNATURE_HTML = `
     </td>
   </tr>
   <tr>
-    <td style="font-size: 11px; color: #666666; padding: 0 0 10px 0;">
+    <td style="font-size: 11px; color: #666666; padding: 0 0 12px 0;">
       <strong>Regd</strong> : 149, DFA, Nimri, Ashok Vihar -IV, Delhi, India
     </td>
   </tr>
   <tr>
-    <td style="font-size: 12px; color: #333333; padding: 0 0 12px 0;">
-      <strong>Mob:</strong> +91 9999212010 &nbsp;|&nbsp;
-      <strong>Email:</strong> <a href="mailto:prabhu@creativenexus.in" style="color: #2563eb; text-decoration: none;">prabhu@creativenexus.in</a> &nbsp;|&nbsp;
+    <td style="font-size: 12px; color: #333333; padding: 0 0 14px 0;">
+      <strong>Mob:</strong>
+      <a href="tel:+919999212010" style="color: #333333; text-decoration: none;">+91 9999212010</a>
+      /
+      <a href="tel:+919187520549" style="color: #333333; text-decoration: none;">9187520549</a>
+      &nbsp;|&nbsp;
+      <strong>Email:</strong> <a href="mailto:prabhu@creativenexus.in" style="color: #2563eb; text-decoration: none;">prabhu@creativenexus.in</a>
+      &nbsp;|&nbsp;
       <strong>Web:</strong> <a href="https://www.creativenexus.in" style="color: #2563eb; text-decoration: none;">www.creativenexus.in</a>
+      &nbsp;|&nbsp;
+      <a href="https://calendar.app.google/a2NUMHLwj6is9UPh8" style="color: #D90A2C; text-decoration: none; font-weight: bold;">Book a Call Now</a>
     </td>
   </tr>
   <tr>
     <td style="padding: 0 0 12px 0;">
-      <a href="https://calendar.app.google/a2NUMHLwj6is9UPh8" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #D90A2C; color: #ffffff; font-size: 13px; font-weight: bold; padding: 8px 20px; border-radius: 4px; text-decoration: none; font-family: Arial, Helvetica, sans-serif;">Book a Call Now</a>
+      <a href="https://calendar.app.google/a2NUMHLwj6is9UPh8" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #D90A2C; color: #ffffff; font-size: 13px; font-weight: bold; padding: 10px 24px; border-radius: 4px; text-decoration: none; font-family: Arial, Helvetica, sans-serif;">Book a Call Now</a>
     </td>
   </tr>
 </table>`;
