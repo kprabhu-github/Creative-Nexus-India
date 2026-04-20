@@ -150,47 +150,76 @@ const DEFAULT_STEPS: FunnelStep[] = ACTION_TYPES.map((at, i) => ({
   attachImage: false,
 }));
 
-const INIT_CAMPAIGNS: Campaign[] = [
-  {
-    id: "cmp1",
-    name: "CMO Outreach — SaaS & E-Commerce India",
-    accountId: "",
-    source: "company_employees",
-    sourceUrl: "https://www.linkedin.com/company/razorpay/",
-    status: "active",
-    prospects: 127,
-    inSequence: 8,
-    replied: 4,
-    meetings: 1,
-    createdAt: "2026-04-15",
-    steps: 7,
-  },
-  {
-    id: "cmp2",
-    name: "Company Page — Grow Followers",
-    accountId: "",
-    source: "connections",
-    sourceUrl: "",
-    status: "draft",
-    prospects: 0,
-    inSequence: 0,
-    replied: 0,
-    meetings: 0,
-    createdAt: "2026-04-20",
-    steps: 3,
-  },
-];
+// API response shapes (snake_case from Supabase)
+interface CampaignApi {
+  id: string;
+  name: string;
+  account_id: string | null;
+  source: string;
+  source_url: string;
+  status: CampaignStatus;
+  funnel_steps: FunnelStep[];
+  prospect_count: number;
+  in_sequence: number;
+  replied: number;
+  meetings: number;
+  created_at: string;
+}
 
-const INIT_PROSPECTS: Prospect[] = [
-  { id: "pr1", name: "Ankit Bhatia", firstName: "Ankit", headline: "VP Marketing @ Zomato", company: "Zomato", industry: "E-Commerce", location: "Gurugram", email: "a.bhatia@zomato.com", score: 92, step: 2, status: "in_sequence", replyReceived: false, lastAction: "2026-04-18", campaignId: "cmp1" },
-  { id: "pr2", name: "Ritu Shenoy", firstName: "Ritu", headline: "CMO @ Meesho", company: "Meesho", industry: "E-Commerce", location: "Bengaluru", email: null, score: 88, step: 1, status: "pending", replyReceived: false, lastAction: null, campaignId: "cmp1" },
-  { id: "pr3", name: "Karan Malhotra", firstName: "Karan", headline: "Head of Digital @ HDFC Life", company: "HDFC Life", industry: "Finance", location: "Mumbai", email: null, score: 79, step: 3, status: "in_sequence", replyReceived: true, lastAction: "2026-04-15", campaignId: "cmp1" },
-  { id: "pr4", name: "Sneha Iyer", firstName: "Sneha", headline: "Brand Manager @ Nykaa", company: "Nykaa", industry: "E-Commerce", location: "Mumbai", email: "sneha.iyer@nykaa.com", score: 95, step: 0, status: "replied", replyReceived: true, lastAction: "2026-04-19", campaignId: "cmp1" },
-  { id: "pr5", name: "Deepak Verma", firstName: "Deepak", headline: "VP Growth @ Razorpay", company: "Razorpay", industry: "SaaS", location: "Bengaluru", email: null, score: 83, step: 1, status: "pending", replyReceived: false, lastAction: null, campaignId: "cmp1" },
-  { id: "pr6", name: "Prachi Gupta", firstName: "Prachi", headline: "Marketing Director @ Apollo247", company: "Apollo247", industry: "Healthcare", location: "Hyderabad", email: "prachi.g@apollo247.com", score: 87, step: 2, status: "in_sequence", replyReceived: false, lastAction: "2026-04-17", campaignId: "cmp1" },
-  { id: "pr7", name: "Vivek Nair", firstName: "Vivek", headline: "Co-founder @ UrbanPiper", company: "UrbanPiper", industry: "SaaS", location: "Bengaluru", email: null, score: 81, step: 0, status: "meeting", replyReceived: true, lastAction: "2026-04-19", campaignId: "cmp1" },
-  { id: "pr8", name: "Sonal Mehta", firstName: "Sonal", headline: "CMO @ Wow! Momo", company: "Wow! Momo", industry: "F&B / FMCG", location: "Kolkata", email: "sonal@wowmomo.in", score: 74, step: 1, status: "pending", replyReceived: false, lastAction: null, campaignId: "cmp1" },
-];
+interface ProspectApi {
+  id: string;
+  campaign_id: string;
+  name: string;
+  first_name: string;
+  headline: string;
+  company: string;
+  industry: string;
+  location: string;
+  email: string | null;
+  profile_url: string | null;
+  score: number;
+  step: number;
+  status: ProspectStatus;
+  reply_received: boolean;
+  last_action: string | null;
+  last_message: string | null;
+}
+
+function campaignFromApi(c: CampaignApi): Campaign {
+  return {
+    id: c.id,
+    name: c.name,
+    accountId: c.account_id ?? "",
+    source: c.source,
+    sourceUrl: c.source_url,
+    status: c.status,
+    prospects: c.prospect_count,
+    inSequence: c.in_sequence,
+    replied: c.replied,
+    meetings: c.meetings,
+    createdAt: c.created_at,
+    steps: Array.isArray(c.funnel_steps) ? c.funnel_steps.length : 0,
+  };
+}
+
+function prospectFromApi(p: ProspectApi): Prospect {
+  return {
+    id: p.id,
+    name: p.name,
+    firstName: p.first_name,
+    headline: p.headline,
+    company: p.company,
+    industry: p.industry,
+    location: p.location,
+    email: p.email,
+    score: p.score,
+    step: p.step,
+    status: p.status,
+    replyReceived: p.reply_received,
+    lastAction: p.last_action,
+    campaignId: p.campaign_id,
+  };
+}
 
 const STATUS_CFG: Record<ProspectStatus, { label: string; bg: string; c: string; dot: string }> = {
   pending: { label: "Pending", bg: "#F3F4F6", c: "#6B7280", dot: "#9CA3AF" },
@@ -621,11 +650,14 @@ export default function LinkedInPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Campaigns (mock state)
-  const [campaigns, setCampaigns] = useState<Campaign[]>(INIT_CAMPAIGNS);
+  // Campaigns (real)
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [launching, setLaunching] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
 
-  // Prospects (mock state)
-  const [prospects, setProspects] = useState<Prospect[]>(INIT_PROSPECTS);
+  // Prospects (real, scoped to selectedCampaignId)
+  const [prospects, setProspects] = useState<Prospect[]>([]);
   const [selectedPros, setSelectedPros] = useState<Prospect | null>(null);
   const [msgDraft, setMsgDraft] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -666,12 +698,49 @@ export default function LinkedInPage() {
     }
   }, []);
 
+  const loadCampaigns = useCallback(async () => {
+    try {
+      const res = await fetch("/api/linkedin/campaigns");
+      const json = (await res.json()) as { data?: CampaignApi[]; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      const list = (json.data ?? []).map(campaignFromApi);
+      setCampaigns(list);
+      setSelectedCampaignId((id) => id ?? list[0]?.id ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load campaigns");
+    }
+  }, []);
+
+  const loadProspects = useCallback(async (campaignId: string) => {
+    try {
+      const res = await fetch(`/api/linkedin/campaigns/${campaignId}`);
+      const json = (await res.json()) as {
+        data?: { campaign: CampaignApi; prospects: ProspectApi[] };
+        error?: string;
+      };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setProspects((json.data?.prospects ?? []).map(prospectFromApi));
+    } catch (err) {
+      console.warn("Failed to load prospects:", err);
+      setProspects([]);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
-      await Promise.all([loadAccounts(), loadLog()]);
+      await Promise.all([loadAccounts(), loadLog(), loadCampaigns()]);
       setLoading(false);
     })();
-  }, [loadAccounts, loadLog]);
+  }, [loadAccounts, loadLog, loadCampaigns]);
+
+  // Reload prospects when selected campaign changes
+  useEffect(() => {
+    if (selectedCampaignId) {
+      loadProspects(selectedCampaignId);
+    } else {
+      setProspects([]);
+    }
+  }, [selectedCampaignId, loadProspects]);
 
   // ── Account handlers ──────────────────────────────────────────────────
   async function handleAddAccount(url: string, name: string) {
@@ -738,12 +807,28 @@ export default function LinkedInPage() {
     }
   }
 
-  // ── Prospect / funnel handlers (local mock for now) ──────────────────
-  function handleGenMsg(p: Prospect, stepIdx: number) {
+  // ── Prospect / message handlers (real backend) ──────────────────────
+  async function handleGenMsg(p: Prospect, stepIdx: number) {
     setGenerating(true);
-    const step = funnelSteps[stepIdx] || funnelSteps[funnelSteps.length - 1];
-    const tmpl = step?.template ?? "";
-    setTimeout(() => {
+    try {
+      const step = funnelSteps[stepIdx];
+      const res = await fetch("/api/linkedin/messages/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prospect_id: p.id,
+          step_index: stepIdx,
+          action_id: step?.actionId,
+          template: step?.template,
+        }),
+      });
+      const json = (await res.json()) as { data?: { message: string }; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setMsgDraft(json.data?.message ?? "");
+    } catch (err) {
+      // Fallback: template substitution locally
+      const step = funnelSteps[stepIdx];
+      const tmpl = step?.template ?? "";
       const filled = tmpl
         .replace(/\{firstName\}/g, p.firstName)
         .replace(/\{company\}/g, p.company)
@@ -751,33 +836,109 @@ export default function LinkedInPage() {
         .replace(/\{headline\}/g, p.headline)
         .replace(/\{service\}/g, "digital marketing & SEO");
       setMsgDraft(filled);
+      console.warn("AI draft failed, used template:", err);
+    } finally {
       setGenerating(false);
-    }, 600);
+    }
   }
 
-  function handleSendAdvance(p: Prospect) {
+  async function handleSendAdvance(p: Prospect) {
     const nextStep = Math.max(p.step, 0) + 1;
-    const updated = { ...p, step: nextStep, status: "in_sequence" as ProspectStatus, lastAction: new Date().toISOString().split("T")[0] };
-    setProspects((prev) => prev.map((pr) => (pr.id === p.id ? updated : pr)));
-    setSelectedPros(updated);
-    setMsgDraft("");
+    try {
+      const res = await fetch(`/api/linkedin/prospects/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          step: nextStep,
+          status: "in_sequence" as ProspectStatus,
+          last_message: msgDraft,
+        }),
+      });
+      const json = (await res.json()) as { data?: ProspectApi; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      const updated = prospectFromApi(json.data as ProspectApi);
+      setProspects((prev) => prev.map((pr) => (pr.id === p.id ? updated : pr)));
+      setSelectedPros(updated);
+      setMsgDraft("");
+      if (selectedCampaignId) await loadCampaigns();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Send failed");
+    }
   }
 
-  function updateProsStatus(id: string, st: ProspectStatus) {
-    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, status: st } : p)));
-    setSelectedPros((prev) => (prev?.id === id ? { ...prev, status: st } : prev));
+  async function updateProsStatus(id: string, st: ProspectStatus) {
+    try {
+      const res = await fetch(`/api/linkedin/prospects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: st,
+          reply_received: st === "replied" || st === "meeting",
+        }),
+      });
+      const json = (await res.json()) as { data?: ProspectApi; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      const updated = prospectFromApi(json.data as ProspectApi);
+      setProspects((prev) => prev.map((p) => (p.id === id ? updated : p)));
+      setSelectedPros((prev) => (prev?.id === id ? updated : prev));
+      await loadCampaigns();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Update failed");
+    }
   }
 
   async function handleAutoRun() {
-    setAutoRunning(true);
-    const pending = prospects.filter((p) => p.status === "pending" || (p.status === "in_sequence" && p.step < funnelSteps.length));
-    for (const p of pending) {
-      await new Promise((r) => setTimeout(r, 400));
-      const nextStep = Math.max(p.step, 0) + 1;
-      if (nextStep > funnelSteps.length) continue;
-      setProspects((prev) => prev.map((pr) => (pr.id === p.id ? { ...pr, step: nextStep, status: "in_sequence" as ProspectStatus, lastAction: new Date().toISOString().split("T")[0] } : pr)));
+    if (!selectedCampaignId) {
+      alert("Select a campaign first.");
+      return;
     }
-    setAutoRunning(false);
+    setAutoRunning(true);
+    try {
+      const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}/advance`, {
+        method: "POST",
+      });
+      const json = (await res.json()) as { data?: { advanced: number }; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([
+        loadProspects(selectedCampaignId),
+        loadCampaigns(),
+        loadLog(),
+      ]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Auto-run failed");
+    } finally {
+      setAutoRunning(false);
+    }
+  }
+
+  async function handleDiscover() {
+    if (!selectedCampaignId) {
+      alert("Create/select a campaign first.");
+      return;
+    }
+    setDiscovering(true);
+    try {
+      const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}/discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ max_results: 30 }),
+      });
+      const json = (await res.json()) as {
+        data?: { inserted: number; skipped: number };
+        error?: string;
+      };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([
+        loadProspects(selectedCampaignId),
+        loadCampaigns(),
+        loadLog(),
+      ]);
+      alert(`Added ${json.data?.inserted ?? 0} prospects (${json.data?.skipped ?? 0} duplicates skipped).`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Discover failed");
+    } finally {
+      setDiscovering(false);
+    }
   }
 
   function addFunnelStep(actionId: string) {
@@ -808,23 +969,52 @@ export default function LinkedInPage() {
     setFunnelSteps((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   }
 
-  function launchCampaign() {
-    const newCamp: Campaign = {
-      id: `cmp_${Date.now()}`,
-      name: campName,
-      accountId: selectedAccId ?? "",
-      source: selSource,
-      sourceUrl,
-      status: "active",
-      prospects: 0,
-      inSequence: 0,
-      replied: 0,
-      meetings: 0,
-      createdAt: new Date().toISOString().split("T")[0],
-      steps: funnelSteps.length,
-    };
-    setCampaigns((prev) => [...prev, newCamp]);
-    setTab("queue");
+  async function launchCampaign() {
+    if (!selectedAccId) {
+      alert("Pick an account first.");
+      return;
+    }
+    if (!campName.trim()) {
+      alert("Campaign name is required.");
+      return;
+    }
+    setLaunching(true);
+    try {
+      const res = await fetch("/api/linkedin/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: campName,
+          account_id: selectedAccId,
+          source: selSource,
+          source_url: sourceUrl,
+          funnel_steps: funnelSteps,
+          status: "active",
+        }),
+      });
+      const json = (await res.json()) as { data?: CampaignApi; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([loadCampaigns(), loadLog()]);
+      if (json.data) setSelectedCampaignId(json.data.id);
+      setTab("queue");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Launch failed");
+    } finally {
+      setLaunching(false);
+    }
+  }
+
+  async function deleteCampaign(id: string) {
+    if (!confirm("Delete this campaign and all its prospects?")) return;
+    try {
+      const res = await fetch(`/api/linkedin/campaigns/${id}`, { method: "DELETE" });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([loadCampaigns(), loadLog()]);
+      if (selectedCampaignId === id) setSelectedCampaignId(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Delete failed");
+    }
   }
 
   // ── Derived ───────────────────────────────────────────────────────────
@@ -937,20 +1127,23 @@ export default function LinkedInPage() {
               </div>
               <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="Paste LinkedIn URL (company page, post, search, etc.)" style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: "1px solid #E5E7EB", fontSize: 12, outline: "none", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={launchCampaign} disabled={!selectedAccId || !campName.trim()} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: selectedAccId && campName.trim() ? C.coral : "#F3F4F6", color: selectedAccId && campName.trim() ? "white" : C.gray, fontWeight: 700, fontSize: 12, cursor: selectedAccId ? "pointer" : "default", fontFamily: "inherit" }}>
-                  Launch Campaign →
+                <button onClick={launchCampaign} disabled={!selectedAccId || !campName.trim() || launching} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: selectedAccId && campName.trim() && !launching ? C.coral : "#F3F4F6", color: selectedAccId && campName.trim() && !launching ? "white" : C.gray, fontWeight: 700, fontSize: 12, cursor: selectedAccId && !launching ? "pointer" : "default", fontFamily: "inherit" }}>
+                  {launching ? "Launching…" : "Launch Campaign →"}
                 </button>
-                <span style={{ fontSize: 10, color: C.gray, alignSelf: "center" }}>Prospect discovery + real sequencing wire up in Phase C3.</span>
+                <span style={{ fontSize: 10, color: C.gray, alignSelf: "center" }}>Once launched, go to Queue and click Discover Prospects.</span>
               </div>
             </div>
 
             <div style={{ fontWeight: 700, fontSize: 13, color: C.navy, marginBottom: 10 }}>Existing Campaigns</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(320px,1fr))", gap: 12 }}>
               {campaigns.map((c) => (
-                <div key={c.id} style={{ background: "white", borderRadius: 12, padding: "14px 16px", border: "1px solid #E5E7EB" }}>
+                <div key={c.id} onClick={() => { setSelectedCampaignId(c.id); setTab("queue"); }} style={{ background: "white", borderRadius: 12, padding: "14px 16px", border: `2px solid ${selectedCampaignId === c.id ? C.coral : "#E5E7EB"}`, cursor: "pointer" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                     <div style={{ fontWeight: 700, fontSize: 13, color: C.navy, flex: 1, paddingRight: 8 }}>{c.name}</div>
-                    <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: c.status === "active" ? "#F0FDF4" : "#F3F4F6", color: c.status === "active" ? "#15803D" : "#6B7280", textTransform: "uppercase" }}>{c.status}</span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: c.status === "active" ? "#F0FDF4" : "#F3F4F6", color: c.status === "active" ? "#15803D" : "#6B7280", textTransform: "uppercase" }}>{c.status}</span>
+                      <button onClick={(e) => { e.stopPropagation(); deleteCampaign(c.id); }} style={{ background: "none", border: "none", color: "#DC2626", fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "0 4px" }} aria-label="Delete campaign">×</button>
+                    </div>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
                     {[["Prospects", c.prospects], ["In Seq", c.inSequence], ["Replied", c.replied], ["Meetings", c.meetings]].map(([l, v]) => (
@@ -960,9 +1153,10 @@ export default function LinkedInPage() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ fontSize: 10, color: C.gray, marginTop: 8 }}>Source: {c.source} · {c.steps} steps · Created {c.createdAt}</div>
+                  <div style={{ fontSize: 10, color: C.gray, marginTop: 8 }}>Source: {c.source} · {c.steps} steps · Created {new Date(c.createdAt).toLocaleDateString("en-IN")}</div>
                 </div>
               ))}
+              {campaigns.length === 0 && <div style={{ color: C.gray, fontSize: 12, padding: 16 }}>No campaigns yet. Create one above.</div>}
             </div>
           </div>
         )}
@@ -1002,7 +1196,23 @@ export default function LinkedInPage() {
         )}
 
         {tab === "queue" && (
-          <div style={{ display: "flex", gap: 14, minHeight: 520 }}>
+          <div>
+            {/* Campaign picker + discover */}
+            <div style={{ background: "white", borderRadius: 12, padding: "12px 16px", border: "1px solid #E5E7EB", marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase" }}>Campaign</div>
+              <select value={selectedCampaignId ?? ""} onChange={(e) => setSelectedCampaignId(e.target.value || null)} style={{ padding: "7px 12px", borderRadius: 7, border: "1px solid #E5E7EB", fontSize: 12, outline: "none", fontFamily: "inherit", background: "white", minWidth: 260 }}>
+                <option value="">Select campaign…</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.prospects} prospects)</option>
+                ))}
+              </select>
+              <button onClick={handleDiscover} disabled={!selectedCampaignId || discovering} style={{ padding: "7px 16px", borderRadius: 7, border: "none", background: selectedCampaignId && !discovering ? C.navy : "#F3F4F6", color: selectedCampaignId && !discovering ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: selectedCampaignId && !discovering ? "pointer" : "default", fontFamily: "inherit" }}>
+                {discovering ? "⏳ Discovering via Apify…" : "🔍 Discover Prospects"}
+              </button>
+              <span style={{ fontSize: 10, color: C.gray, marginLeft: "auto" }}>{prospects.length} prospect{prospects.length === 1 ? "" : "s"} in this campaign</span>
+            </div>
+
+            <div style={{ display: "flex", gap: 14, minHeight: 520 }}>
             {/* Left: prospect list */}
             <div style={{ width: 340, background: "white", borderRadius: 12, border: "1px solid #E5E7EB", overflow: "hidden", display: "flex", flexDirection: "column" }}>
               <div style={{ padding: "10px 14px", borderBottom: "1px solid #F3F4F6" }}>
@@ -1086,8 +1296,11 @@ export default function LinkedInPage() {
                   </div>
                 </div>
               ) : (
-                <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 40, textAlign: "center", color: C.gray, fontSize: 13 }}>Select a prospect to view details & compose messages</div>
+                <div style={{ background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: 40, textAlign: "center", color: C.gray, fontSize: 13 }}>
+                  {selectedCampaignId ? "Select a prospect to view details & compose messages" : "Pick a campaign above to see prospects."}
+                </div>
               )}
+            </div>
             </div>
           </div>
         )}

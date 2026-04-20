@@ -59,7 +59,7 @@ function getToken(): string {
 /**
  * Start an Apify actor run and return the run info.
  */
-async function startRun(options: StartRunOptions): Promise<ApifyRunInfo> {
+export async function startRun(options: StartRunOptions): Promise<ApifyRunInfo> {
   const { actorId, input, timeoutSecs = 120, memoryMbytes = 1024 } = options;
   const token = getToken();
 
@@ -90,7 +90,7 @@ async function startRun(options: StartRunOptions): Promise<ApifyRunInfo> {
  * Poll an Apify run until it reaches a terminal state (SUCCEEDED, FAILED,
  * ABORTED, TIMED-OUT). Polls every 3 seconds up to maxWaitMs.
  */
-async function waitForRun(
+export async function waitForRun(
   runId: string,
   maxWaitMs: number = 300_000,
 ): Promise<ApifyRunInfo> {
@@ -139,7 +139,7 @@ async function waitForRun(
 /**
  * Retrieve items from an Apify dataset.
  */
-async function getDatasetItems<T = Record<string, unknown>>(
+export async function getDatasetItems<T = Record<string, unknown>>(
   datasetId: string,
   options?: { limit?: number; offset?: number },
 ): Promise<T[]> {

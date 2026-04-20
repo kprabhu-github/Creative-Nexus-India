@@ -207,6 +207,157 @@ export function mapCompanyToRow(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Prospect discovery — runs different Apify actors per source type
+// ---------------------------------------------------------------------------
+
+/** Map UI source id → Apify actor. `null` = not yet supported (manual/CSV). */
+export const SOURCE_ACTORS: Record<string, string | null> = {
+  company_employees: "george.the.developer/linkedin-company-employees-scraper",
+  post_likers: "harvestapi/linkedin-profile-reactions",
+  post_commenters: "harvestapi/linkedin-profile-comments",
+  linkedin_search: null,
+  group_members: null,
+  event_attendees: null,
+  connections: null,
+  alumni: null,
+  csv_import: null,
+};
+
+export interface ProspectRaw {
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  headline?: string;
+  jobTitle?: string;
+  profileUrl?: string;
+  url?: string;
+  linkedinUrl?: string;
+  company?: string;
+  companyName?: string;
+  industry?: string;
+  location?: string;
+  email?: string;
+  [k: string]: unknown;
+}
+
+function firstStr(...values: unknown[]): string {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  }
+  return "";
+}
+
+/** Map a raw Apify prospect output to our DB row shape. */
+export function mapProspectToRow(
+  campaignId: string,
+  raw: ProspectRaw,
+): {
+  campaign_id: string;
+  name: string;
+  first_name: string;
+  headline: string;
+  company: string;
+  industry: string;
+  location: string;
+  profile_url: string | null;
+  email: string | null;
+  score: number;
+  step: number;
+  status: "pending";
+  reply_received: boolean;
+  raw_apify: Record<string, unknown>;
+} {
+  const firstName = firstStr(raw.firstName, raw.fullName?.split(" ")[0]);
+  const fullName =
+    firstStr(raw.fullName, raw.name) ||
+    `${firstStr(raw.firstName)} ${firstStr(raw.lastName)}`.trim() ||
+    "Unknown";
+
+  const profileUrl = firstStr(raw.profileUrl, raw.url, raw.linkedinUrl) || null;
+  const email = firstStr(raw.email) || null;
+
+  // Simple scoring: has email +20, has headline +10, base 60
+  let score = 60;
+  if (email) score += 20;
+  if (firstStr(raw.headline, raw.jobTitle)) score += 10;
+  score = Math.min(Math.max(score, 0), 100);
+
+  return {
+    campaign_id: campaignId,
+    name: fullName,
+    first_name: firstName || fullName.split(" ")[0],
+    headline: firstStr(raw.headline, raw.jobTitle),
+    company: firstStr(raw.company, raw.companyName),
+    industry: firstStr(raw.industry),
+    location: firstStr(raw.location),
+    profile_url: profileUrl,
+    email,
+    score,
+    step: 0,
+    status: "pending" as const,
+    reply_received: false,
+    raw_apify: raw as unknown as Record<string, unknown>,
+  };
+}
+
+export interface DiscoverOptions {
+  source: string;
+  sourceUrl: string;
+  campaignId: string;
+  maxResults?: number;
+}
+
+/**
+ * Run the right Apify actor for a given source. Returns raw prospect rows.
+ * Throws if the source isn't supported or the actor fails.
+ */
+export async function discoverProspects(
+  options: DiscoverOptions,
+): Promise<ProspectRaw[]> {
+  const actorId = SOURCE_ACTORS[options.source];
+  if (!actorId) {
+    throw new Error(
+      `Source "${options.source}" is not automated yet — use CSV import or paste a URL list.`,
+    );
+  }
+
+  const { startRun, waitForRun, getDatasetItems } = await import("@/lib/apify");
+
+  const maxResults = options.maxResults ?? 30;
+  const inputs: Record<string, Record<string, unknown>> = {
+    "george.the.developer/linkedin-company-employees-scraper": {
+      companyUrl: options.sourceUrl,
+      maxProfiles: maxResults,
+      extractEmail: true,
+    },
+    "harvestapi/linkedin-profile-reactions": {
+      postUrl: options.sourceUrl,
+      maxResults,
+    },
+    "harvestapi/linkedin-profile-comments": {
+      postUrl: options.sourceUrl,
+      maxResults,
+    },
+  };
+
+  const input = inputs[actorId] ?? { url: options.sourceUrl, maxResults };
+
+  const run = await startRun({
+    actorId,
+    input,
+    timeoutSecs: 180,
+    memoryMbytes: 2048,
+  });
+
+  const completed = await waitForRun(run.id, 240_000);
+  const items = await getDatasetItems<ProspectRaw>(completed.defaultDatasetId, {
+    limit: maxResults,
+  });
+  return items;
+}
+
 /** Scrape and map a LinkedIn URL. Returns row ready to insert/upsert. */
 export async function scrapeLinkedInUrl(
   url: string,
