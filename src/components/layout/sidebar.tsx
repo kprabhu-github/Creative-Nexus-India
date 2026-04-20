@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Zap, Share2, Radar, Target, Send,
+  LayoutDashboard, Zap, Share2, Radar, Target, Send, Link2,
   FileText, Briefcase, MessageCircle, Settings,
   Users, DollarSign, Clock, ListChecks, Hash, BrainCircuit, TrendingUp,
   Receipt, FileSignature, CalendarDays, UserPlus,
@@ -19,6 +19,7 @@ const modulesNav = [
   { name: "AI SearchLens", href: "/searchlens", icon: Radar },
   { name: "GTM Engine", href: "/gtm", icon: Target },
   { name: "LinkedIn Outreach", href: "/nexus-flow", icon: Send },
+  { name: "LinkedIn Accounts", href: "/linkedin", icon: Link2 },
   { name: "Website Leads", href: "/leads", icon: Users },
 ];
 
