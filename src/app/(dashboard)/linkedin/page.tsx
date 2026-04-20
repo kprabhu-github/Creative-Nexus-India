@@ -1019,13 +1019,25 @@ export default function LinkedInPage() {
       const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}/advance`, {
         method: "POST",
       });
-      const json = (await res.json()) as { data?: { advanced: number }; error?: string };
+      const json = (await res.json()) as {
+        data?: { advanced: number; total_steps?: number; message?: string };
+        error?: string;
+      };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       await Promise.all([
         loadProspects(selectedCampaignId),
         loadCampaigns(),
         loadLog(),
       ]);
+      const advanced = json.data?.advanced ?? 0;
+      if (advanced === 0) {
+        alert(
+          json.data?.message ??
+            "No prospects to advance. Add prospects (🔍 Discover or 📁 Import) first, or check that any are in 'Pending' or 'In Sequence' status.",
+        );
+      } else {
+        alert(`✓ Advanced ${advanced} prospect${advanced === 1 ? "" : "s"} by one step.`);
+      }
     } catch (err) {
       alert(err instanceof Error ? err.message : "Auto-run failed");
     } finally {
@@ -1441,8 +1453,26 @@ export default function LinkedInPage() {
                 {filteredProspects.map((p) => (
                   <ProspectRow key={p.id} p={p} selected={selectedPros?.id === p.id} onClick={() => { setSelectedPros(p); setMsgDraft(""); }} />
                 ))}
-                {filteredProspects.length === 0 && (
-                  <div style={{ padding: 24, textAlign: "center", color: C.gray, fontSize: 12 }}>No prospects match.</div>
+                {filteredProspects.length === 0 && selectedCampaignId && prospects.length === 0 && (
+                  <div style={{ padding: 28, textAlign: "center" }}>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: C.navy, marginBottom: 4 }}>
+                      This campaign has no prospects yet
+                    </div>
+                    <div style={{ fontSize: 11, color: C.gray, lineHeight: 1.5 }}>
+                      Click <strong>🔍 Discover Prospects</strong> (Apify) or <strong>📁 Import CSV / URLs</strong> above.
+                    </div>
+                  </div>
+                )}
+                {filteredProspects.length === 0 && prospects.length > 0 && (
+                  <div style={{ padding: 24, textAlign: "center", color: C.gray, fontSize: 12 }}>
+                    No prospects match &ldquo;{filterStatus.replace("_", " ")}&rdquo; filter. Try &ldquo;All&rdquo;.
+                  </div>
+                )}
+                {filteredProspects.length === 0 && !selectedCampaignId && (
+                  <div style={{ padding: 24, textAlign: "center", color: C.gray, fontSize: 12 }}>
+                    Pick a campaign above to see prospects.
+                  </div>
                 )}
               </div>
               <div style={{ padding: "8px 14px", borderTop: "1px solid #F3F4F6", fontSize: 10, color: C.gray }}>

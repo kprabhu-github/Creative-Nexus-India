@@ -229,16 +229,22 @@ export interface ProspectRaw {
   firstName?: string;
   lastName?: string;
   fullName?: string;
+  publicIdentifier?: string;
   headline?: string;
   jobTitle?: string;
+  title?: string;
   profileUrl?: string;
   url?: string;
   linkedinUrl?: string;
+  profileUrn?: string;
   company?: string;
   companyName?: string;
+  currentCompany?: string | { name?: string; title?: string };
   industry?: string;
   location?: string;
+  locationName?: string;
   email?: string;
+  primaryEmail?: string;
   [k: string]: unknown;
 }
 
@@ -269,29 +275,52 @@ export function mapProspectToRow(
   reply_received: boolean;
   raw_apify: Record<string, unknown>;
 } {
-  const firstName = firstStr(raw.firstName, raw.fullName?.split(" ")[0]);
+  // Extract name — actors use any of: fullName, name, firstName+lastName, publicIdentifier
   const fullName =
     firstStr(raw.fullName, raw.name) ||
     `${firstStr(raw.firstName)} ${firstStr(raw.lastName)}`.trim() ||
+    firstStr(raw.publicIdentifier).replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ||
     "Unknown";
+  const firstName = firstStr(raw.firstName, fullName.split(" ")[0]);
 
-  const profileUrl = firstStr(raw.profileUrl, raw.url, raw.linkedinUrl) || null;
-  const email = firstStr(raw.email) || null;
+  // URL — actors use any of: profileUrl, url, linkedinUrl, build from publicIdentifier
+  let profileUrl = firstStr(raw.profileUrl, raw.url, raw.linkedinUrl) || null;
+  if (!profileUrl && raw.publicIdentifier) {
+    profileUrl = `https://www.linkedin.com/in/${firstStr(raw.publicIdentifier)}/`;
+  }
+
+  // Company — can be string OR object { name, title }
+  let company = "";
+  if (typeof raw.currentCompany === "string") {
+    company = raw.currentCompany;
+  } else if (raw.currentCompany && typeof raw.currentCompany === "object") {
+    company = firstStr(raw.currentCompany.name);
+  }
+  company = company || firstStr(raw.company, raw.companyName);
+
+  // Headline — actors use any of: headline, jobTitle, title, or title inside currentCompany
+  let headline = firstStr(raw.headline, raw.jobTitle, raw.title);
+  if (!headline && raw.currentCompany && typeof raw.currentCompany === "object") {
+    headline = firstStr(raw.currentCompany.title);
+  }
+
+  const location = firstStr(raw.location, raw.locationName);
+  const email = firstStr(raw.email, raw.primaryEmail) || null;
 
   // Simple scoring: has email +20, has headline +10, base 60
   let score = 60;
   if (email) score += 20;
-  if (firstStr(raw.headline, raw.jobTitle)) score += 10;
+  if (headline) score += 10;
   score = Math.min(Math.max(score, 0), 100);
 
   return {
     campaign_id: campaignId,
     name: fullName,
     first_name: firstName || fullName.split(" ")[0],
-    headline: firstStr(raw.headline, raw.jobTitle),
-    company: firstStr(raw.company, raw.companyName),
+    headline,
+    company,
     industry: firstStr(raw.industry),
-    location: firstStr(raw.location),
+    location,
     profile_url: profileUrl,
     email,
     score,
@@ -326,23 +355,29 @@ export async function discoverProspects(
   const { startRun, waitForRun, getDatasetItems } = await import("@/lib/apify");
 
   const maxResults = options.maxResults ?? 30;
+  // Each Apify actor has its own input schema — this map MUST match the actor's
+  // documented schema exactly or it silently returns 0 items (or 400s).
   const inputs: Record<string, Record<string, unknown>> = {
+    // Input schema: https://apify.com/george.the.developer/linkedin-company-employees-scraper
     "george.the.developer/linkedin-company-employees-scraper": {
-      companyUrl: options.sourceUrl,
-      maxProfiles: maxResults,
-      extractEmail: true,
+      companies: [options.sourceUrl],
+      maxEmployees: maxResults,
     },
+    // harvestapi actors — post URL + max items
     "harvestapi/linkedin-profile-reactions": {
-      postUrl: options.sourceUrl,
-      maxResults,
+      postUrls: [options.sourceUrl],
+      maxItems: maxResults,
     },
     "harvestapi/linkedin-profile-comments": {
-      postUrl: options.sourceUrl,
-      maxResults,
+      postUrls: [options.sourceUrl],
+      maxItems: maxResults,
     },
   };
 
-  const input = inputs[actorId] ?? { url: options.sourceUrl, maxResults };
+  const input = inputs[actorId] ?? {
+    startUrls: [{ url: options.sourceUrl }],
+    maxResults,
+  };
 
   const run = await startRun({
     actorId,
