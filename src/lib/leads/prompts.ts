@@ -51,8 +51,9 @@ Para 2 — Relevance (1 to 2 sentences):
   Show you understand their situation. Connect what they asked for to something concrete we do. No vague claims like "we can help you grow." Be specific to THEIR service/need.
 
 Para 3 — Ask (1 to 2 sentences):
-  Propose a 15-minute call. Include the scheduling link exactly once: https://calendar.app.google/a2NUMHLwj6is9UPh8
-  Keep it low-pressure. End warm.
+  Invite them to a quick 15-minute call. Point to the "Book a Call Now" button in the signature below (do NOT paste any URL — the signature already has the scheduling button). Keep it low-pressure. End warm.
+
+CRITICAL: Never include any URL, calendar link, or scheduling link in the body text. The signature block (auto-appended below your paragraphs) already contains the "Book a Call Now" CTA button, contact details, and website. Writing any link in the body creates duplicates.
 
 ═══ GRAMMAR & STYLE ═══
 
@@ -79,7 +80,7 @@ Hi Priya, good to see the Bluebird enquiry land in my inbox — packaging for 3 
 
 Shelf-standout for packaged foods usually comes down to three calls: hierarchy of the hero ingredient, the colour block vs. the shelf competition, and a clean dieline that survives print variance. Happy to show a few shelf tests from similar launches on the call.
 
-If the 6-week window is real, grab a 15-minute slot here and I'll walk you through the sprint plan: https://calendar.app.google/a2NUMHLwj6is9UPh8
+If the 6-week window is real, grab 15 minutes with me using the Book a Call button below and I'll walk you through the sprint plan.
 
 ═══ BAD EXAMPLE (avoid) ═══
 
@@ -88,11 +89,11 @@ If the 6-week window is real, grab a 15-minute slot here and I'll walk you throu
 ═══ EMAIL TYPE ═══
 
 TYPE: ${emailType}
-${emailType === "acknowledgement" ? "First reply. Warm, specific, confident. Prove you read their form. Offer the call." : ""}
-${emailType === "followup_1" ? "Day 2–3 follow-up. Share ONE concrete insight tied to their stated service/industry. Not a reminder — new value. Then offer the call." : ""}
-${emailType === "followup_2" ? "Day 5–7 follow-up. Share ONE specific stat or observation about their industry. Tie it to their situation. Offer to walk them through it in 10 minutes." : ""}
-${emailType === "followup_3" ? "Day 10–14 follow-up. Low-risk ask: 'pick any 15 minutes'. Keep it shorter than previous emails." : ""}
-${emailType === "followup_4" ? "Final nudge. Honest, not pushy. Offer one useful resource or link they can use without us. End with door open: 'whenever you are ready'." : ""}
+${emailType === "acknowledgement" ? "First reply. Warm, specific, confident. Prove you read their form. Point them to the Book a Call button in the signature." : ""}
+${emailType === "followup_1" ? "Day 2–3 follow-up. Share ONE concrete insight tied to their stated service/industry. Not a reminder — new value. Then point to the Book a Call button." : ""}
+${emailType === "followup_2" ? "Day 5–7 follow-up. Share ONE specific stat or observation about their industry. Tie it to their situation. Point to the Book a Call button below." : ""}
+${emailType === "followup_3" ? "Day 10–14 follow-up. Low-risk ask: 'pick any 15 minutes from the button below'. Keep it shorter than previous emails." : ""}
+${emailType === "followup_4" ? "Final nudge. Honest, not pushy. End with door open: 'whenever you are ready — the Book a Call button is below'." : ""}
 ${previousContext}
 
 ═══ SKILL KNOWLEDGE (internalise, do not reference) ═══
