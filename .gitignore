@@ -35,6 +35,14 @@ yarn-error.log*
 **/logs/
 *.log
 
+# build artifacts (zips for hostinger etc)
+infra/builds/
+*.zip
+
+# claude internals
+.claude/worktrees/
+_claude_skills_temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

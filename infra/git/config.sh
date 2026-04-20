@@ -81,7 +81,11 @@ safe_merge() {
   fi
 
   log "Pushing $target to $REMOTE..."
-  git push "$REMOTE" "$target" || die "Failed to push $target to $REMOTE"
+  if ! git push "$REMOTE" "$target"; then
+    log "Push to $target failed. Switching back to $BRANCH_DEV..."
+    git checkout "$BRANCH_DEV"
+    die "Failed to push $target to $REMOTE."
+  fi
 
   log "Successfully deployed $source → $target."
 }

@@ -10,6 +10,9 @@ source "$(dirname "$0")/config.sh"
 
 check_git_repo
 
+# Always return to master, even on error or Ctrl+C
+trap 'git checkout "$BRANCH_DEV" 2>/dev/null' EXIT
+
 # Auto-save uncommitted changes before deploy
 if [ -n "$(git status --porcelain)" ]; then
   log "Uncommitted changes detected. Saving before deploy..."

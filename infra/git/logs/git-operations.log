@@ -34,3 +34,44 @@
 [2026-04-16 18:23:31] ERROR: Failed to checkout test
 [2026-04-16 18:23:45] Uncommitted changes detected. Saving before deploy...
 [2026-04-16 18:23:45] Staging all changes...
+[2026-04-16 18:23:45] Committing: wip: auto-save before prod deploy [2026-04-16 18:23]
+[2026-04-16 18:23:45] Pushing to origin/master...
+[2026-04-16 18:23:46] Changes committed and pushed.
+[2026-04-16 18:23:46] 
+[2026-04-16 18:23:46] ============================================
+[2026-04-16 18:23:46]   Deploying test → prod
+[2026-04-16 18:23:46] ============================================
+[2026-04-16 18:23:46] 
+[2026-04-16 18:23:59] 
+[2026-04-16 18:23:59] Pulling latest test...
+[2026-04-20 06:10:17] ============================================
+[2026-04-20 06:10:17]   Creating zip for Hostinger upload
+[2026-04-20 06:10:17] ============================================
+[2026-04-20 06:10:17] Project:  /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026
+[2026-04-20 06:10:17] Output:   /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/builds/CreativeNexus2.0_20260420-061017.zip
+[2026-04-20 06:10:17] 
+[2026-04-20 06:10:17] Zipping project (this may take a moment)...
+[2026-04-20 06:10:18] 
+[2026-04-20 06:10:18] ============================================
+[2026-04-20 06:10:18]   Zip created: CreativeNexus2.0_20260420-061017.zip
+[2026-04-20 06:10:18]   Size:        784K
+[2026-04-20 06:10:18]   Location:    /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/builds/CreativeNexus2.0_20260420-061017.zip
+[2026-04-20 06:10:18] ============================================
+[2026-04-20 06:10:18] 
+[2026-04-20 06:10:18] Upload this file via Hostinger File Manager, then extract.
+[2026-04-20 06:19:35] ============================================
+[2026-04-20 06:19:35]   Creating zip for Hostinger upload
+[2026-04-20 06:19:35] ============================================
+[2026-04-20 06:19:35] Project:  /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026
+[2026-04-20 06:19:35] Output:   /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/builds/CreativeNexus2.0_20260420-061935.zip
+[2026-04-20 06:19:35] 
+[2026-04-20 06:19:35] Zipping project (this may take a moment)...
+[2026-04-20 06:19:35] 
+[2026-04-20 06:19:35] ============================================
+[2026-04-20 06:19:35]   Zip created: CreativeNexus2.0_20260420-061935.zip
+[2026-04-20 06:19:35]   Size:        784K
+[2026-04-20 06:19:35]   Location:    /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/builds/CreativeNexus2.0_20260420-061935.zip
+[2026-04-20 06:19:35] ============================================
+[2026-04-20 06:19:35] 
+[2026-04-20 06:19:35] Upload this file via Hostinger File Manager, then extract.
+[2026-04-20 06:27:42] Staging all changes...
