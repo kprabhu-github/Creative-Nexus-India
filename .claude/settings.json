@@ -37,7 +37,9 @@
       "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase B - live Apify scraping, Supabase persistence, CRUD API routes + wired UI\")",
       "Bash(open -a TextEdit \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/supabase/migrations/20260420090000_linkedin_accounts.sql\")",
       "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase C1 - 5-tab outreach platform \\(Accounts real, Campaigns/Funnel/Queue/Analytics functional mocks\\)\")",
-      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase C2-C5 - real campaigns, prospects, Apify discovery, auto-run, server-side Claude messages\")"
+      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase C2-C5 - real campaigns, prospects, Apify discovery, auto-run, server-side Claude messages\")",
+      "Bash(open -a TextEdit \"/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/supabase/migrations/20260420100000_linkedin_campaigns.sql\")",
+      "Bash(./infra/git/git-push.sh \"feat\\(linkedin\\): Phase D - CSV + URL list import with modal + inline parser\")"
     ],
     "additionalDirectories": [
       "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]",

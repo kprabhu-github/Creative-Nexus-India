@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -570,6 +570,98 @@ function ProspectRow({ p, selected, onClick }: { p: Prospect; selected: boolean;
   );
 }
 
+function ImportModal({
+  campaignName,
+  onClose,
+  onImport,
+  importing,
+}: {
+  campaignName: string;
+  onClose: () => void;
+  onImport: (type: "csv" | "urls", data: string) => void;
+  importing: boolean;
+}) {
+  const [mode, setMode] = useState<"csv" | "urls">("csv");
+  const [text, setText] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const content = await file.text();
+    setText(content);
+    setMode("csv");
+  }
+
+  const csvExample = `name,headline,company,industry,location,email,linkedin_url
+Ankit Bhatia,VP Marketing @ Zomato,Zomato,E-Commerce,Gurugram,a.bhatia@zomato.com,https://linkedin.com/in/ankit-bhatia`;
+  const urlExample = `https://linkedin.com/in/ankit-bhatia
+https://linkedin.com/in/ritu-shenoy
+https://linkedin.com/in/karan-malhotra`;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+      <div style={{ background: "white", borderRadius: 16, padding: "20px 22px", width: 540, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>Import Prospects</div>
+            <div style={{ fontSize: 11, color: C.gray, marginTop: 2 }}>Adding to &ldquo;{campaignName}&rdquo;</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: C.gray }}>×</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          <button onClick={() => setMode("csv")} style={{ flex: 1, padding: "7px", borderRadius: 8, border: "1px solid", borderColor: mode === "csv" ? C.coral : "#E5E7EB", background: mode === "csv" ? "#FFF1ED" : "white", color: mode === "csv" ? C.coral : "#374151", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>📄 CSV</button>
+          <button onClick={() => setMode("urls")} style={{ flex: 1, padding: "7px", borderRadius: 8, border: "1px solid", borderColor: mode === "urls" ? C.coral : "#E5E7EB", background: mode === "urls" ? "#FFF1ED" : "white", color: mode === "urls" ? C.coral : "#374151", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>🔗 URL List</button>
+        </div>
+
+        {mode === "csv" && (
+          <>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", marginBottom: 4 }}>Upload file</div>
+            <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" onChange={handleFile} style={{ marginBottom: 10, fontSize: 12 }} />
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", marginBottom: 4 }}>Or paste CSV</div>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={8}
+              placeholder={csvExample}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "monospace", outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.5 }}
+            />
+            <div style={{ fontSize: 10, color: C.gray, marginTop: 4 }}>
+              Accepted columns: name, headline, company, industry, location, email, linkedin_url (any order, any case).
+              Supports Apollo.io and Sales Navigator exports.
+            </div>
+          </>
+        )}
+
+        {mode === "urls" && (
+          <>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", marginBottom: 4 }}>Paste LinkedIn URLs (one per line)</div>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={8}
+              placeholder={urlExample}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "monospace", outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.6 }}
+            />
+            <div style={{ fontSize: 10, color: C.gray, marginTop: 4 }}>
+              Creates a row per URL with name derived from the slug. Headline, company, etc. will be blank
+              — enrich by running a profile scrape per-prospect later.
+            </div>
+          </>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <button onClick={onClose} disabled={importing} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "1px solid #E5E7EB", background: "transparent", color: "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          <button onClick={() => onImport(mode, text)} disabled={!text.trim() || importing} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "none", background: text.trim() && !importing ? C.coral : "#F3F4F6", color: text.trim() && !importing ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: text.trim() && !importing ? "pointer" : "default", fontFamily: "inherit" }}>
+            {importing ? "Importing…" : "Import"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AnalyticsView({ prospects, campaigns }: { prospects: Prospect[]; campaigns: Campaign[] }) {
   const total = prospects.length;
   const inSeq = prospects.filter((p) => p.status === "in_sequence").length;
@@ -655,6 +747,8 @@ export default function LinkedInPage() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   // Prospects (real, scoped to selectedCampaignId)
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -941,6 +1035,32 @@ export default function LinkedInPage() {
     }
   }
 
+  async function handleImport(type: "csv" | "urls", data: string) {
+    if (!selectedCampaignId) return;
+    setImporting(true);
+    try {
+      const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, data }),
+      });
+      const json = (await res.json()) as {
+        data?: { inserted: number; duplicates: number; invalid: number };
+        error?: string;
+      };
+      if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await Promise.all([loadProspects(selectedCampaignId), loadCampaigns(), loadLog()]);
+      alert(
+        `Imported ${json.data?.inserted ?? 0} prospects — ${json.data?.duplicates ?? 0} duplicates, ${json.data?.invalid ?? 0} invalid.`,
+      );
+      setShowImport(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   function addFunnelStep(actionId: string) {
     const at = ACTION_TYPES.find((a) => a.id === actionId);
     if (!at) return;
@@ -1038,6 +1158,14 @@ export default function LinkedInPage() {
   return (
     <div style={{ fontFamily: "'Inter',system-ui,sans-serif", color: C.navy }}>
       {settingsAcc && <LimitsModal acc={settingsAcc} onClose={() => setSettingsId(null)} onSave={handleSaveLimits} saving={savingLimits} />}
+      {showImport && selectedCampaignId && (
+        <ImportModal
+          campaignName={campaigns.find((c) => c.id === selectedCampaignId)?.name ?? ""}
+          onClose={() => setShowImport(false)}
+          onImport={handleImport}
+          importing={importing}
+        />
+      )}
 
       {/* Page header + stats + actions */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", paddingBottom: 14 }}>
@@ -1208,6 +1336,9 @@ export default function LinkedInPage() {
               </select>
               <button onClick={handleDiscover} disabled={!selectedCampaignId || discovering} style={{ padding: "7px 16px", borderRadius: 7, border: "none", background: selectedCampaignId && !discovering ? C.navy : "#F3F4F6", color: selectedCampaignId && !discovering ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: selectedCampaignId && !discovering ? "pointer" : "default", fontFamily: "inherit" }}>
                 {discovering ? "⏳ Discovering via Apify…" : "🔍 Discover Prospects"}
+              </button>
+              <button onClick={() => setShowImport(true)} disabled={!selectedCampaignId} style={{ padding: "7px 16px", borderRadius: 7, border: `1px solid ${selectedCampaignId ? C.navy : "#E5E7EB"}`, background: "white", color: selectedCampaignId ? C.navy : C.gray, fontSize: 12, fontWeight: 700, cursor: selectedCampaignId ? "pointer" : "default", fontFamily: "inherit" }}>
+                📁 Import CSV / URLs
               </button>
               <span style={{ fontSize: 10, color: C.gray, marginLeft: "auto" }}>{prospects.length} prospect{prospects.length === 1 ? "" : "s"} in this campaign</span>
             </div>
