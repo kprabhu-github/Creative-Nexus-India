@@ -72,8 +72,8 @@ Source page: ${sourceUrl}`;
       tier: "execution",
       systemPrompt,
       userMessage,
-      maxTokens: 1024,
-      temperature: 0.6,
+      maxTokens: 512,
+      temperature: 0.4,
     });
 
     const parsed = parseClaudeJson(text) as {
