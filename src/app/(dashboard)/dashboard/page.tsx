@@ -220,7 +220,7 @@ export default function DashboardHome() {
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const res = await fetch("/api/dashboard");
+      const res = await fetch("/api/home-data");
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: "Failed to fetch dashboard data" }));
         throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);

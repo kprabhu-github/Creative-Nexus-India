@@ -132,7 +132,7 @@ export function NotificationPanel() {
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/notifications?limit=20&unread=true");
+      const res = await fetch("/api/notifs?limit=20&unread=true");
       if (res.ok) {
         const json = (await res.json()) as { data: Notification[] };
         setNotifications(json.data ?? []);
@@ -151,7 +151,7 @@ export function NotificationPanel() {
   useEffect(() => {
     const checkUnread = async () => {
       try {
-        const res = await fetch("/api/notifications?limit=50&unread=true");
+        const res = await fetch("/api/notifs?limit=50&unread=true");
         if (res.ok) {
           const json = (await res.json()) as { data: Notification[] };
           setUnreadCount((json.data ?? []).length);
@@ -177,7 +177,7 @@ export function NotificationPanel() {
   const markAsRead = useCallback(
     async (id: string) => {
       try {
-        await fetch(`/api/notifications/${id}`, {
+        await fetch(`/api/notifs/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ is_read: true }),
@@ -197,7 +197,7 @@ export function NotificationPanel() {
   const dismissNotification = useCallback(
     async (id: string) => {
       try {
-        await fetch(`/api/notifications/${id}`, {
+        await fetch(`/api/notifs/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ is_dismissed: true }),
@@ -216,7 +216,7 @@ export function NotificationPanel() {
     const unread = notifications.filter((n) => !n.is_read);
     await Promise.all(
       unread.map((n) =>
-        fetch(`/api/notifications/${n.id}`, {
+        fetch(`/api/notifs/${n.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ is_read: true }),
