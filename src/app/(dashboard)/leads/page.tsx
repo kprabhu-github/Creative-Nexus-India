@@ -1,6 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+
+const ConversationsSection = dynamic(
+  () => import("./_components/ConversationsSection"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="text-[12px] text-foreground-tertiary">
+        Loading conversations…
+      </div>
+    ),
+  }
+);
 import {
   Globe,
   CheckCircle,
@@ -536,6 +549,10 @@ function LeadDetail({
           </div>
         )}
       </div>
+
+      {/* Conversations Section — multi-thread email history */}
+      <div className="h-px bg-divider" />
+      <ConversationsSection leadId={lead.id} leadEmail={lead.email} />
 
       {/* Email History */}
       {sentEmails.length > 0 && (
