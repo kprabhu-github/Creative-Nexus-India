@@ -410,7 +410,7 @@ export default function SettingsPage() {
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
-  const [activeTab, setActiveTab] = useState("Company Profile");
+  const [activeTab, setActiveTab] = useState("Company");
   const [company, setCompany] = useState<CompanyData>({});
   const [config, setConfig] = useState<AgencyConfig>({});
   const [pageLoading, setPageLoading] = useState(true);
@@ -528,19 +528,19 @@ export default function SettingsPage() {
         description="Company profile, platform configuration, and integrations"
       />
 
-      {/* Tab Switcher */}
-      <div className="mb-5">
+      {/* Tab Switcher — horizontal tabs across 5 areas */}
+      <div className="mb-5 overflow-x-auto">
         <SegmentedControl
-          options={["Company Profile", "Platform Settings"]}
+          options={["Company", "Brand", "Marketing", "Integrations", "Notifications"]}
           value={activeTab}
           onChange={setActiveTab}
         />
       </div>
 
       {/* ================================================================== */}
-      {/* TAB 1: Company Profile                                             */}
+      {/* TAB 1: Company — Identity, Legal, Banking, Addresses, Contact      */}
       {/* ================================================================== */}
-      {activeTab === "Company Profile" && (
+      {activeTab === "Company" && (
         <div className="grid gap-4 max-w-2xl">
           {/* -------------------------------------------------------------- */}
           {/* Section 1: Company Identity                                     */}
@@ -778,10 +778,14 @@ export default function SettingsPage() {
               </div>
             </div>
           </SectionCard>
+        </div>
+      )}
 
-          {/* -------------------------------------------------------------- */}
-          {/* Section 6: Social Media Accounts                                */}
-          {/* -------------------------------------------------------------- */}
+      {/* ================================================================== */}
+      {/* TAB 2: Brand — Social media + Founder profile                       */}
+      {/* ================================================================== */}
+      {activeTab === "Brand" && (
+        <div className="grid gap-4 max-w-2xl">
           <SectionCard icon={Globe} title="Social Media Accounts">
             <div className="space-y-1.5">
               {Object.entries(
@@ -902,13 +906,10 @@ export default function SettingsPage() {
       )}
 
       {/* ================================================================== */}
-      {/* TAB 2: Platform Settings                                           */}
+      {/* TAB 3: Marketing — ICP, SearchLens, Outreach defaults              */}
       {/* ================================================================== */}
-      {activeTab === "Platform Settings" && (
+      {activeTab === "Marketing" && (
         <div className="grid gap-4 max-w-2xl">
-          {/* -------------------------------------------------------------- */}
-          {/* Section 1: Target Defaults (ICP)                                */}
-          {/* -------------------------------------------------------------- */}
           <SectionCard icon={Target} title="Target Defaults (ICP)">
             <p className="text-[12px] text-foreground-tertiary mb-3">
               These defaults are used by all AI modules. No more pop-up prompts.
@@ -1232,9 +1233,22 @@ export default function SettingsPage() {
             </div>
           </SectionCard>
 
-          {/* -------------------------------------------------------------- */}
-          {/* Section 4: Google Integrations                                  */}
-          {/* -------------------------------------------------------------- */}
+        </div>
+      )}
+
+      {/* ================================================================== */}
+      {/* TAB 4: Integrations — Google + Email + API status                   */}
+      {/* ================================================================== */}
+      {activeTab === "Integrations" && (
+        <div className="grid gap-4 max-w-2xl">
+          <SectionCard icon={Mail} title="Email Mailboxes (SMTP + IMAP)">
+            <p className="text-[12px] text-foreground-tertiary mb-3">
+              Connect your @creativenexus.in mailboxes for sending and receiving via SMTP+IMAP.
+            </p>
+            <a href="/settings/integrations" className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent text-white text-[13px] font-semibold hover:bg-accent/90">
+              Open Email Integrations →
+            </a>
+          </SectionCard>
           <SectionCard icon={Globe} title="Google Integrations">
             <p className="text-[12px] text-foreground-tertiary mb-3">
               Connect your Google services. OAuth will be enabled in a future
@@ -1397,9 +1411,14 @@ export default function SettingsPage() {
             </div>
           </SectionCard>
 
-          {/* -------------------------------------------------------------- */}
-          {/* Section 6: Notification Preferences                             */}
-          {/* -------------------------------------------------------------- */}
+        </div>
+      )}
+
+      {/* ================================================================== */}
+      {/* TAB 5: Notifications — Notification preferences                     */}
+      {/* ================================================================== */}
+      {activeTab === "Notifications" && (
+        <div className="grid gap-4 max-w-2xl">
           <SectionCard icon={Bell} title="Notification Preferences">
             <div className="space-y-3">
               {[
