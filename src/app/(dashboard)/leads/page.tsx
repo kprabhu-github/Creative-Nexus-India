@@ -375,11 +375,11 @@ function LeadDetail({
       {/* Header: Name, company, form, time, score */}
       <div>
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-[16px] font-bold text-foreground">
+          <div className="min-w-0">
+            <h2 className="text-[16px] font-bold text-foreground truncate">
               {lead.name || "Unknown Lead"}
             </h2>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {lead.company && (
                 <span className="text-[12px] text-foreground-secondary">
                   {lead.company}
@@ -401,18 +401,19 @@ function LeadDetail({
           </div>
 
           {lead.score && (
-            <div className="text-right shrink-0">
+            <div className="shrink-0">
               <StatusBadge type={scoreColor(lead.score.score)}>
                 Score: {lead.score.score}
               </StatusBadge>
-              {lead.score.reasoning && (
-                <p className="text-[10px] text-foreground-tertiary mt-1 max-w-[200px] leading-relaxed">
-                  {lead.score.reasoning}
-                </p>
-              )}
             </div>
           )}
         </div>
+
+        {lead.score?.reasoning && (
+          <p className="text-[11px] text-foreground-tertiary mt-2 leading-relaxed">
+            {lead.score.reasoning}
+          </p>
+        )}
       </div>
 
       {/* Contact bar */}
@@ -445,6 +446,55 @@ function LeadDetail({
             <ExternalLink className="w-3 h-3" strokeWidth={2} />
             Source
           </a>
+        )}
+      </div>
+
+      {/* Lead Action Toolbar — primary actions for this lead, always visible */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {!activeEmail && !lead.score?.spam && (
+          <button
+            onClick={() => onDraftEmail(lead)}
+            disabled={actionLoading === "draft"}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-[11px] font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
+          >
+            {actionLoading === "draft" ? (
+              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+            ) : (
+              <Sparkles className="w-3 h-3" strokeWidth={2} />
+            )}
+            AI Draft
+          </button>
+        )}
+        {sentEmails.length > 0 && lead.score?.status === "contacted" && (
+          <button
+            onClick={() => onMarkReplied(lead.id)}
+            disabled={actionLoading === "replied"}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-success/10 text-success text-[11px] font-semibold hover:bg-success/15 transition-colors disabled:opacity-50"
+          >
+            {actionLoading === "replied" ? (
+              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+            ) : (
+              <CheckCircle className="w-3 h-3" strokeWidth={2} />
+            )}
+            Mark Replied
+          </button>
+        )}
+        <div className="flex-1" />
+        {!lead.score?.spam && (
+          <button
+            onClick={() => onMarkSpam(lead.id)}
+            disabled={actionLoading === "spam"}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-foreground-tertiary text-[11px] font-medium hover:text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-50"
+            aria-label="Mark as spam"
+            title="Mark as spam"
+          >
+            {actionLoading === "spam" ? (
+              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+            ) : (
+              <Ban className="w-3 h-3" strokeWidth={2} />
+            )}
+            Spam
+          </button>
         )}
       </div>
 
@@ -484,71 +534,51 @@ function LeadDetail({
       {/* Divider */}
       <div className="h-px bg-divider" />
 
-      {/* Email Section */}
-      <div>
-        <span className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
-          <Mail className="w-3.5 h-3.5" strokeWidth={2} />
-          Email
-        </span>
+      {/* AI Draft Section — only renders when an email exists. The "no email"
+          state is handled by the AI Draft button on the action toolbar above. */}
+      {activeEmail && (
+        <div>
+          <span className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+            <Mail className="w-3.5 h-3.5" strokeWidth={2} />
+            AI Draft
+          </span>
 
-        {activeEmail && activeEmail.status === "sent" ? (
-          <div className="mt-2">
-            <div className="flex items-center gap-2 mb-2">
-              <StatusBadge type="success">
-                Sent on{" "}
-                {activeEmail.sent_at
-                  ? new Date(activeEmail.sent_at).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "unknown date"}
-              </StatusBadge>
+          {activeEmail.status === "sent" ? (
+            <div className="mt-2">
+              <div className="flex items-center gap-2 mb-2">
+                <StatusBadge type="success">
+                  Sent on{" "}
+                  {activeEmail.sent_at
+                    ? new Date(activeEmail.sent_at).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "unknown date"}
+                </StatusBadge>
+              </div>
+              <EmailPreviewCard email={activeEmail} />
             </div>
-            <EmailPreviewCard email={activeEmail} />
-          </div>
-        ) : activeEmail &&
-          (activeEmail.status === "draft" || activeEmail.status === "queued") ? (
-          <div className="mt-2">
-            <div className="flex items-center gap-2 mb-2">
-              <StatusBadge type="warning">
-                {activeEmail.status === "queued" ? "Queued" : "Draft"}
-              </StatusBadge>
-              <span className="text-[11px] text-foreground-tertiary">
-                Edit the draft below, then Save before sending.
-              </span>
+          ) : (
+            <div className="mt-2">
+              <div className="flex items-center gap-2 mb-2">
+                <StatusBadge type="warning">
+                  {activeEmail.status === "queued" ? "Queued" : "Draft"}
+                </StatusBadge>
+                <span className="text-[11px] text-foreground-tertiary">
+                  Edit the draft below, then Save before sending.
+                </span>
+              </div>
+              <DraftEditor
+                email={activeEmail}
+                onSave={onSaveDraftEdits}
+                saving={actionLoading === "save"}
+              />
             </div>
-            <DraftEditor
-              email={activeEmail}
-              onSave={onSaveDraftEdits}
-              saving={actionLoading === "save"}
-            />
-          </div>
-        ) : (
-          <div className="mt-2 bg-background rounded-[8px] p-4 dark:bg-foreground-tertiary/5 text-center">
-            <FileText
-              className="w-5 h-5 text-foreground-tertiary mx-auto mb-1.5"
-              strokeWidth={1.5}
-            />
-            <p className="text-[12px] text-foreground-tertiary">
-              No email draft yet
-            </p>
-            <button
-              onClick={() => onDraftEmail(lead)}
-              disabled={actionLoading === "draft"}
-              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
-            >
-              {actionLoading === "draft" ? (
-                <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
-              ) : (
-                <Sparkles className="w-3 h-3" strokeWidth={2} />
-              )}
-              Generate Email Draft
-            </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Conversations Section — multi-thread email history */}
       <div className="h-px bg-divider" />
@@ -568,27 +598,13 @@ function LeadDetail({
         </div>
       )}
 
-      {/* Unreplied alert */}
+      {/* Unreplied alert — passive warning; "Mark Replied" lives on the action toolbar */}
       {sentEmails.length > 0 && lead.score?.status === "contacted" && (
-        <div className="flex items-center justify-between bg-warning/5 border border-warning/20 rounded-[8px] p-3">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-warning" strokeWidth={2} />
-            <span className="text-xs text-warning font-medium">
-              No reply yet — {sentEmails.length} email{sentEmails.length > 1 ? "s" : ""} sent
-            </span>
-          </div>
-          <button
-            onClick={() => onMarkReplied(lead.id)}
-            disabled={actionLoading === "replied"}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-success/10 text-success text-[11px] font-medium hover:bg-success/15 transition-colors disabled:opacity-50"
-          >
-            {actionLoading === "replied" ? (
-              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
-            ) : (
-              <CheckCircle className="w-3 h-3" strokeWidth={2} />
-            )}
-            Mark as Replied
-          </button>
+        <div className="flex items-center gap-2 bg-warning/5 border border-warning/20 rounded-[8px] p-3">
+          <AlertCircle className="w-4 h-4 text-warning shrink-0" strokeWidth={2} />
+          <span className="text-xs text-warning font-medium">
+            No reply yet — {sentEmails.length} email{sentEmails.length > 1 ? "s" : ""} sent
+          </span>
         </div>
       )}
 
@@ -600,23 +616,22 @@ function LeadDetail({
         </div>
       )}
 
-      {/* Action Bar */}
-      {activeEmail && (
+      {/* AI Draft email actions — Send + Regenerate; only when an email exists.
+          Spam + Mark Replied live on the lead action toolbar at the top. */}
+      {activeEmail && activeEmail.status !== "sent" && (
         <div className="bg-background rounded-[10px] border border-divider p-3 flex items-center gap-3 flex-wrap">
-          {activeEmail.status !== "sent" && (
-            <button
-              onClick={() => onSendEmail(activeEmail.id)}
-              disabled={actionLoading === "send"}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50 shadow-sm"
-            >
-              {actionLoading === "send" ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
-              ) : (
-                <Send className="w-3.5 h-3.5" strokeWidth={2} />
-              )}
-              Send Email
-            </button>
-          )}
+          <button
+            onClick={() => onSendEmail(activeEmail.id)}
+            disabled={actionLoading === "send"}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50 shadow-sm"
+          >
+            {actionLoading === "send" ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
+            ) : (
+              <Send className="w-3.5 h-3.5" strokeWidth={2} />
+            )}
+            Send Email
+          </button>
           <button
             onClick={() => onRegenerateDraft(lead)}
             disabled={actionLoading === "draft"}
@@ -628,40 +643,6 @@ function LeadDetail({
               <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
             )}
             Regenerate Draft
-          </button>
-          <div className="flex-1" />
-          {!lead.score?.spam && (
-            <button
-              onClick={() => onMarkSpam(lead.id)}
-              disabled={actionLoading === "spam"}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-foreground-tertiary text-xs font-medium hover:text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-50"
-            >
-              {actionLoading === "spam" ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
-              ) : (
-                <Ban className="w-3.5 h-3.5" strokeWidth={2} />
-              )}
-              Spam
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* No email but actions still available */}
-      {!activeEmail && !lead.score?.spam && (
-        <div className="bg-background rounded-[10px] border border-divider p-3 flex items-center gap-3">
-          <div className="flex-1" />
-          <button
-            onClick={() => onMarkSpam(lead.id)}
-            disabled={actionLoading === "spam"}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-foreground-tertiary text-xs font-medium hover:text-destructive hover:bg-destructive/5 transition-colors disabled:opacity-50"
-          >
-            {actionLoading === "spam" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
-            ) : (
-              <Ban className="w-3.5 h-3.5" strokeWidth={2} />
-            )}
-            Spam
           </button>
         </div>
       )}
