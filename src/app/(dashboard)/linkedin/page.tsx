@@ -1,6 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+
+// Heavy sub-components — lazy-loaded so the initial /linkedin bundle is
+// smaller. Each module is fetched only when the user opens the
+// corresponding tab/modal.
+const AnalyticsView = dynamic(() => import("./_components/AnalyticsView"), {
+  ssr: false,
+  loading: () => <div style={{ padding: 30, color: "#9CA3AF", fontSize: 12 }}>Loading analytics…</div>,
+});
+const ImportModal = dynamic(() => import("./_components/ImportModal"), {
+  ssr: false,
+});
 
 // ─── Brand tokens ──────────────────────────────────────────────────────────
 const C = {
@@ -587,158 +599,6 @@ function ProspectRow({ p, selected, onClick }: { p: Prospect; selected: boolean;
   );
 }
 
-function ImportModal({
-  campaignName,
-  onClose,
-  onImport,
-  importing,
-}: {
-  campaignName: string;
-  onClose: () => void;
-  onImport: (type: "csv" | "urls", data: string) => void;
-  importing: boolean;
-}) {
-  const [mode, setMode] = useState<"csv" | "urls">("csv");
-  const [text, setText] = useState("");
-  const fileRef = useRef<HTMLInputElement | null>(null);
-
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const content = await file.text();
-    setText(content);
-    setMode("csv");
-  }
-
-  const csvExample = `name,headline,company,industry,location,email,linkedin_url
-Ankit Bhatia,VP Marketing @ Zomato,Zomato,E-Commerce,Gurugram,a.bhatia@zomato.com,https://linkedin.com/in/ankit-bhatia`;
-  const urlExample = `https://linkedin.com/in/ankit-bhatia
-https://linkedin.com/in/ritu-shenoy
-https://linkedin.com/in/karan-malhotra`;
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
-      <div style={{ background: "white", borderRadius: 16, padding: "20px 22px", width: 540, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>Import Prospects</div>
-            <div style={{ fontSize: 11, color: C.gray, marginTop: 2 }}>Adding to &ldquo;{campaignName}&rdquo;</div>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: C.gray }}>×</button>
-        </div>
-
-        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-          <button onClick={() => setMode("csv")} style={{ flex: 1, padding: "7px", borderRadius: 8, border: "1px solid", borderColor: mode === "csv" ? C.coral : "#E5E7EB", background: mode === "csv" ? "#FFF1ED" : "white", color: mode === "csv" ? C.coral : "#374151", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>📄 CSV</button>
-          <button onClick={() => setMode("urls")} style={{ flex: 1, padding: "7px", borderRadius: 8, border: "1px solid", borderColor: mode === "urls" ? C.coral : "#E5E7EB", background: mode === "urls" ? "#FFF1ED" : "white", color: mode === "urls" ? C.coral : "#374151", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>🔗 URL List</button>
-        </div>
-
-        {mode === "csv" && (
-          <>
-            <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", marginBottom: 4 }}>Upload file</div>
-            <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" onChange={handleFile} style={{ marginBottom: 10, fontSize: 12 }} />
-            <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", marginBottom: 4 }}>Or paste CSV</div>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={8}
-              placeholder={csvExample}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "monospace", outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.5 }}
-            />
-            <div style={{ fontSize: 10, color: C.gray, marginTop: 4 }}>
-              Accepted columns: name, headline, company, industry, location, email, linkedin_url (any order, any case).
-              Supports Apollo.io and Sales Navigator exports.
-            </div>
-          </>
-        )}
-
-        {mode === "urls" && (
-          <>
-            <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", marginBottom: 4 }}>Paste LinkedIn URLs (one per line)</div>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={8}
-              placeholder={urlExample}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "monospace", outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.6 }}
-            />
-            <div style={{ fontSize: 10, color: C.gray, marginTop: 4 }}>
-              Creates a row per URL with name derived from the slug. Headline, company, etc. will be blank
-              — enrich by running a profile scrape per-prospect later.
-            </div>
-          </>
-        )}
-
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button onClick={onClose} disabled={importing} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "1px solid #E5E7EB", background: "transparent", color: "#374151", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-          <button onClick={() => onImport(mode, text)} disabled={!text.trim() || importing} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "none", background: text.trim() && !importing ? C.coral : "#F3F4F6", color: text.trim() && !importing ? "white" : C.gray, fontSize: 12, fontWeight: 700, cursor: text.trim() && !importing ? "pointer" : "default", fontFamily: "inherit" }}>
-            {importing ? "Importing…" : "Import"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AnalyticsView({ prospects, campaigns }: { prospects: Prospect[]; campaigns: Campaign[] }) {
-  const total = prospects.length;
-  const inSeq = prospects.filter((p) => p.status === "in_sequence").length;
-  const replied = prospects.filter((p) => p.replyReceived).length;
-  const meetings = prospects.filter((p) => p.status === "meeting").length;
-  const replyRate = total ? Math.round((replied / total) * 100) : 0;
-  const meetingRate = total ? Math.round((meetings / total) * 100) : 0;
-
-  const byIndustry = useMemo(() => {
-    const m = new Map<string, number>();
-    prospects.forEach((p) => m.set(p.industry, (m.get(p.industry) ?? 0) + 1));
-    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
-  }, [prospects]);
-
-  return (
-    <div style={{ padding: 20, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14 }}>
-      {[
-        ["Total Prospects", total, ""],
-        ["In Sequence", inSeq, ""],
-        ["Replied", replied, `${replyRate}%`],
-        ["Meetings", meetings, `${meetingRate}%`],
-      ].map(([l, v, pct]) => (
-        <div key={l as string} style={{ background: "white", borderRadius: 12, padding: "16px 18px", border: "1px solid #E5E7EB" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.gray, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 6 }}>{l as string}</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: C.navy }}>{v as number}</div>
-          {pct && <div style={{ fontSize: 11, color: C.coral, fontWeight: 700, marginTop: 2 }}>{pct as string}</div>}
-        </div>
-      ))}
-
-      <div style={{ gridColumn: "span 2", background: "white", borderRadius: 12, padding: "16px 18px", border: "1px solid #E5E7EB" }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 10 }}>Prospects by Industry</div>
-        {byIndustry.map(([ind, n]) => (
-          <div key={ind} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-            <span style={{ fontSize: 11, color: "#374151", width: 110 }}>{ind}</span>
-            <div style={{ flex: 1, height: 6, background: "#F3F4F6", borderRadius: 3 }}>
-              <div style={{ width: `${(n / total) * 100}%`, height: "100%", background: C.coral, borderRadius: 3 }} />
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 600, color: C.navy, width: 26, textAlign: "right" }}>{n}</span>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ gridColumn: "span 2", background: "white", borderRadius: 12, padding: "16px 18px", border: "1px solid #E5E7EB" }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 10 }}>Active Campaigns</div>
-        {campaigns.map((c) => (
-          <div key={c.id} style={{ padding: "10px 0", borderBottom: "1px solid #F3F4F6" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: C.navy }}>{c.name}</span>
-              <span style={{ fontSize: 10, color: c.status === "active" ? C.green : C.gray, fontWeight: 700 }}>{c.status.toUpperCase()}</span>
-            </div>
-            <div style={{ fontSize: 10, color: "#6B7280" }}>
-              {c.prospects} prospects · {c.inSequence} in sequence · {c.replied} replied · {c.meetings} meetings
-            </div>
-          </div>
-        ))}
-        {campaigns.length === 0 && <div style={{ fontSize: 11, color: C.gray }}>No campaigns yet.</div>}
-      </div>
-    </div>
-  );
-}
 
 // ─── Main page ────────────────────────────────────────────────────────────
 type TabId = "accounts" | "campaigns" | "funnel" | "queue" | "analytics";
