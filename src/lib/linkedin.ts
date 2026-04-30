@@ -338,72 +338,30 @@ export interface DiscoverOptions {
   maxResults?: number;
 }
 
-/**
- * Run the right Apify actor for a given source. Returns raw prospect rows.
- * Throws if the source isn't supported or the actor fails.
- */
+// -------------------------------------------------------------------------
+// DEPRECATED — Apify LinkedIn scrapers removed for compliance.
+// Using third-party actors to pull data off linkedin.com violates LinkedIn's
+// User Agreement §8.2 and Professional Community Policies, and will cause
+// the account to be restricted even when the dashboard itself is HITL.
+// Use the /linkedin/import page instead:
+//   • Sales Navigator CSV export
+//   • LinkedIn "Get a copy of your data" export
+//   • Manual URL paste
+//   • Generic CSV (first_name, last_name, company, profile_url, …)
+// -------------------------------------------------------------------------
+
+const COMPLIANCE_DEPRECATION =
+  "LinkedIn scraping via Apify is disabled for account safety. Use /linkedin/import (Sales Navigator CSV, data export, or manual paste) instead.";
+
 export async function discoverProspects(
-  options: DiscoverOptions,
+  _options: DiscoverOptions,
 ): Promise<ProspectRaw[]> {
-  const actorId = SOURCE_ACTORS[options.source];
-  if (!actorId) {
-    throw new Error(
-      `Source "${options.source}" is not automated yet — use CSV import or paste a URL list.`,
-    );
-  }
-
-  const { startRun, waitForRun, getDatasetItems } = await import("@/lib/apify");
-
-  const maxResults = options.maxResults ?? 30;
-  // Each Apify actor has its own input schema — this map MUST match the actor's
-  // documented schema exactly or it silently returns 0 items (or 400s).
-  const inputs: Record<string, Record<string, unknown>> = {
-    // Input schema: https://apify.com/george.the.developer/linkedin-company-employees-scraper
-    "george.the.developer/linkedin-company-employees-scraper": {
-      companies: [options.sourceUrl],
-      maxEmployees: maxResults,
-    },
-    // harvestapi actors — post URL + max items
-    "harvestapi/linkedin-profile-reactions": {
-      postUrls: [options.sourceUrl],
-      maxItems: maxResults,
-    },
-    "harvestapi/linkedin-profile-comments": {
-      postUrls: [options.sourceUrl],
-      maxItems: maxResults,
-    },
-  };
-
-  const input = inputs[actorId] ?? {
-    startUrls: [{ url: options.sourceUrl }],
-    maxResults,
-  };
-
-  const run = await startRun({
-    actorId,
-    input,
-    timeoutSecs: 180,
-    memoryMbytes: 2048,
-  });
-
-  const completed = await waitForRun(run.id, 240_000);
-  const items = await getDatasetItems<ProspectRaw>(completed.defaultDatasetId, {
-    limit: maxResults,
-  });
-  return items;
+  throw new Error(COMPLIANCE_DEPRECATION);
 }
 
-/** Scrape and map a LinkedIn URL. Returns row ready to insert/upsert. */
 export async function scrapeLinkedInUrl(
-  url: string,
-  overrideName?: string,
+  _url: string,
+  _overrideName?: string,
 ): Promise<ReturnType<typeof mapProfileToRow> | ReturnType<typeof mapCompanyToRow>> {
-  const { scrapeLinkedInProfile, scrapeLinkedInCompany } = await import("@/lib/apify");
-
-  if (typeFromUrl(url) === "company") {
-    const raw = await scrapeLinkedInCompany(url);
-    return mapCompanyToRow(url, raw, overrideName);
-  }
-  const raw = await scrapeLinkedInProfile(url);
-  return mapProfileToRow(url, raw, overrideName);
+  throw new Error(COMPLIANCE_DEPRECATION);
 }

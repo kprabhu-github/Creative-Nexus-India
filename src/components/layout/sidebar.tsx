@@ -33,7 +33,7 @@ const opsNav = [
   { name: "Contracts", href: "/contracts", icon: FileSignature },
   { name: "Calendar", href: "/calendar", icon: CalendarDays },
   { name: "Onboarding", href: "/onboarding", icon: UserPlus },
-  { name: "Inbox", href: "/messages", icon: MessageCircle },
+  { name: "Inbox", href: "/inbox", icon: MessageCircle },
   { name: "Sprints", href: "/ops/projects", icon: ListChecks },
   { name: "Channels", href: "/slack", icon: Hash },
   { name: "AI Lab", href: "/ops", icon: BrainCircuit },

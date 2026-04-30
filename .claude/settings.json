@@ -54,7 +54,11 @@
       "Bash(echo \"✓ $\\(pbpaste)",
       "WebFetch(domain:apify.com)",
       "WebFetch(domain:api.apify.com)",
-      "Bash(./infra/git/git-push.sh \"fix\\(linkedin\\): correct Apify input schema \\(companies[]/maxEmployees\\) + accept actor's real field names + auto-run feedback + empty-state CTA\")"
+      "Bash(./infra/git/git-push.sh \"fix\\(linkedin\\): correct Apify input schema \\(companies[]/maxEmployees\\) + accept actor's real field names + auto-run feedback + empty-state CTA\")",
+      "Bash(curl -sI https://creativenexusglobal.com/linkedin)",
+      "Bash(curl -sI https://creativenexusglobal.com/)",
+      "Bash(curl -sI https://creativenexusglobal.com/login)",
+      "Bash(curl -sL https://creativenexusglobal.com/login)"
     ],
     "additionalDirectories": [
       "/Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/src/app/api/leads/[leadId]",
