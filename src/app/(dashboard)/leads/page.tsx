@@ -922,7 +922,7 @@ export default function LeadsPage() {
 
   const fetchLeads = useCallback(async () => {
     try {
-      const res = await fetch("/api/leads/website?source=all");
+      const res = await fetch("/xapi/leads/website?source=all");
       const json = (await res.json()) as {
         data?: { leads: LeadData[]; total: number };
         error?: string;
@@ -1136,7 +1136,7 @@ export default function LeadsPage() {
         meta: l.meta,
       }));
 
-      const res = await fetch("/api/leads/qualify", {
+      const res = await fetch("/xapi/leads/qualify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ leads: payload }),
@@ -1163,7 +1163,7 @@ export default function LeadsPage() {
     setActionLoading("draft");
     try {
       const emailType: EmailType = "acknowledgement";
-      const res = await fetch("/api/leads/draft-email", {
+      const res = await fetch("/xapi/leads/draft-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1201,7 +1201,7 @@ export default function LeadsPage() {
   const handleSaveDraftEdits = async (emailId: string, subject: string, bodyText: string) => {
     setActionLoading("save");
     try {
-      const res = await fetch("/api/leads/draft-email", {
+      const res = await fetch("/xapi/leads/draft-email", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email_id: emailId, subject, body_text: bodyText }),
@@ -1223,7 +1223,7 @@ export default function LeadsPage() {
   const handleSendEmail = async (emailId: string) => {
     setActionLoading("send");
     try {
-      const res = await fetch("/api/leads/send-email", {
+      const res = await fetch("/xapi/leads/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email_id: emailId }),
@@ -1254,7 +1254,7 @@ export default function LeadsPage() {
   const handleMarkSpam = async (leadId: string) => {
     setActionLoading("spam");
     try {
-      const res = await fetch(`/api/leads/${leadId}/action`, {
+      const res = await fetch(`/xapi/leads/${leadId}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "mark_spam" }),
@@ -1278,7 +1278,7 @@ export default function LeadsPage() {
   const handleStopFollowups = async (leadId: string) => {
     setActionLoading("stop");
     try {
-      const res = await fetch(`/api/leads/${leadId}/action`, {
+      const res = await fetch(`/xapi/leads/${leadId}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "stop_followups" }),
@@ -1300,7 +1300,7 @@ export default function LeadsPage() {
   const handleMarkReplied = async (leadId: string) => {
     setActionLoading("replied");
     try {
-      const res = await fetch(`/api/leads/${leadId}/action`, {
+      const res = await fetch(`/xapi/leads/${leadId}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "mark_replied" }),

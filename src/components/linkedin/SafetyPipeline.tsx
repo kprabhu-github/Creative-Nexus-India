@@ -77,7 +77,7 @@ export function SafetyPipeline({
     if (profileUrl) params.set("profile_url", profileUrl);
     params.set("action_key", actionKey);
 
-    fetch(`/api/linkedin/safety-preview?${params.toString()}`, {
+    fetch(`/xapi/linkedin/safety-preview?${params.toString()}`, {
       cache: "no-store",
     })
       .then((r) => r.json())

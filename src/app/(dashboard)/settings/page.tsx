@@ -427,8 +427,8 @@ export default function SettingsPage() {
     async function loadData() {
       try {
         const [companyRes, settingsRes] = await Promise.all([
-          fetch("/api/company"),
-          fetch("/api/settings"),
+          fetch("/xapi/company"),
+          fetch("/xapi/settings"),
         ]);
 
         if (companyRes.ok) {
@@ -459,7 +459,7 @@ export default function SettingsPage() {
       setSectionError(null);
 
       try {
-        const res = await fetch("/api/settings", {
+        const res = await fetch("/xapi/settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(fields),

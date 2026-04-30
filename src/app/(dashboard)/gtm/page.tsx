@@ -601,7 +601,7 @@ export default function GtmPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const res = await fetch("/api/settings");
+        const res = await fetch("/xapi/settings");
         if (res.ok) {
           const json = (await res.json()) as { data: GtmSettings };
           setSettings(json.data ?? null);
@@ -674,7 +674,7 @@ export default function GtmPage() {
     setGtmRecommendations([]);
 
     try {
-      const res = await fetch("/api/gtm/icp", {
+      const res = await fetch("/xapi/gtm/icp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

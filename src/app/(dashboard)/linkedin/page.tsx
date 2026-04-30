@@ -791,7 +791,7 @@ export default function LinkedInPage() {
   // ── Load real data ────────────────────────────────────────────────────
   const loadAccounts = useCallback(async () => {
     try {
-      const res = await fetch("/api/linkedin/accounts");
+      const res = await fetch("/xapi/linkedin/accounts");
       const json = (await res.json()) as { data?: { accounts: Account[]; usage: UsageMap }; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       setAccounts(json.data?.accounts ?? []);
@@ -804,7 +804,7 @@ export default function LinkedInPage() {
 
   const loadLog = useCallback(async () => {
     try {
-      const res = await fetch("/api/linkedin/log");
+      const res = await fetch("/xapi/linkedin/log");
       const json = (await res.json()) as { data?: LogEntry[]; error?: string };
       if (!res.ok || json.error) return;
       setLog(json.data ?? []);
@@ -815,7 +815,7 @@ export default function LinkedInPage() {
 
   const loadCampaigns = useCallback(async () => {
     try {
-      const res = await fetch("/api/linkedin/campaigns");
+      const res = await fetch("/xapi/linkedin/campaigns");
       const json = (await res.json()) as { data?: CampaignApi[]; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       const list = (json.data ?? []).map(campaignFromApi);
@@ -828,7 +828,7 @@ export default function LinkedInPage() {
 
   const loadProspects = useCallback(async (campaignId: string) => {
     try {
-      const res = await fetch(`/api/linkedin/campaigns/${campaignId}`);
+      const res = await fetch(`/xapi/linkedin/campaigns/${campaignId}`);
       const json = (await res.json()) as {
         data?: { campaign: CampaignApi; prospects: ProspectApi[] };
         error?: string;
@@ -877,7 +877,7 @@ export default function LinkedInPage() {
   async function handleAddAccount(url: string, name: string) {
     setScraping(true);
     try {
-      const res = await fetch("/api/linkedin/accounts", {
+      const res = await fetch("/xapi/linkedin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, name }),
@@ -899,7 +899,7 @@ export default function LinkedInPage() {
   async function handleRescrape(id: string) {
     setRescrapingId(id);
     try {
-      const res = await fetch(`/api/linkedin/accounts/${id}/rescrape`, { method: "POST" });
+      const res = await fetch(`/xapi/linkedin/accounts/${id}/rescrape`, { method: "POST" });
       const json = (await res.json()) as { error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       await Promise.all([loadAccounts(), loadLog()]);
@@ -913,7 +913,7 @@ export default function LinkedInPage() {
   async function handleSaveLimits(id: string, lim: DailyLimits, hrs: WorkingHours) {
     setSavingLimits(true);
     try {
-      const res = await fetch(`/api/linkedin/accounts/${id}`, {
+      const res = await fetch(`/xapi/linkedin/accounts/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ daily_limits: lim, working_hours: hrs }),
@@ -931,7 +931,7 @@ export default function LinkedInPage() {
 
   async function handleDeleteAccount(id: string) {
     try {
-      const res = await fetch(`/api/linkedin/accounts/${id}`, { method: "DELETE" });
+      const res = await fetch(`/xapi/linkedin/accounts/${id}`, { method: "DELETE" });
       const json = (await res.json()) as { error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       await Promise.all([loadAccounts(), loadLog()]);
@@ -946,7 +946,7 @@ export default function LinkedInPage() {
     setGenerating(true);
     try {
       const step = funnelSteps[stepIdx];
-      const res = await fetch("/api/linkedin/messages/draft", {
+      const res = await fetch("/xapi/linkedin/messages/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -983,7 +983,7 @@ export default function LinkedInPage() {
   async function handleSendAdvance(p: Prospect) {
     const nextStep = Math.min(Math.max(p.step, 0) + 1, funnelSteps.length);
     try {
-      const res = await fetch(`/api/linkedin/prospects/${p.id}`, {
+      const res = await fetch(`/xapi/linkedin/prospects/${p.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1006,7 +1006,7 @@ export default function LinkedInPage() {
 
   async function updateProsStatus(id: string, st: ProspectStatus) {
     try {
-      const res = await fetch(`/api/linkedin/prospects/${id}`, {
+      const res = await fetch(`/xapi/linkedin/prospects/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1032,7 +1032,7 @@ export default function LinkedInPage() {
     }
     setAutoRunning(true);
     try {
-      const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}/advance`, {
+      const res = await fetch(`/xapi/linkedin/campaigns/${selectedCampaignId}/advance`, {
         method: "POST",
       });
       const json = (await res.json()) as {
@@ -1068,7 +1068,7 @@ export default function LinkedInPage() {
     }
     setDiscovering(true);
     try {
-      const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}/discover`, {
+      const res = await fetch(`/xapi/linkedin/campaigns/${selectedCampaignId}/discover`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ max_results: 30 }),
@@ -1095,7 +1095,7 @@ export default function LinkedInPage() {
     if (!selectedCampaignId) return;
     setImporting(true);
     try {
-      const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}/import`, {
+      const res = await fetch(`/xapi/linkedin/campaigns/${selectedCampaignId}/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, data }),
@@ -1156,7 +1156,7 @@ export default function LinkedInPage() {
     }
     setLaunching(true);
     try {
-      const res = await fetch("/api/linkedin/campaigns", {
+      const res = await fetch("/xapi/linkedin/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1187,7 +1187,7 @@ export default function LinkedInPage() {
     }
     setLaunching(true);
     try {
-      const res = await fetch(`/api/linkedin/campaigns/${selectedCampaignId}`, {
+      const res = await fetch(`/xapi/linkedin/campaigns/${selectedCampaignId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ funnel_steps: funnelSteps }),
@@ -1206,7 +1206,7 @@ export default function LinkedInPage() {
   async function deleteCampaign(id: string) {
     if (!confirm("Delete this campaign and all its prospects?")) return;
     try {
-      const res = await fetch(`/api/linkedin/campaigns/${id}`, { method: "DELETE" });
+      const res = await fetch(`/xapi/linkedin/campaigns/${id}`, { method: "DELETE" });
       const json = (await res.json()) as { error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       await Promise.all([loadCampaigns(), loadLog()]);

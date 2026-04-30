@@ -220,7 +220,7 @@ export default function ProspectInboxPage() {
     params.set("sort", sort);
 
     try {
-      const res = await fetch(`/api/linkedin/prospects?${params.toString()}`, {
+      const res = await fetch(`/xapi/linkedin/prospects?${params.toString()}`, {
         cache: "no-store",
       });
       const json = await res.json();
@@ -239,7 +239,7 @@ export default function ProspectInboxPage() {
 
   // Load campaigns for the filter dropdown
   useEffect(() => {
-    fetch("/api/linkedin/campaigns", { cache: "no-store" })
+    fetch("/xapi/linkedin/campaigns", { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
         if (Array.isArray(j?.data)) setCampaigns(j.data);
@@ -252,7 +252,7 @@ export default function ProspectInboxPage() {
   // Load account health (used by the top-of-page safety card + killswitch).
   const loadHealth = useCallback(async () => {
     try {
-      const res = await fetch("/api/linkedin/accounts/all/health", {
+      const res = await fetch("/xapi/linkedin/accounts/all/health", {
         cache: "no-store",
       });
       const j = await res.json();
@@ -546,7 +546,7 @@ function AccountHealthCard({
   const toggleStop = async () => {
     setBusy(true);
     try {
-      await fetch(`/api/linkedin/accounts/${account.id}/health`, {
+      await fetch(`/xapi/linkedin/accounts/${account.id}/health`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -565,7 +565,7 @@ function AccountHealthCard({
   const clearCooldown = async () => {
     setBusy(true);
     try {
-      await fetch(`/api/linkedin/accounts/${account.id}/health`, {
+      await fetch(`/xapi/linkedin/accounts/${account.id}/health`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ clear_cooldown: true }),
@@ -750,7 +750,7 @@ function ProspectDrawer({
   // Load history
   useEffect(() => {
     setHistoryLoading(true);
-    fetch(`/api/linkedin/prospects/${prospect.id}/actions`, {
+    fetch(`/xapi/linkedin/prospects/${prospect.id}/actions`, {
       cache: "no-store",
     })
       .then((r) => r.json())
@@ -792,7 +792,7 @@ function ProspectDrawer({
     if (!prospect.profile_url) return;
     window.open(prospect.profile_url, "_blank", "noopener,noreferrer");
     // Stamp opened_at so we know the operator went to do the work
-    fetch(`/api/linkedin/prospects/${prospect.id}`, {
+    fetch(`/xapi/linkedin/prospects/${prospect.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ last_message: messageSent || undefined }),

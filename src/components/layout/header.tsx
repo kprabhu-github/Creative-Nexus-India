@@ -32,7 +32,7 @@ export default function Header() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/me")
+    fetch("/xapi/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => { if (!cancelled && json?.data) setMe(json.data as MeShape); })
       .catch(() => {});
@@ -59,7 +59,7 @@ export default function Header() {
 
   async function handleSignOut() {
     setOpen(false);
-    await fetch("/api/auth/signout", { method: "POST" });
+    await fetch("/xapi/auth/signout", { method: "POST" });
     router.push("/login");
     router.refresh();
   }

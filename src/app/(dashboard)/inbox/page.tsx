@@ -59,7 +59,7 @@ export default function InboxPage() {
   const [syncing, setSyncing] = useState(false);
 
   const loadAccounts = useCallback(async () => {
-    const res = await fetch("/api/email/accounts");
+    const res = await fetch("/xapi/email/accounts");
     const json = (await res.json()) as { data?: { accounts: Account[] } };
     setAccounts(json.data?.accounts ?? []);
   }, []);
@@ -68,7 +68,7 @@ export default function InboxPage() {
     const params = new URLSearchParams();
     if (accFilter !== "all") params.set("account_id", accFilter);
     if (search.trim()) params.set("q", search.trim());
-    const res = await fetch(`/api/email/threads?${params.toString()}`);
+    const res = await fetch(`/xapi/email/threads?${params.toString()}`);
     const json = (await res.json()) as { data?: { threads: Thread[] } };
     setThreads(json.data?.threads ?? []);
   }, [accFilter, search]);
@@ -78,7 +78,7 @@ export default function InboxPage() {
     setMessages([]);
     setBodies({});
     setReply("");
-    const res = await fetch(`/api/email/threads/${t.id}`);
+    const res = await fetch(`/xapi/email/threads/${t.id}`);
     const json = (await res.json()) as { data?: { messages: Message[] } };
     setMessages(json.data?.messages ?? []);
   }, []);
@@ -87,7 +87,7 @@ export default function InboxPage() {
     if (bodies[id]) return;
     setLoadingBody(id);
     try {
-      const res = await fetch(`/api/email/messages/${id}/body`);
+      const res = await fetch(`/xapi/email/messages/${id}/body`);
       const json = (await res.json()) as { data?: { html: string | null; text: string | null }; error?: string };
       setBodies((b) => ({ ...b, [id]: json.data ?? { html: null, text: json.error ?? "(no body)" } }));
     } finally {
@@ -98,7 +98,7 @@ export default function InboxPage() {
   async function handleSync() {
     setSyncing(true);
     try {
-      const res = await fetch("/api/cron/email-sync");
+      const res = await fetch("/xapi/cron/email-sync");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await loadThreads();
       if (selectedThread) await loadThread(selectedThread);
@@ -124,7 +124,7 @@ export default function InboxPage() {
         ...(lastInbound?.in_reply_to ? [lastInbound.in_reply_to] : []),
         ...(lastInbound?.message_id ? [lastInbound.message_id] : []),
       ];
-      const res = await fetch("/api/email/send", {
+      const res = await fetch("/xapi/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -47,7 +47,7 @@ export default function EmailIntegrationsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/email/accounts");
+      const res = await fetch("/xapi/email/accounts");
       const json = (await res.json()) as { data?: { accounts: AccountRow[] }; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       setAccounts(json.data?.accounts ?? []);
@@ -70,7 +70,7 @@ export default function EmailIntegrationsPage() {
     }
     setConnecting(email);
     try {
-      const res = await fetch("/api/email/accounts", {
+      const res = await fetch("/xapi/email/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -95,7 +95,7 @@ export default function EmailIntegrationsPage() {
   async function handleTest(id: string) {
     setTesting(id);
     try {
-      const res = await fetch(`/api/email/accounts/${id}/test`, { method: "POST" });
+      const res = await fetch(`/xapi/email/accounts/${id}/test`, { method: "POST" });
       const json = (await res.json()) as { data?: { ok: boolean }; error?: string };
       if (!res.ok || json.error) throw new Error(json.error ?? `HTTP ${res.status}`);
       alert("✓ Connection OK");
@@ -111,7 +111,7 @@ export default function EmailIntegrationsPage() {
   async function handleDisconnect(id: string, email: string) {
     if (!confirm(`Disconnect ${email}? Stored credentials will be deactivated.`)) return;
     try {
-      const res = await fetch(`/api/email/accounts/${id}`, { method: "DELETE" });
+      const res = await fetch(`/xapi/email/accounts/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await load();
     } catch (err) {

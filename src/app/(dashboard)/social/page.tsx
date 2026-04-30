@@ -672,7 +672,7 @@ export default function SocialPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const res = await fetch("/api/settings");
+        const res = await fetch("/xapi/settings");
         if (res.ok) {
           const json = (await res.json()) as { data: SocialSettings };
           setSettings(json.data ?? null);
@@ -708,7 +708,7 @@ export default function SocialPage() {
     setAnalysisError(null);
 
     try {
-      const response = await fetch("/api/social/analyse", {
+      const response = await fetch("/xapi/social/analyse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

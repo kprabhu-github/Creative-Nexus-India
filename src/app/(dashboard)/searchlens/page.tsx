@@ -317,7 +317,7 @@ export default function SearchLensPage() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const res = await fetch("/api/settings");
+        const res = await fetch("/xapi/settings");
         if (res.ok) {
           const json = (await res.json()) as { data: SearchLensSettings };
           setSettings(json.data ?? null);
@@ -329,7 +329,7 @@ export default function SearchLensPage() {
 
       // Try to load latest scan from history
       try {
-        const historyRes = await fetch("/api/searchlens/history?limit=1");
+        const historyRes = await fetch("/xapi/searchlens/history?limit=1");
         if (historyRes.ok) {
           const historyJson = (await historyRes.json()) as { data?: ScanResults };
           if (historyJson.data) {
@@ -369,7 +369,7 @@ export default function SearchLensPage() {
     setScanProgress(`Scanning 6 AI platforms across ${prompts.length} prompts...`);
 
     try {
-      const response = await fetch("/api/searchlens/scan-pro", {
+      const response = await fetch("/xapi/searchlens/scan-pro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brandName, prompts, competitors, platforms }),
@@ -378,7 +378,7 @@ export default function SearchLensPage() {
       // Fall back to basic scan endpoint if scan-pro is not available
       if (response.status === 404) {
         setScanProgress("Using standard scan engine...");
-        const fallbackResponse = await fetch("/api/searchlens/scan", {
+        const fallbackResponse = await fetch("/xapi/searchlens/scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ brandName, prompts, competitors }),

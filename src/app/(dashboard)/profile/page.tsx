@@ -63,7 +63,7 @@ export default function ProfilePage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/me");
+      const res = await fetch("/xapi/me");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { data: MeResponse };
       setMe(json.data);
@@ -82,7 +82,7 @@ export default function ProfilePage() {
     setSuccess(null);
     setError(null);
     try {
-      const res = await fetch("/api/me", {
+      const res = await fetch("/xapi/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profile),
@@ -101,7 +101,7 @@ export default function ProfilePage() {
   async function handleSignOut() {
     setSigningOut(true);
     try {
-      await fetch("/api/auth/signout", { method: "POST" });
+      await fetch("/xapi/auth/signout", { method: "POST" });
       router.push("/login");
       router.refresh();
     } catch {

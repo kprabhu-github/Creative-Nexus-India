@@ -44,7 +44,7 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/linkedin/campaigns", { cache: "no-store" })
+    fetch("/xapi/linkedin/campaigns", { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
         if (Array.isArray(j?.data)) {
@@ -80,7 +80,7 @@ export default function ImportPage() {
         body.urls = urls;
       }
 
-      const res = await fetch("/api/linkedin/prospects/import", {
+      const res = await fetch("/xapi/linkedin/prospects/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

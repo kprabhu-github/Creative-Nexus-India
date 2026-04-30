@@ -720,7 +720,7 @@ export default function NexusFlowPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const res = await fetch("/api/settings");
+        const res = await fetch("/xapi/settings");
         if (res.ok) {
           const json = (await res.json()) as { data: OutreachSettings };
           setSettings(json.data ?? null);
@@ -751,7 +751,7 @@ export default function NexusFlowPage() {
     const resolvedTone = tone || settings?.outreach_default_tone || "professional";
 
     try {
-      const res = await fetch("/api/outreach/generate", {
+      const res = await fetch("/xapi/outreach/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

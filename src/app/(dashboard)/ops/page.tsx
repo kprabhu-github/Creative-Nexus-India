@@ -302,7 +302,7 @@ export default function AILabPage() {
   useEffect(() => {
     async function fetchAgents() {
       try {
-        const res = await fetch("/api/ai-lab/agents");
+        const res = await fetch("/xapi/ai-lab/agents");
         if (!res.ok) throw new Error("fetch failed");
         const json = (await res.json()) as { data?: AgentTemplate[] };
         const fetched = json.data ?? [];
@@ -366,7 +366,7 @@ export default function AILabPage() {
     }
 
     try {
-      const res = await fetch("/api/ai-lab/chat", {
+      const res = await fetch("/xapi/ai-lab/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
