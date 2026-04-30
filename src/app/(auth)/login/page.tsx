@@ -27,11 +27,21 @@ export default function LoginPage() {
   }
 
   async function handleGoogleLogin() {
+    setError(null);
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/api/auth/callback` },
     });
+    if (error) {
+      // Most common: "Unsupported provider: provider is not enabled"
+      // → Google provider must be enabled in Supabase dashboard:
+      //   Authentication → Sign In / Providers → Google → Enable + paste Client ID/Secret
+      const friendly = error.message.includes("not enabled")
+        ? "Google sign-in isn't configured yet. Use email/password for now, or contact admin to enable Google in Supabase."
+        : error.message;
+      setError(friendly);
+    }
   }
 
   return (
