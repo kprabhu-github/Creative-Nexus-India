@@ -25,10 +25,23 @@ interface ThreadsResponse {
   data: { threads: Thread[] };
 }
 
+/** External request to open the compose form pre-filled (e.g. from the
+ *  toolbar's AI Draft button on LeadDetail). When this prop changes to a
+ *  non-null value, the section opens its New Email form with these initial
+ *  values. The parent should clear it via `onComposeHandled` after the form
+ *  closes or sends, so a future click can re-trigger. */
+export interface ComposeRequest {
+  subject?: string;
+  body?: string;
+  ccFounders?: string[];
+}
+
 interface ConversationsSectionProps {
   leadId: string;
   leadEmail: string | null;
   onAiDraft?: () => void;
+  composeRequest?: ComposeRequest | null;
+  onComposeHandled?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,6 +70,8 @@ function ConversationsSection({
   leadId,
   leadEmail,
   onAiDraft,
+  composeRequest,
+  onComposeHandled,
 }: ConversationsSectionProps) {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +80,16 @@ function ConversationsSection({
   const [showAll, setShowAll] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Open the compose form when a parent triggers it (e.g. AI Draft toolbar).
+  useEffect(() => {
+    if (composeRequest) setComposeOpen(true);
+  }, [composeRequest]);
+
+  const closeCompose = useCallback(() => {
+    setComposeOpen(false);
+    if (composeRequest && onComposeHandled) onComposeHandled();
+  }, [composeRequest, onComposeHandled]);
 
   const fetchThreads = useCallback(async () => {
     setLoading(true);
@@ -153,9 +178,13 @@ function ConversationsSection({
         <NewEmailForm
           leadId={leadId}
           leadEmail={leadEmail}
-          onClose={() => setComposeOpen(false)}
+          initialSubject={composeRequest?.subject}
+          initialBody={composeRequest?.body}
+          ccFounders={composeRequest?.ccFounders}
+          onClose={closeCompose}
           onSent={() => {
             setComposeOpen(false);
+            if (composeRequest && onComposeHandled) onComposeHandled();
             flashToast("Email sent");
             void fetchThreads();
           }}

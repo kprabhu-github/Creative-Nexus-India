@@ -14,6 +14,8 @@ const ConversationsSection = dynamic(
     ),
   }
 );
+
+import type { ComposeRequest } from "./_components/ConversationsSection";
 import {
   Globe,
   CheckCircle,
@@ -27,12 +29,9 @@ import {
   Loader2,
   Inbox,
   Sparkles,
-  Send,
-  RotateCcw,
   Ban,
   Clock,
   XCircle,
-  FileText,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -344,31 +343,24 @@ function EmailHistoryItem({ email }: { email: LeadEmail }) {
 
 function LeadDetail({
   lead,
-  onDraftEmail,
-  onSendEmail,
-  onRegenerateDraft,
-  onSaveDraftEdits,
+  onAiDraft,
   onMarkSpam,
   onMarkReplied,
   onStopFollowups,
   actionLoading,
+  composeRequest,
+  onComposeHandled,
 }: {
   lead: MergedLead;
-  onDraftEmail: (lead: MergedLead) => void;
-  onSendEmail: (emailId: string) => void;
-  onRegenerateDraft: (lead: MergedLead) => void;
-  onSaveDraftEdits: (emailId: string, subject: string, bodyText: string) => void;
+  onAiDraft: (lead: MergedLead) => void;
   onMarkSpam: (leadId: string) => void;
   onMarkReplied: (leadId: string) => void;
   onStopFollowups: (leadId: string) => void;
   actionLoading: string | null;
+  composeRequest: ComposeRequest | null;
+  onComposeHandled: () => void;
 }) {
-  const latestEmail = lead.emails.length > 0 ? lead.emails[0] : null;
   const sentEmails = lead.emails.filter((e) => e.status === "sent");
-  const draftEmail = lead.emails.find(
-    (e) => e.status === "draft" || e.status === "queued"
-  );
-  const activeEmail = (sentEmails.length > 0 ? sentEmails[0] : null) || draftEmail || latestEmail;
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-4">
@@ -451,9 +443,9 @@ function LeadDetail({
 
       {/* Lead Action Toolbar — primary actions for this lead, always visible */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        {!activeEmail && !lead.score?.spam && (
+        {!lead.score?.spam && lead.email && (
           <button
-            onClick={() => onDraftEmail(lead)}
+            onClick={() => onAiDraft(lead)}
             disabled={actionLoading === "draft"}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-[11px] font-semibold hover:bg-accent/90 transition-colors disabled:opacity-50"
           >
@@ -531,64 +523,25 @@ function LeadDetail({
         </div>
       )}
 
-      {/* Divider */}
+      {/* Conversations Section — unified multi-thread email surface.
+          AI Draft button on the toolbar above pre-fills this section's
+          composer via composeRequest. Replaces the old DraftEditor /
+          Send-from-lead_emails flow. */}
       <div className="h-px bg-divider" />
+      <ConversationsSection
+        leadId={lead.id}
+        leadEmail={lead.email}
+        composeRequest={composeRequest}
+        onComposeHandled={onComposeHandled}
+      />
 
-      {/* AI Draft Section — only renders when an email exists. The "no email"
-          state is handled by the AI Draft button on the action toolbar above. */}
-      {activeEmail && (
-        <div>
-          <span className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
-            <Mail className="w-3.5 h-3.5" strokeWidth={2} />
-            AI Draft
-          </span>
-
-          {activeEmail.status === "sent" ? (
-            <div className="mt-2">
-              <div className="flex items-center gap-2 mb-2">
-                <StatusBadge type="success">
-                  Sent on{" "}
-                  {activeEmail.sent_at
-                    ? new Date(activeEmail.sent_at).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "unknown date"}
-                </StatusBadge>
-              </div>
-              <EmailPreviewCard email={activeEmail} />
-            </div>
-          ) : (
-            <div className="mt-2">
-              <div className="flex items-center gap-2 mb-2">
-                <StatusBadge type="warning">
-                  {activeEmail.status === "queued" ? "Queued" : "Draft"}
-                </StatusBadge>
-                <span className="text-[11px] text-foreground-tertiary">
-                  Edit the draft below, then Save before sending.
-                </span>
-              </div>
-              <DraftEditor
-                email={activeEmail}
-                onSave={onSaveDraftEdits}
-                saving={actionLoading === "save"}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Conversations Section — multi-thread email history */}
-      <div className="h-px bg-divider" />
-      <ConversationsSection leadId={lead.id} leadEmail={lead.email} />
-
-      {/* Email History */}
+      {/* Legacy Email History — read-only archive of pre-Path-A sent emails.
+          New sends go through Conversations. Decommission once `lead_emails`
+          stops getting written to (already true after Path A). */}
       {sentEmails.length > 0 && (
         <div>
           <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
-            Sent Emails ({sentEmails.length})
+            Archived Sent Emails ({sentEmails.length})
           </span>
           <div className="mt-1.5 space-y-2">
             {sentEmails.map((email) => (
@@ -613,37 +566,6 @@ function LeadDetail({
         <div className="flex items-center gap-2 bg-success/5 border border-success/20 rounded-[8px] p-3">
           <CheckCircle className="w-4 h-4 text-success" strokeWidth={2} />
           <span className="text-xs text-success font-medium">Lead replied — follow-ups stopped</span>
-        </div>
-      )}
-
-      {/* AI Draft email actions — Send + Regenerate; only when an email exists.
-          Spam + Mark Replied live on the lead action toolbar at the top. */}
-      {activeEmail && activeEmail.status !== "sent" && (
-        <div className="bg-background rounded-[10px] border border-divider p-3 flex items-center gap-3 flex-wrap">
-          <button
-            onClick={() => onSendEmail(activeEmail.id)}
-            disabled={actionLoading === "send"}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-foreground text-background text-xs font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50 shadow-sm"
-          >
-            {actionLoading === "send" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
-            ) : (
-              <Send className="w-3.5 h-3.5" strokeWidth={2} />
-            )}
-            Send Email
-          </button>
-          <button
-            onClick={() => onRegenerateDraft(lead)}
-            disabled={actionLoading === "draft"}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-foreground-secondary text-xs font-medium hover:bg-surface-hover/50 transition-colors disabled:opacity-50"
-          >
-            {actionLoading === "draft" ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
-            ) : (
-              <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
-            )}
-            Regenerate Draft
-          </button>
         </div>
       )}
 
@@ -732,156 +654,6 @@ function LeadDetail({
 }
 
 // ---------------------------------------------------------------------------
-// Draft Editor (editable subject + plain-text body with Save)
-// ---------------------------------------------------------------------------
-
-function DraftEditor({
-  email,
-  onSave,
-  saving,
-}: {
-  email: LeadEmail;
-  onSave: (emailId: string, subject: string, bodyText: string) => void;
-  saving: boolean;
-}) {
-  const [subject, setSubject] = useState(email.subject);
-  const [bodyText, setBodyText] = useState(email.body_text || "");
-
-  useEffect(() => {
-    setSubject(email.subject);
-    setBodyText(email.body_text || "");
-  }, [email.id, email.subject, email.body_text]);
-
-  const dirty = subject !== email.subject || bodyText !== (email.body_text || "");
-
-  return (
-    <div className="bg-background rounded-[8px] p-3 dark:bg-foreground-tertiary/5 space-y-3 border border-divider">
-      <div className="space-y-1">
-        <label className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider">
-          To
-        </label>
-        <div className="text-xs text-foreground-secondary">
-          {email.to_email}
-          {email.cc_emails && email.cc_emails.length > 0 && (
-            <span className="text-foreground-tertiary"> · cc: {email.cc_emails.join(", ")}</span>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <label
-          htmlFor={`subject-${email.id}`}
-          className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider"
-        >
-          Subject
-        </label>
-        <input
-          id={`subject-${email.id}`}
-          type="text"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          className="w-full px-3 py-1.5 rounded-md bg-background border border-divider text-[13px] text-foreground focus:outline-none focus:ring-1 focus:ring-accent/40"
-        />
-      </div>
-
-      <div className="space-y-1">
-        <label
-          htmlFor={`body-${email.id}`}
-          className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider"
-        >
-          Body (plain text — edit freely)
-        </label>
-        <textarea
-          id={`body-${email.id}`}
-          value={bodyText}
-          onChange={(e) => setBodyText(e.target.value)}
-          rows={10}
-          spellCheck
-          className="w-full px-3 py-2 rounded-md bg-background border border-divider text-[13px] leading-relaxed text-foreground font-[inherit] focus:outline-none focus:ring-1 focus:ring-accent/40 resize-y"
-        />
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-foreground-tertiary">
-            {bodyText.length} chars · {bodyText.split(/\s+/).filter(Boolean).length} words
-          </span>
-          <button
-            onClick={() => onSave(email.id, subject, bodyText)}
-            disabled={!dirty || saving}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent text-white text-[11px] font-medium hover:bg-accent/90 transition-colors disabled:opacity-40"
-          >
-            {saving ? (
-              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
-            ) : (
-              <FileText className="w-3 h-3" strokeWidth={2} />
-            )}
-            {saving ? "Saving…" : dirty ? "Save Draft" : "Saved"}
-          </button>
-        </div>
-      </div>
-
-      {/* Live preview with signature */}
-      <div className="space-y-1 pt-2 border-t border-divider">
-        <div className="flex items-center justify-between">
-          <label className="text-[10px] font-semibold text-foreground-tertiary uppercase tracking-wider">
-            Preview (what recipient will see)
-          </label>
-          {dirty && (
-            <span className="text-[10px] text-warning font-medium">
-              Unsaved changes — click Save Draft to refresh preview
-            </span>
-          )}
-        </div>
-        <div
-          className="bg-white rounded-md border border-divider p-4 text-[13px] max-h-[500px] overflow-y-auto [&_a]:text-accent"
-          dangerouslySetInnerHTML={{ __html: email.body_html }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Email Preview Card (read-only, used for sent emails)
-// ---------------------------------------------------------------------------
-
-function EmailPreviewCard({ email }: { email: LeadEmail }) {
-  return (
-    <div className="bg-background rounded-[8px] p-3 dark:bg-foreground-tertiary/5 space-y-2 border border-divider">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider w-12 shrink-0">
-            To
-          </span>
-          <span className="text-xs text-foreground">{email.to_email}</span>
-        </div>
-        {email.cc_emails && email.cc_emails.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider w-12 shrink-0">
-              CC
-            </span>
-            <span className="text-xs text-foreground-secondary">
-              {email.cc_emails.join(", ")}
-            </span>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider w-12 shrink-0">
-            Subject
-          </span>
-          <span className="text-xs font-medium text-foreground">
-            {email.subject}
-          </span>
-        </div>
-      </div>
-      <div className="h-px bg-divider" />
-      <div
-        className="text-xs text-foreground leading-relaxed prose prose-xs max-w-none dark:prose-invert [&_a]:text-accent"
-        dangerouslySetInnerHTML={{ __html: email.body_html }}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
@@ -903,6 +675,9 @@ export default function LeadsPage() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info" }>>([]);
+  // When set, the LeadDetail panel forwards this to ConversationsSection,
+  // which opens its New Email form pre-filled (used by the AI Draft button).
+  const [composeRequest, setComposeRequest] = useState<ComposeRequest | null>(null);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -1156,16 +931,18 @@ export default function LeadsPage() {
     }
   };
 
-  const handleDraftEmail = async (lead: MergedLead, replaceEmailId?: string) => {
+  // Path A: AI Draft now generates text only and drops it into the
+  // Conversations composer. No write to lead_emails — the unified
+  // email_threads/email_messages pipeline owns the send.
+  const handleAiDraft = async (lead: MergedLead) => {
     if (!lead.email) return;
     setActionLoading("draft");
     try {
       const emailType: EmailType = "acknowledgement";
-      const res = await fetch("/xapi/leads/draft-email", {
+      const res = await fetch(`/xapi/leads/${lead.id}/ai-draft`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lead_id: lead.id,
           lead_data: {
             id: lead.id,
             name: lead.name,
@@ -1177,7 +954,6 @@ export default function LeadsPage() {
             meta: lead.meta,
           },
           email_type: emailType,
-          replace_email_id: replaceEmailId,
         }),
       });
 
@@ -1186,67 +962,21 @@ export default function LeadsPage() {
         throw new Error(json.error ?? "Draft failed");
       }
 
-      await fetchEmails();
-      showToast(replaceEmailId ? "Draft regenerated" : "Email draft generated", "success");
+      const json = (await res.json()) as {
+        data: { subject: string; body: string; default_cc: string[] };
+      };
+      setComposeRequest({
+        subject: json.data.subject,
+        body: json.data.body,
+        ccFounders: json.data.default_cc,
+      });
+      showToast("AI draft ready — review and send", "success");
     } catch (err) {
       console.error("Draft error:", err);
       showToast("Failed to generate draft", "error");
     } finally {
       setActionLoading(null);
     }
-  };
-
-  const handleSaveDraftEdits = async (emailId: string, subject: string, bodyText: string) => {
-    setActionLoading("save");
-    try {
-      const res = await fetch("/xapi/leads/draft-email", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email_id: emailId, subject, body_text: bodyText }),
-      });
-      if (!res.ok) {
-        const json = (await res.json()) as { error?: string };
-        throw new Error(json.error ?? "Save failed");
-      }
-      await fetchEmails();
-      showToast("Draft saved", "success");
-    } catch (err) {
-      console.error("Save draft error:", err);
-      showToast("Failed to save draft", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleSendEmail = async (emailId: string) => {
-    setActionLoading("send");
-    try {
-      const res = await fetch("/xapi/leads/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email_id: emailId }),
-      });
-
-      if (!res.ok) {
-        const json = (await res.json()) as { error?: string };
-        throw new Error(json.error ?? "Send failed");
-      }
-
-      await Promise.all([fetchEmails(), fetchFollowups(), fetchScores()]);
-      showToast("Email sent successfully!", "success");
-    } catch (err) {
-      console.error("Send error:", err);
-      showToast("Failed to send email", "error");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleRegenerateDraft = async (lead: MergedLead) => {
-    const existingDraft = lead.emails.find(
-      (e) => e.status === "draft" || e.status === "queued",
-    );
-    await handleDraftEmail(lead, existingDraft?.id);
   };
 
   const handleMarkSpam = async (leadId: string) => {
@@ -1544,14 +1274,13 @@ export default function LeadsPage() {
           {selectedLead ? (
             <LeadDetail
               lead={selectedLead}
-              onDraftEmail={handleDraftEmail}
-              onSendEmail={handleSendEmail}
-              onRegenerateDraft={handleRegenerateDraft}
-              onSaveDraftEdits={handleSaveDraftEdits}
+              onAiDraft={handleAiDraft}
               onMarkSpam={handleMarkSpam}
               onMarkReplied={handleMarkReplied}
               onStopFollowups={handleStopFollowups}
               actionLoading={actionLoading}
+              composeRequest={composeRequest}
+              onComposeHandled={() => setComposeRequest(null)}
             />
           ) : (
             <div className="h-full flex items-center justify-center">

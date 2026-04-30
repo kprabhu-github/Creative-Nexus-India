@@ -190,6 +190,11 @@ interface NewEmailFormProps {
   leadEmail: string | null;
   onClose: () => void;
   onSent: () => void;
+  initialSubject?: string;
+  initialBody?: string;
+  /** Optional preset CC list (e.g. founders). User can toggle on/off via the
+   *  "CC founders" checkbox. */
+  ccFounders?: string[];
 }
 
 export function NewEmailForm({
@@ -197,13 +202,27 @@ export function NewEmailForm({
   leadEmail,
   onClose,
   onSent,
+  initialSubject,
+  initialBody,
+  ccFounders,
 }: NewEmailFormProps) {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [to, setTo] = useState(leadEmail ?? "");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [subject, setSubject] = useState(initialSubject ?? "");
+  const [body, setBody] = useState(initialBody ?? "");
+  const [ccOn, setCcOn] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("leads:compose:ccFounders") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const cc =
+    ccOn && ccFounders && ccFounders.length > 0 ? ccFounders : undefined;
 
   const handleSend = async () => {
     if (!accountId) {
@@ -223,6 +242,7 @@ export function NewEmailForm({
         body: JSON.stringify({
           from_account_id: accountId,
           to,
+          ...(cc ? { cc } : {}),
           subject,
           html: bodyToHtml(body),
           text: body,
@@ -235,6 +255,18 @@ export function NewEmailForm({
       setErr(e instanceof Error ? e.message : "Failed to send");
     } finally {
       setSending(false);
+    }
+  };
+
+  const toggleCc = (next: boolean) => {
+    setCcOn(next);
+    try {
+      window.localStorage.setItem(
+        "leads:compose:ccFounders",
+        next ? "1" : "0",
+      );
+    } catch {
+      // ignore
     }
   };
 
@@ -268,6 +300,19 @@ export function NewEmailForm({
         placeholder="to@example.com"
         className="w-full rounded-md border border-border bg-background p-2 text-[12px] text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-1 focus:ring-accent"
       />
+      {ccFounders && ccFounders.length > 0 && (
+        <label className="flex items-center gap-2 text-[11px] text-foreground-secondary cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={ccOn}
+            onChange={(e) => toggleCc(e.target.checked)}
+            className="w-3.5 h-3.5 accent-accent cursor-pointer"
+          />
+          <span>
+            CC founders ({ccFounders.join(", ")})
+          </span>
+        </label>
+      )}
       <input
         type="text"
         value={subject}
