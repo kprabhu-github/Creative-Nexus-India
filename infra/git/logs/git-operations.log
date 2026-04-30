@@ -138,3 +138,24 @@
 [2026-04-20 15:09:41] Committing: fix(linkedin): correct Apify input schema (companies[]/maxEmployees) + accept actor's real field names + auto-run feedback + empty-state CTA
 [2026-04-20 15:09:41] Pushing to origin/master...
 [2026-04-20 15:09:43] Done. Changes pushed to origin/master.
+[2026-04-30 15:43:08] ============================================
+[2026-04-30 15:43:08]   Deploying test → prod
+[2026-04-30 15:43:08] ============================================
+[2026-04-30 15:43:08] 
+[2026-04-30 15:43:21] 
+[2026-04-30 15:43:21] Pulling latest test...
+[2026-04-30 16:20:55] ============================================
+[2026-04-30 16:20:55]   Creating zip for Hostinger upload
+[2026-04-30 16:20:55] ============================================
+[2026-04-30 16:20:55] Project:  /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026
+[2026-04-30 16:20:55] Output:   /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/builds/CreativeNexus2.0_20260430-162055.zip
+[2026-04-30 16:20:55] 
+[2026-04-30 16:20:55] Zipping project (this may take a moment)...
+[2026-04-30 16:20:56] 
+[2026-04-30 16:20:56] ============================================
+[2026-04-30 16:20:56]   Zip created: CreativeNexus2.0_20260430-162055.zip
+[2026-04-30 16:20:56]   Size:        912K
+[2026-04-30 16:20:56]   Location:    /Users/New Mac files/cnx ai plans 2026/CNX Agency Command Centre 2026/infra/builds/CreativeNexus2.0_20260430-162055.zip
+[2026-04-30 16:20:56] ============================================
+[2026-04-30 16:20:56] 
+[2026-04-30 16:20:56] Upload this file via Hostinger File Manager, then extract.
