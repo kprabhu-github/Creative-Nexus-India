@@ -1,19 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GlobalSearch } from "./global-search";
 import { NotificationPanel } from "./notification-panel";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { User, Settings, LogOut } from "lucide-react";
+import { User, Settings, Mail, LogOut } from "lucide-react";
 
 interface MeShape {
   id: string;
@@ -35,6 +27,8 @@ function initials(name: string | null | undefined): string {
 export default function Header() {
   const router = useRouter();
   const [me, setMe] = useState<MeShape | null>(null);
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,10 +39,34 @@ export default function Header() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   async function handleSignOut() {
+    setOpen(false);
     await fetch("/api/auth/signout", { method: "POST" });
     router.push("/login");
     router.refresh();
+  }
+
+  function go(path: string) {
+    setOpen(false);
+    router.push(path);
   }
 
   const displayName = me?.profile?.display_name || me?.email?.split("@")[0] || "User";
@@ -64,8 +82,13 @@ export default function Header() {
         <ThemeToggle />
         <NotificationPanel />
         <div className="h-4 w-px bg-border" />
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 h-8 px-2 rounded-md text-foreground-secondary hover:text-foreground hover:bg-muted/50 transition-colors">
+
+        <div ref={menuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center gap-2 h-8 px-2 rounded-md text-foreground-secondary hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
             <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -75,35 +98,54 @@ export default function Header() {
               )}
             </div>
             <span className="text-[13px] font-medium hidden md:block">{displayName}</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuLabel>
-              <div className="flex flex-col">
-                <span className="text-[13px] font-semibold leading-tight">{displayName}</span>
-                <span className="text-[11px] text-foreground-tertiary leading-tight mt-0.5">{subtitle}</span>
+            <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-50"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+
+          {open && (
+            <div
+              className="absolute right-0 top-full mt-1 w-64 bg-background border border-border rounded-lg shadow-lg overflow-hidden z-50"
+              role="menu"
+            >
+              <div className="px-3 py-2.5 border-b border-border">
+                <div className="text-[13px] font-semibold text-foreground leading-tight">{displayName}</div>
+                <div className="text-[11px] text-foreground-tertiary leading-tight mt-0.5 truncate">{subtitle}</div>
               </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/profile")} className="cursor-pointer">
-              <User className="mr-2 h-4 w-4" />
-              <span>My profile</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/settings/integrations")} className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Email integrations</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Sign out</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <div className="py-1">
+                <MenuItem icon={<User className="h-4 w-4" />} label="My profile" onClick={() => go("/profile")} />
+                <MenuItem icon={<Settings className="h-4 w-4" />} label="Settings" onClick={() => go("/settings")} />
+                <MenuItem icon={<Mail className="h-4 w-4" />} label="Email integrations" onClick={() => go("/settings/integrations")} />
+              </div>
+              <div className="border-t border-border py-1">
+                <MenuItem icon={<LogOut className="h-4 w-4" />} label="Sign out" onClick={handleSignOut} destructive />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </header>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  onClick,
+  destructive = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      role="menuitem"
+      className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] font-medium hover:bg-muted/60 transition-colors text-left ${destructive ? "text-destructive hover:bg-destructive/10" : "text-foreground"}`}
+    >
+      <span className={destructive ? "text-destructive" : "text-foreground-secondary"}>{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
