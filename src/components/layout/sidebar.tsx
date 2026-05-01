@@ -63,21 +63,24 @@ export default function Sidebar() {
           key={link.name}
           href={link.href}
           className={cn(
-            "flex items-center gap-2 mx-2 px-2 py-[5px] rounded-md transition-colors",
+            "group relative flex items-center gap-2.5 mx-2 px-2.5 py-[6px] rounded-md transition-[background-color,color] duration-150 ease-out active:scale-[0.98]",
             active
-              ? "bg-surface-active text-foreground font-medium"
-              : "text-foreground-secondary hover:bg-surface-hover"
+              ? "bg-surface-active/60 text-foreground font-medium"
+              : "text-foreground-secondary hover:bg-surface-hover/70 hover:text-foreground"
           )}
         >
+          {active && (
+            <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-full bg-accent" />
+          )}
           <link.icon
             className={cn(
-              "w-4 h-4 shrink-0",
-              active ? "text-foreground" : "text-foreground-tertiary"
+              "w-4 h-4 shrink-0 transition-colors",
+              active ? "text-accent" : "text-foreground-tertiary group-hover:text-foreground-secondary"
             )}
-            strokeWidth={1.8}
+            strokeWidth={1.5}
           />
           {!collapsed && (
-            <span className="text-[13px] truncate">{link.name}</span>
+            <span className="text-[13px] tracking-tight truncate">{link.name}</span>
           )}
         </Link>
       );
@@ -86,8 +89,8 @@ export default function Sidebar() {
   return (
     <aside
       className={cn(
-        "h-screen flex flex-col transition-all duration-200 relative shrink-0",
-        "bg-[hsl(var(--sidebar-bg))] backdrop-blur-xl border-r border-border",
+        "h-screen flex flex-col transition-all duration-200 ease-out relative shrink-0",
+        "bg-[hsl(var(--sidebar-bg))] backdrop-blur-2xl border-r border-border/60",
         collapsed ? "w-[60px]" : "w-[220px]"
       )}
     >
@@ -103,27 +106,16 @@ export default function Sidebar() {
         )}
       </div>
 
-      <button
-        onClick={toggleCollapsed}
-        className="absolute -right-3 top-14 bg-background border border-border rounded-full p-0.5 text-foreground-tertiary hover:text-foreground transition-colors z-10"
-      >
-        {collapsed ? (
-          <ChevronRight className="w-3.5 h-3.5" />
-        ) : (
-          <ChevronLeft className="w-3.5 h-3.5" />
-        )}
-      </button>
-
       <div className="flex-1 overflow-y-auto py-2">
-        <div className={cn("px-3 mb-1", collapsed && "hidden")}>
-          <span className="text-[11px] font-semibold text-foreground-tertiary uppercase tracking-wider">
+        <div className={cn("px-3 mb-1.5", collapsed && "hidden")}>
+          <span className="text-[10px] font-semibold text-foreground-tertiary/80 uppercase tracking-[0.12em]">
             Modules
           </span>
         </div>
         <div className="space-y-px">{renderLinks(modulesNav)}</div>
 
-        <div className={cn("px-3 mt-5 mb-1", collapsed && "hidden")}>
-          <span className="text-[11px] font-semibold text-foreground-tertiary uppercase tracking-wider">
+        <div className={cn("px-3 mt-6 mb-1.5", collapsed && "hidden")}>
+          <span className="text-[10px] font-semibold text-foreground-tertiary/80 uppercase tracking-[0.12em]">
             Operations
           </span>
         </div>
@@ -131,8 +123,20 @@ export default function Sidebar() {
         <div className="space-y-px">{renderLinks(opsNav)}</div>
       </div>
 
+      <button
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className={cn(
+          "flex items-center gap-2 mx-2 mb-2 px-2.5 py-[6px] rounded-md text-foreground-tertiary hover:text-foreground hover:bg-surface-hover/70 transition-colors duration-150 ease-out",
+          collapsed && "justify-center"
+        )}
+      >
+        {collapsed ? <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} /> : <ChevronLeft className="w-3.5 h-3.5" strokeWidth={1.5} />}
+        {!collapsed && <span className="text-[12px] tracking-tight">Collapse</span>}
+      </button>
+
       <div className={cn(
-        "px-3.5 py-3 text-[11px] text-foreground-tertiary border-t border-border",
+        "px-3.5 py-2.5 text-[10px] text-foreground-tertiary/70 border-t border-border/60 tracking-tight",
         collapsed && "text-center px-0"
       )}>
         {collapsed ? "CX" : "creativenexus.in"}

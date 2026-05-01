@@ -74,20 +74,20 @@ export default function Header() {
   const subtitle = me?.profile?.title || me?.email || "";
 
   return (
-    <header className="h-12 flex items-center justify-between px-5 bg-background/80 backdrop-blur-xl border-b border-border sticky top-0 z-10">
+    <header className="h-12 flex items-center justify-between px-5 bg-background/75 backdrop-blur-2xl border-b border-border/60 sticky top-0 z-10">
       <div className="flex-1 max-w-md">
         <GlobalSearch />
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <ThemeToggle />
         <NotificationPanel />
-        <div className="h-4 w-px bg-border" />
+        <div className="h-4 w-px bg-border/70 mx-1" />
 
         <div ref={menuRef} className="relative">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-2 h-8 px-2 rounded-md text-foreground-secondary hover:text-foreground hover:bg-muted/50 transition-colors"
+            className="flex items-center gap-2 h-8 px-2 rounded-md text-foreground-secondary hover:text-foreground hover:bg-surface-hover/70 transition-colors duration-150 ease-out active:scale-[0.98]"
           >
             <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
@@ -97,26 +97,26 @@ export default function Header() {
                 <span className="text-[10px] font-semibold text-white">{initials(displayName)}</span>
               )}
             </div>
-            <span className="text-[13px] font-medium hidden md:block">{displayName}</span>
+            <span className="text-[13px] font-medium tracking-tight hidden md:block">{displayName}</span>
             <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-50"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>
 
           {open && (
             <div
-              className="absolute right-0 top-full mt-1 w-64 bg-background border border-border rounded-lg shadow-lg overflow-hidden z-50"
+              className="absolute right-0 top-full mt-1.5 w-64 bg-background/95 backdrop-blur-2xl border border-border/70 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] overflow-hidden z-50"
               role="menu"
             >
-              <div className="px-3 py-2.5 border-b border-border">
-                <div className="text-[13px] font-semibold text-foreground leading-tight">{displayName}</div>
+              <div className="px-3 py-3 border-b border-border/60">
+                <div className="text-[13px] font-semibold tracking-tight text-foreground leading-tight">{displayName}</div>
                 <div className="text-[11px] text-foreground-tertiary leading-tight mt-0.5 truncate">{subtitle}</div>
               </div>
-              <div className="py-1">
-                <MenuItem icon={<User className="h-4 w-4" />} label="My profile" onClick={() => go("/profile")} />
-                <MenuItem icon={<Settings className="h-4 w-4" />} label="Settings" onClick={() => go("/settings")} />
-                <MenuItem icon={<Mail className="h-4 w-4" />} label="Email integrations" onClick={() => go("/settings/integrations")} />
+              <div className="py-1.5">
+                <MenuItem icon={<User className="h-4 w-4" strokeWidth={1.5} />} label="My profile" onClick={() => go("/profile")} />
+                <MenuItem icon={<Settings className="h-4 w-4" strokeWidth={1.5} />} label="Settings" onClick={() => go("/settings")} />
+                <MenuItem icon={<Mail className="h-4 w-4" strokeWidth={1.5} />} label="Email integrations" onClick={() => go("/settings/integrations")} />
               </div>
-              <div className="border-t border-border py-1">
-                <MenuItem icon={<LogOut className="h-4 w-4" />} label="Sign out" onClick={handleSignOut} destructive />
+              <div className="border-t border-border/60 py-1.5">
+                <MenuItem icon={<LogOut className="h-4 w-4" strokeWidth={1.5} />} label="Sign out" onClick={handleSignOut} destructive />
               </div>
             </div>
           )}
@@ -142,9 +142,13 @@ function MenuItem({
       type="button"
       onClick={onClick}
       role="menuitem"
-      className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] font-medium hover:bg-muted/60 transition-colors text-left ${destructive ? "text-destructive hover:bg-destructive/10" : "text-foreground"}`}
+      className={`w-full flex items-center gap-2.5 mx-1 my-px px-2.5 py-2 rounded-md text-[13px] font-medium tracking-tight transition-colors duration-150 ease-out text-left w-[calc(100%-0.5rem)] ${
+        destructive
+          ? "text-[#D90A2C]/85 hover:bg-[#D90A2C]/8 hover:text-[#D90A2C]"
+          : "text-foreground hover:bg-surface-hover/70 hover:text-accent"
+      }`}
     >
-      <span className={destructive ? "text-destructive" : "text-foreground-secondary"}>{icon}</span>
+      <span className={destructive ? "text-[#D90A2C]/85" : "text-foreground-tertiary"}>{icon}</span>
       <span>{label}</span>
     </button>
   );

@@ -43,6 +43,7 @@ import { ScanProgressStepper } from "./_components/ScanProgressStepper";
 import { ScanSetupModal, type ScanSetupConfig } from "./_components/ScanSetupModal";
 import { SearchLensHero } from "./_components/SearchLensHero";
 import { SectionTOC, type TOCSection } from "./_components/SectionTOC";
+import { SkeletonShimmer } from "./_components/SkeletonShimmer";
 
 // Stub by default; parallel agent C ships ./_components/SiteAuditTab with real impl.
 const SiteAuditTab = dynamic(() => import("./_components/SiteAuditTab"), {
@@ -71,7 +72,7 @@ const TAB_OPTIONS = ["Overview", "Citations", "Competitors", "Prompts", "Tracked
  * successful scan). Field names mirror HistoryResponse.data exactly. */
 type SLPlatformKey = "chatgpt" | "gemini" | "perplexity" | "ai-overviews" | "copilot" | "claude";
 
-interface CitationEntry {
+export interface CitationEntry {
   id: string;
   platform: SLPlatformKey;
   prompt: string;
@@ -83,13 +84,13 @@ interface CitationEntry {
   date: string;
 }
 
-interface CompetitorEntry {
+export interface CompetitorEntry {
   name: string;
   mentionCount: number;
   promptsAppearedIn: string[];
 }
 
-interface PromptEntry {
+export interface PromptEntry {
   id: string;
   prompt: string;
   score: number;
@@ -99,7 +100,7 @@ interface PromptEntry {
   trendData: number[];
 }
 
-interface InsightEntry {
+export interface InsightEntry {
   id: string;
   priority: "critical" | "high" | "medium" | "low";
   title: string;
@@ -109,7 +110,7 @@ interface InsightEntry {
   targetModule: string;
 }
 
-interface PlatformBreakdownEntry {
+export interface PlatformBreakdownEntry {
   key: string;
   mentions: number;
   score: number;
@@ -117,14 +118,18 @@ interface PlatformBreakdownEntry {
   trendUp: boolean | null;
 }
 
-interface CitedDomainEntry {
+export interface CitedDomainEntry {
   domain: string;
   mentionCount: number;
   avgAuthority: number;
   score: number;
 }
 
+/* Overview slice — eagerly loaded after a scan or from /history.
+ * Citations, insights, prompts, competitors are now lazy-loaded
+ * per-tab via /api/searchlens/scans/{scanId}/{slice}. */
 interface ScanResults {
+  scanId: string | null;
   brandName: string;
   domain: string | null;
   visibilityScore: number;
@@ -135,15 +140,28 @@ interface ScanResults {
   sentiment: { positive: number; neutral: number; negative: number };
   platformBreakdown: PlatformBreakdownEntry[];
   promptGaps: string[];
-  competitorComparison: CompetitorEntry[];
-  citations: CitationEntry[];
-  insights: InsightEntry[];
-  prompts: PromptEntry[];
   citedDomains: CitedDomainEntry[];
   scannedAt: string;
-  // Kept for legacy stepper computations
+  // Kept for legacy stepper computations + Competitors tab math
   totalPromptsScanned: number;
 }
+
+/* Per-tab cache. undefined = never fetched, [] = fetched empty. */
+interface TabCache {
+  citations?: CitationEntry[];
+  insights?: InsightEntry[];
+  competitors?: CompetitorEntry[];
+  prompts?: PromptEntry[];
+}
+
+interface TabLoading {
+  citations: boolean;
+  insights: boolean;
+  competitors: boolean;
+  prompts: boolean;
+}
+
+type LazySlice = keyof TabLoading;
 
 interface TrendPoint {
   scannedAt: string;
@@ -310,7 +328,15 @@ function derivePrompts(citations: CitationEntry[]): PromptEntry[] {
   }));
 }
 
-function projectScanProToResults(raw: ScanProResponseLike, fallbackBrand: string): ScanResults {
+interface ProjectedScan {
+  results: ScanResults;
+  cache: Required<TabCache>;
+}
+
+function projectScanProToResults(
+  raw: ScanProResponseLike & { scanId?: string },
+  fallbackBrand: string,
+): ProjectedScan {
   const today = new Date().toISOString().slice(0, 10);
   const citations: CitationEntry[] = (raw.citations ?? []).map((c, i) => ({
     id: String(i),
@@ -358,7 +384,9 @@ function projectScanProToResults(raw: ScanProResponseLike, fallbackBrand: string
     promptsAppearedIn: c.promptsAppearedIn ?? [],
   }));
 
-  return {
+  const prompts: PromptEntry[] = raw.prompts ?? derivePrompts(citations);
+  const results: ScanResults = {
+    scanId: raw.scanId ?? null,
     brandName: raw.brandName ?? fallbackBrand,
     domain: raw.domain ?? null,
     visibilityScore: raw.visibilityScore ?? 0,
@@ -369,14 +397,29 @@ function projectScanProToResults(raw: ScanProResponseLike, fallbackBrand: string
     sentiment: raw.sentiment ?? { positive: 0, neutral: 0, negative: 0 },
     platformBreakdown,
     promptGaps: raw.promptGaps ?? [],
-    competitorComparison,
-    citations,
-    insights,
-    prompts: raw.prompts ?? derivePrompts(citations),
     citedDomains: raw.citedDomains ?? deriveCitedDomains(citations),
     scannedAt: raw.scannedAt ?? new Date().toISOString(),
     totalPromptsScanned: raw.totalPromptsScanned ?? new Set(citations.map((c) => c.prompt)).size,
   };
+  return {
+    results,
+    cache: { citations, insights, prompts, competitors: competitorComparison },
+  };
+}
+
+/* Project the /history response (which still includes the lazy-tab fields
+ * for back-compat) into the Overview slice + a cache seed. We seed cache
+ * here too so a hard-refresh hydration doesn't re-fetch tabs the user
+ * already has data for. */
+interface HistoryResponseShape extends ScanProResponseLike {
+  scanId?: string;
+  competitorComparison?: ScanProRawCompetitor[];
+  prompts?: PromptEntry[];
+  citedDomains?: CitedDomainEntry[];
+}
+
+function projectHistoryToResults(raw: HistoryResponseShape, fallbackBrand: string): ProjectedScan {
+  return projectScanProToResults(raw, fallbackBrand);
 }
 
 /* ------------------------------------------------------------------ */
@@ -497,6 +540,16 @@ export default function SearchLensPage() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [settings, setSettings] = useState<SearchLensSettings | null>(null);
   const [, setSettingsLoaded] = useState(false);
+
+  // Per-tab lazy-load state. cache=undefined means never fetched;
+  // cache=[] means fetched and empty. Each tab tracks its own loading flag.
+  const [tabCache, setTabCache] = useState<TabCache>({});
+  const [tabLoading, setTabLoading] = useState<TabLoading>({
+    citations: false,
+    insights: false,
+    competitors: false,
+    prompts: false,
+  });
   // New UI state for the redesigned scan flow
   const [scanModalOpen, setScanModalOpen] = useState(false);
   const [prefilledDomain, setPrefilledDomain] = useState<string>("");
@@ -535,7 +588,25 @@ export default function SearchLensPage() {
         import("@react-pdf/renderer"),
         import("./_components/ScanReportPDF"),
       ]);
-      const blob = await pdf(<ScanReportPDF data={scanResults} />).toBlob();
+      // PDF needs insights + prompts which are now lazy slices. If they
+      // aren't cached yet (user clicked "Download" without opening those
+      // tabs first), pass empty arrays — the report still renders the
+      // Overview metrics. A future enhancement could prefetch on demand.
+      const reportData = {
+        brandName: scanResults.brandName,
+        domain: scanResults.domain,
+        visibilityScore: scanResults.visibilityScore,
+        citationCount: scanResults.citationCount,
+        shareOfVoice: scanResults.shareOfVoice,
+        recommendationRate: scanResults.recommendationRate,
+        citationAuthority: scanResults.citationAuthority,
+        platformBreakdown: scanResults.platformBreakdown,
+        citedDomains: scanResults.citedDomains,
+        insights: tabCache.insights ?? [],
+        prompts: tabCache.prompts ?? [],
+        scannedAt: scanResults.scannedAt,
+      };
+      const blob = await pdf(<ScanReportPDF data={reportData} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       const safeBrand = (scanResults.brandName || "report").toLowerCase().replace(/[^a-z0-9-]+/g, "-");
@@ -552,7 +623,7 @@ export default function SearchLensPage() {
     } finally {
       setPdfBusy(false);
     }
-  }, [scanResults, pdfBusy, showToast]);
+  }, [scanResults, tabCache, pdfBusy, showToast]);
 
   // Sections registered for the Overview-tab sticky TOC.
   const overviewTOCSections = useMemo<TOCSection[]>(() => [
@@ -580,12 +651,18 @@ export default function SearchLensPage() {
 
       // Try to load latest scan from history. If endpoint is missing or
       // returns null data, leave scanResults null — empty states will render.
+      // History returns the full payload for back-compat; we project it into
+      // the Overview slice and leave tabCache empty so tabs lazy-fetch on
+      // activation. This keeps initial hydration fast.
       try {
         const historyRes = await fetch("/xapi/searchlens/history?limit=1");
         if (historyRes.ok) {
-          const historyJson = (await historyRes.json()) as { data?: ScanResults | null };
+          const historyJson = (await historyRes.json()) as { data?: HistoryResponseShape | null };
           if (historyJson.data) {
-            setScanResults(historyJson.data);
+            const fallbackBrand = historyJson.data.brandName ?? "";
+            const projected = projectHistoryToResults(historyJson.data, fallbackBrand);
+            setScanResults(projected.results);
+            // tabCache stays empty on history hydration → tabs lazy-fetch.
           }
         }
       } catch {
@@ -640,22 +717,30 @@ export default function SearchLensPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ brandName, prompts, competitors }),
         });
-        const fallbackJson: { data?: ScanProResponseLike; error?: string } = await fallbackResponse.json();
+        const fallbackJson: { data?: ScanProResponseLike & { scanId?: string }; error?: string } = await fallbackResponse.json();
         if (!fallbackResponse.ok || fallbackJson.error) {
           throw new Error(fallbackJson.error ?? `Request failed with status ${fallbackResponse.status}`);
         }
         if (fallbackJson.data) {
-          setScanResults(projectScanProToResults(fallbackJson.data, brandName));
+          const projected = projectScanProToResults(fallbackJson.data, brandName);
+          setScanResults(projected.results);
+          // Seed tabCache from the same response — scan-pro returned everything,
+          // so there's no reason to re-fetch when the user opens a tab.
+          setTabCache(projected.cache);
         }
         return;
       }
 
-      const json: { data?: ScanProResponseLike; error?: string } = await response.json();
+      const json: { data?: ScanProResponseLike & { scanId?: string }; error?: string } = await response.json();
       if (!response.ok || json.error) {
         throw new Error(json.error ?? `Request failed with status ${response.status}`);
       }
       if (json.data) {
-        setScanResults(projectScanProToResults(json.data, brandName));
+        const projected = projectScanProToResults(json.data, brandName);
+        setScanResults(projected.results);
+        // Seed tabCache from the same response — scan-pro returned everything,
+        // so there's no reason to re-fetch when the user opens a tab.
+        setTabCache(projected.cache);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Scan failed. Please try again.";
@@ -689,6 +774,54 @@ export default function SearchLensPage() {
       showToast("Failed to add prompt", "error");
     }
   }, [settings, showToast]);
+
+  // Lazy-fetch a slice for the active tab if not already cached.
+  // Fires once per (scanId, slice) pair per session.
+  const fetchSlice = useCallback(async (scanId: string, slice: LazySlice) => {
+    setTabLoading((prev) => ({ ...prev, [slice]: true }));
+    try {
+      const res = await fetch(`/xapi/searchlens/scans/${scanId}/${slice}`);
+      if (!res.ok) {
+        // 404 or 500 — leave cache as empty array so we render the "no data"
+        // state rather than re-firing on every tab activation.
+        setTabCache((prev) => ({ ...prev, [slice]: [] }));
+        return;
+      }
+      const json = (await res.json()) as { data?: Record<string, unknown> };
+      const payload = json.data ?? {};
+      if (slice === "citations") {
+        setTabCache((prev) => ({ ...prev, citations: (payload.citations as CitationEntry[]) ?? [] }));
+      } else if (slice === "insights") {
+        setTabCache((prev) => ({ ...prev, insights: (payload.insights as InsightEntry[]) ?? [] }));
+      } else if (slice === "competitors") {
+        setTabCache((prev) => ({ ...prev, competitors: (payload.competitors as CompetitorEntry[]) ?? [] }));
+      } else {
+        setTabCache((prev) => ({ ...prev, prompts: (payload.prompts as PromptEntry[]) ?? [] }));
+      }
+    } catch {
+      setTabCache((prev) => ({ ...prev, [slice]: [] }));
+    } finally {
+      setTabLoading((prev) => ({ ...prev, [slice]: false }));
+    }
+  }, []);
+
+  // Tab activation → if the active tab needs lazy data and we haven't
+  // cached it yet, fetch now. Cached slices render instantly.
+  useEffect(() => {
+    const scanId = scanResults?.scanId;
+    if (!scanId) return;
+    const map: Record<string, LazySlice | undefined> = {
+      Citations: "citations",
+      Insights: "insights",
+      Competitors: "competitors",
+      Prompts: "prompts",
+    };
+    const slice = map[tab];
+    if (!slice) return;
+    if (tabCache[slice] !== undefined) return;
+    if (tabLoading[slice]) return;
+    void fetchSlice(scanId, slice);
+  }, [tab, scanResults, tabCache, tabLoading, fetchSlice]);
 
   // While scanning, advance the visual platform stepper to fake per-platform progress.
   // Real scan is parallel under the hood — this is purely UX feedback.
@@ -839,47 +972,59 @@ export default function SearchLensPage() {
         </div>
       )}
       {tab === "Citations" && (
-        <CitationsTab
-          citations={scanResults?.citations ?? []}
-          yourBrand={scanResults?.brandName ?? settings?.searchlens_brand_name ?? ""}
-          onRunScan={() => openScanModal(activeDomain)}
-        />
+        tabLoading.citations && tabCache.citations === undefined ? (
+          <TabSkeleton rows={5} />
+        ) : (
+          <CitationsTab
+            citations={tabCache.citations ?? []}
+            yourBrand={scanResults?.brandName ?? settings?.searchlens_brand_name ?? ""}
+            onRunScan={() => openScanModal(activeDomain)}
+          />
+        )
       )}
       {tab === "Competitors" && (
-        <CompetitorsTab
-          competitors={
-            scanResults
-              ? scanResults.competitorComparison.map((c, i) => {
-                  const total = Math.max(scanResults.totalPromptsScanned, 1);
-                  const score = Math.round((c.mentionCount / total) * 100);
-                  return {
-                    rank: i + 1,
-                    name: c.name,
-                    visibilityScore: score,
-                    citations: c.mentionCount,
-                    shareOfVoice: Math.round((c.mentionCount / total) * 1000) / 10,
-                    recommendationRate: Math.round(score * 0.45),
-                    promptsYouMiss: c.promptsAppearedIn.slice(0, 3),
-                  };
-                })
-              : []
-          }
-          yourBrand={scanResults?.brandName ?? "Your Brand"}
-          onRunScan={() => openScanModal(activeDomain)}
-        />
+        tabLoading.competitors && tabCache.competitors === undefined ? (
+          <TabSkeleton rows={4} />
+        ) : (
+          <CompetitorsTab
+            competitors={
+              scanResults && tabCache.competitors
+                ? tabCache.competitors.map((c, i) => {
+                    const total = Math.max(scanResults.totalPromptsScanned, 1);
+                    const score = Math.round((c.mentionCount / total) * 100);
+                    return {
+                      rank: i + 1,
+                      name: c.name,
+                      visibilityScore: score,
+                      citations: c.mentionCount,
+                      shareOfVoice: Math.round((c.mentionCount / total) * 1000) / 10,
+                      recommendationRate: Math.round(score * 0.45),
+                      promptsYouMiss: c.promptsAppearedIn.slice(0, 3),
+                    };
+                  })
+                : []
+            }
+            yourBrand={scanResults?.brandName ?? "Your Brand"}
+            onRunScan={() => openScanModal(activeDomain)}
+          />
+        )
       )}
       {tab === "Prompts" && (
-        <PromptsTab
-          prompts={scanResults?.prompts ?? []}
-          brandName={settings?.searchlens_brand_name ?? scanResults?.brandName ?? ""}
-          onAddPrompt={handleAddPrompt}
-          onRunScan={() => openScanModal(activeDomain)}
-          onTracked={() => {
-            showToast("Tracking enabled", "success");
-            setTab("Tracked");
-          }}
-          onTrackError={(msg) => showToast(msg, "error")}
-        />
+        tabLoading.prompts && tabCache.prompts === undefined ? (
+          <TabSkeleton rows={5} />
+        ) : (
+          <PromptsTab
+            prompts={tabCache.prompts ?? []}
+            brandName={settings?.searchlens_brand_name ?? scanResults?.brandName ?? ""}
+            onAddPrompt={handleAddPrompt}
+            onRunScan={() => openScanModal(activeDomain)}
+            onTracked={() => {
+              showToast("Tracking enabled", "success");
+              setTab("Tracked");
+            }}
+            onTrackError={(msg) => showToast(msg, "error")}
+          />
+        )
       )}
       {tab === "Tracked" && (
         <TrackedPromptsTab
@@ -888,10 +1033,14 @@ export default function SearchLensPage() {
         />
       )}
       {tab === "Insights" && (
-        <InsightsTab
-          insights={scanResults?.insights ?? []}
-          onRunScan={() => openScanModal(activeDomain)}
-        />
+        tabLoading.insights && tabCache.insights === undefined ? (
+          <TabSkeleton rows={4} />
+        ) : (
+          <InsightsTab
+            insights={tabCache.insights ?? []}
+            onRunScan={() => openScanModal(activeDomain)}
+          />
+        )
       )}
       {tab === "Site Audit" && (
         <SiteAuditTab domain={activeDomain || prefilledDomain || ""} />
@@ -914,6 +1063,20 @@ export default function SearchLensPage() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Per-tab skeleton loader                                            */
+/* ------------------------------------------------------------------ */
+
+function TabSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <SkeletonShimmer key={i} className="h-20 w-full" />
+      ))}
     </div>
   );
 }
