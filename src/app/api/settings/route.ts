@@ -6,9 +6,15 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const ORG_ID = "a0000000-0000-0000-0000-000000000001";
+
+// PATCH validation schema — narrow, field-specific updates
+const PatchSchema = z.object({
+  searchlens_prompts: z.array(z.string().min(1).max(500)).max(50).optional(),
+}).strict();
 
 // ---------------------------------------------------------------------------
 // GET /api/settings
@@ -106,6 +112,36 @@ export async function PUT(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";
     console.error("PUT /api/settings error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// PATCH /api/settings — narrow updates (currently: searchlens_prompts)
+export async function PATCH(request: Request) {
+  try {
+    const parsed = PatchSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join("; ") },
+        { status: 400 },
+      );
+    }
+    const updates = { ...parsed.data, updated_at: new Date().toISOString() };
+    const supabase = createAdminClient();
+    const { data: existing } = await supabase
+      .from("core_agency_config").select("id").eq("org_id", ORG_ID).maybeSingle();
+    const q = existing
+      ? supabase.from("core_agency_config").update(updates).eq("org_id", ORG_ID)
+      : supabase.from("core_agency_config").insert({ org_id: ORG_ID, ...updates });
+    const { data, error } = await q.select("*").single();
+    if (error) {
+      console.error("PATCH /api/settings error:", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ data });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal server error";
+    console.error("PATCH /api/settings error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

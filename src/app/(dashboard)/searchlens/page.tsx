@@ -55,29 +55,84 @@ const SiteAuditTab = dynamic(() => import("./_components/SiteAuditTab"), {
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-interface PromptBreakdown {
+/* ScanResults is shaped to match HistoryResponse.data so the page
+ * can hydrate from either /api/searchlens/history (one shot, on mount)
+ * or be projected from /api/searchlens/scan-pro response (after a
+ * successful scan). Field names mirror HistoryResponse.data exactly. */
+type SLPlatformKey = "chatgpt" | "gemini" | "perplexity" | "ai-overviews" | "copilot" | "claude";
+
+interface CitationEntry {
+  id: string;
+  platform: SLPlatformKey;
   prompt: string;
-  mentioned: boolean;
-  position: string;
-  sentiment: string;
-  citationUrl: string | null;
-  searchResultCount: number;
+  position: "prominent" | "passing" | "absent";
+  context: string;
+  sentiment: "positive" | "neutral" | "negative";
+  authority: number;
+  sources: string[];
+  date: string;
 }
 
-interface CompetitorResult {
+interface CompetitorEntry {
   name: string;
   mentionCount: number;
   promptsAppearedIn: string[];
 }
 
+interface PromptEntry {
+  id: string;
+  prompt: string;
+  score: number;
+  platforms: Record<string, boolean>;
+  competitorCount: number;
+  lastChecked: string;
+  trendData: number[];
+}
+
+interface InsightEntry {
+  id: string;
+  priority: "critical" | "high" | "medium" | "low";
+  title: string;
+  description: string;
+  action: string;
+  category: "Content" | "Technical" | "Authority" | "Competitive";
+  targetModule: string;
+}
+
+interface PlatformBreakdownEntry {
+  key: string;
+  mentions: number;
+  score: number;
+  trend: string;
+  trendUp: boolean | null;
+}
+
+interface CitedDomainEntry {
+  domain: string;
+  mentionCount: number;
+  avgAuthority: number;
+  score: number;
+}
+
 interface ScanResults {
   brandName: string;
+  domain: string | null;
   visibilityScore: number;
-  totalPromptsScanned: number;
-  mentionedIn: number;
-  platformBreakdown: PromptBreakdown[];
+  citationCount: number;
+  shareOfVoice: number;
+  recommendationRate: number;
+  citationAuthority: number;
+  sentiment: { positive: number; neutral: number; negative: number };
+  platformBreakdown: PlatformBreakdownEntry[];
   promptGaps: string[];
-  competitorComparison: CompetitorResult[];
+  competitorComparison: CompetitorEntry[];
+  citations: CitationEntry[];
+  insights: InsightEntry[];
+  prompts: PromptEntry[];
+  citedDomains: CitedDomainEntry[];
+  scannedAt: string;
+  // Kept for legacy stepper computations
+  totalPromptsScanned: number;
 }
 
 interface SearchLensSettings {
@@ -113,110 +168,199 @@ const PLATFORMS: PlatformInfo[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Mock data — used when no scan has been run                         */
+/*  Scan-pro response normaliser                                       */
+/*  scan-pro returns a richer shape than HistoryResponse.data — this   */
+/*  collapses both into the same ScanResults projection.               */
 /* ------------------------------------------------------------------ */
 
-interface MockPlatformData {
-  key: PlatformKey;
-  mentions: number;
-  score: number;
-  trend: string;
-  trendUp: boolean | null;
-}
-
-const mockPlatformData: MockPlatformData[] = [
-  { key: "chatgpt", mentions: 23, score: 82, trend: "+12%", trendUp: true },
-  { key: "gemini", mentions: 18, score: 74, trend: "+18%", trendUp: true },
-  { key: "perplexity", mentions: 9, score: 58, trend: "0%", trendUp: null },
-  { key: "ai-overviews", mentions: 14, score: 68, trend: "+8%", trendUp: true },
-  { key: "copilot", mentions: 6, score: 42, trend: "-3%", trendUp: false },
-  { key: "claude", mentions: 4, score: 36, trend: "+25%", trendUp: true },
-];
-
-interface MockCitation {
-  id: number;
-  platform: PlatformKey;
+interface ScanProRawCitation {
+  platform: string;
   prompt: string;
+  mentioned?: boolean;
   position: "prominent" | "passing" | "absent";
-  context: string;
+  context: string | null;
   sentiment: "positive" | "neutral" | "negative";
-  authority: number;
-  date: string;
+  citationUrl?: string | null;
+  authorityScore?: number;
 }
 
-const mockCitations: MockCitation[] = [
-  { id: 1, platform: "chatgpt", prompt: "Best digital marketing agency for SaaS startups in 2026", position: "prominent", context: "Creative Nexus is frequently recommended as a top-tier agency for SaaS companies, known for their AI-driven approach...", sentiment: "positive", authority: 85, date: "2026-04-15" },
-  { id: 2, platform: "gemini", prompt: "Top AI-powered content marketing agencies", position: "passing", context: "Among the agencies leveraging AI, Creative Nexus Global offers interesting solutions alongside larger players...", sentiment: "neutral", authority: 72, date: "2026-04-15" },
-  { id: 3, platform: "perplexity", prompt: "Which agency offers the best SEO + AI strategy combo", position: "absent", context: "", sentiment: "negative", authority: 0, date: "2026-04-14" },
-  { id: 4, platform: "ai-overviews", prompt: "Best agencies for AI search optimization", position: "prominent", context: "Creative Nexus Global stands out in the AI search optimization space with their SearchLens platform...", sentiment: "positive", authority: 90, date: "2026-04-15" },
-  { id: 5, platform: "chatgpt", prompt: "Agency recommendations for B2B lead generation", position: "passing", context: "For B2B lead gen, several agencies including Creative Nexus provide AI-augmented outreach solutions...", sentiment: "positive", authority: 68, date: "2026-04-14" },
-  { id: 6, platform: "copilot", prompt: "Digital marketing agencies with AI capabilities", position: "absent", context: "", sentiment: "negative", authority: 0, date: "2026-04-13" },
-  { id: 7, platform: "claude", prompt: "Best agency for integrated AI marketing strategy", position: "passing", context: "Creative Nexus offers a comprehensive platform but faces competition from larger established agencies...", sentiment: "neutral", authority: 55, date: "2026-04-14" },
-  { id: 8, platform: "gemini", prompt: "AI-native marketing agencies for startups", position: "prominent", context: "Creative Nexus Global is pioneering the AI-native agency model with their Command Centre platform...", sentiment: "positive", authority: 88, date: "2026-04-15" },
-];
-
-interface MockCompetitor {
-  rank: number;
-  name: string;
-  visibilityScore: number;
-  citations: number;
-  shareOfVoice: number;
-  recommendationRate: number;
-  promptsYouMiss: string[];
-}
-
-const mockCompetitors: MockCompetitor[] = [
-  { rank: 1, name: "WebFX", visibilityScore: 86, citations: 42, shareOfVoice: 28.5, recommendationRate: 45, promptsYouMiss: ["Best digital marketing agency for SaaS startups", "Top performance marketing firms", "Agency with best ROI tracking"] },
-  { rank: 2, name: "Siege Media", visibilityScore: 79, citations: 35, shareOfVoice: 22.0, recommendationRate: 38, promptsYouMiss: ["Best SEO content agency", "Agency for link building and content", "Top organic growth marketing firms"] },
-  { rank: 3, name: "Creative Nexus", visibilityScore: 74, citations: 23, shareOfVoice: 18.5, recommendationRate: 34, promptsYouMiss: [] },
-  { rank: 4, name: "Jasper Agency", visibilityScore: 71, citations: 28, shareOfVoice: 16.0, recommendationRate: 30, promptsYouMiss: ["AI content marketing agency", "Best agency for AI-generated content"] },
-  { rank: 5, name: "Single Grain", visibilityScore: 68, citations: 20, shareOfVoice: 15.0, recommendationRate: 26, promptsYouMiss: ["Best PPC agency for startups", "Growth marketing agency reviews"] },
-];
-
-interface MockPromptEntry {
-  id: number;
-  prompt: string;
-  score: number;
-  platforms: Record<PlatformKey, boolean>;
-  competitorCount: number;
-  lastChecked: string;
-  trendData: number[];
-}
-
-const mockPrompts: MockPromptEntry[] = [
-  { id: 1, prompt: "Best digital marketing agency for SaaS startups in 2026", score: 82, platforms: { chatgpt: true, gemini: true, perplexity: false, "ai-overviews": true, copilot: false, claude: false }, competitorCount: 4, lastChecked: "2026-04-15", trendData: [60, 65, 70, 72, 78, 80, 82] },
-  { id: 2, prompt: "Top AI-powered content marketing agencies", score: 68, platforms: { chatgpt: true, gemini: true, perplexity: true, "ai-overviews": false, copilot: false, claude: true }, competitorCount: 5, lastChecked: "2026-04-15", trendData: [55, 58, 60, 62, 65, 66, 68] },
-  { id: 3, prompt: "Which agency offers the best SEO + AI strategy combo", score: 45, platforms: { chatgpt: false, gemini: true, perplexity: false, "ai-overviews": true, copilot: false, claude: false }, competitorCount: 6, lastChecked: "2026-04-14", trendData: [30, 35, 38, 40, 42, 44, 45] },
-  { id: 4, prompt: "Best agencies for AI search optimization", score: 90, platforms: { chatgpt: true, gemini: true, perplexity: true, "ai-overviews": true, copilot: true, claude: true }, competitorCount: 3, lastChecked: "2026-04-15", trendData: [75, 78, 82, 85, 87, 89, 90] },
-  { id: 5, prompt: "Agency recommendations for B2B lead generation", score: 55, platforms: { chatgpt: true, gemini: false, perplexity: false, "ai-overviews": true, copilot: false, claude: false }, competitorCount: 7, lastChecked: "2026-04-14", trendData: [40, 42, 45, 48, 50, 53, 55] },
-  { id: 6, prompt: "AI-native marketing agencies for startups", score: 76, platforms: { chatgpt: true, gemini: true, perplexity: true, "ai-overviews": false, copilot: false, claude: true }, competitorCount: 4, lastChecked: "2026-04-15", trendData: [50, 55, 60, 65, 70, 73, 76] },
-];
-
-interface MockInsight {
-  id: number;
-  priority: "critical" | "high" | "medium" | "low";
+interface ScanProRawInsight {
   title: string;
   description: string;
-  action: string;
-  category: "Content" | "Technical" | "Authority" | "Competitive";
-  targetModule: string;
+  priority: "critical" | "high" | "medium" | "low";
+  category: "content" | "technical" | "authority" | "competitive" | string;
+  actionItem?: string;
+  action?: string;
 }
 
-const mockInsights: MockInsight[] = [
-  { id: 1, priority: "critical", title: "Missing from Copilot entirely", description: "Your brand has zero presence in Microsoft Copilot search results. Copilot is growing 40% month-over-month and represents a significant visibility gap.", action: "Create Copilot-optimized content and submit to Bing Webmaster Tools", category: "Technical", targetModule: "/nexus-flow" },
-  { id: 2, priority: "high", title: "Low citation authority in Perplexity", description: "While mentioned in Perplexity, your citations lack authoritative sources. Improve backlink profile from .edu and .gov domains.", action: "Launch authority-building outreach campaign targeting educational institutions", category: "Authority", targetModule: "/nexus-flow" },
-  { id: 3, priority: "high", title: "Competitor WebFX dominates SaaS prompts", description: "WebFX appears in 85% of SaaS-related prompts where you are absent. Their content strategy focuses on detailed case studies and ROI metrics.", action: "Create 5 detailed SaaS case studies with measurable ROI data", category: "Competitive", targetModule: "/gtm" },
-  { id: 4, priority: "medium", title: "Sentiment gap in Claude responses", description: "Claude mentions your brand but with neutral sentiment. The AI cites your services without strong endorsement language.", action: "Improve brand messaging and testimonial visibility across owned media", category: "Content", targetModule: "/social" },
-  { id: 5, priority: "medium", title: "Prompt gap in B2B lead generation category", description: "7 competitors appear in B2B lead gen prompts where you are absent. This category has high commercial intent.", action: "Publish comprehensive B2B lead generation guide and case studies", category: "Content", targetModule: "/gtm" },
-  { id: 6, priority: "low", title: "Optimize structured data for AI crawlers", description: "Your website lacks JSON-LD structured data that AI search engines use to extract brand information.", action: "Implement Organization, Service, and FAQ schema markup", category: "Technical", targetModule: "/projects" },
+interface ScanProRawCompetitor {
+  name: string;
+  score?: number;
+  mentions?: number;
+  mentionCount?: number;
+  promptsAppearedIn?: string[];
+}
+
+interface ScanProResponseLike {
+  brandName?: string;
+  domain?: string | null;
+  visibilityScore: number;
+  citationCount?: number;
+  mentionedIn?: number;
+  shareOfVoice?: number;
+  recommendationRate?: number;
+  citationAuthority?: number;
+  sentiment?: { positive: number; neutral: number; negative: number };
+  platformBreakdown?: PlatformBreakdownEntry[] | Record<string, { score: number; mentions: number; totalChecked: number }>;
+  promptGaps?: string[];
+  competitorComparison?: ScanProRawCompetitor[];
+  citations?: ScanProRawCitation[];
+  insights?: ScanProRawInsight[];
+  prompts?: PromptEntry[];
+  citedDomains?: CitedDomainEntry[];
+  totalPromptsScanned?: number;
+  scannedAt?: string;
+}
+
+const VALID_PLATFORM_KEYS: SLPlatformKey[] = [
+  "chatgpt", "gemini", "perplexity", "ai-overviews", "copilot", "claude",
 ];
 
-const mockPromptGaps = [
-  { id: 1, prompt: "Best digital marketing agency for SaaS startups in 2026", competitors: ["WebFX", "Single Grain", "Directive"], platform: "ChatGPT" },
-  { id: 2, prompt: "Top AI-powered content marketing agencies", competitors: ["Jasper Agency", "Copy.ai Agency"], platform: "Gemini" },
-  { id: 3, prompt: "Which agency offers the best SEO + AI strategy combo", competitors: ["Siege Media", "Victorious", "Straight North"], platform: "Perplexity" },
-  { id: 4, prompt: "Best PPC agency for startups 2026", competitors: ["Single Grain", "Disruptive Advertising"], platform: "Copilot" },
-];
+const TARGET_MODULE_BY_CATEGORY: Record<string, string> = {
+  content: "/gtm",
+  technical: "/projects",
+  authority: "/nexus-flow",
+  competitive: "/nexus-flow",
+};
+
+function asPlatformKey(p: string): SLPlatformKey {
+  return (VALID_PLATFORM_KEYS.includes(p as SLPlatformKey) ? p : "chatgpt") as SLPlatformKey;
+}
+
+function capitalize(s: string): "Content" | "Technical" | "Authority" | "Competitive" {
+  const lower = s.toLowerCase();
+  if (lower === "technical") return "Technical";
+  if (lower === "authority") return "Authority";
+  if (lower === "competitive") return "Competitive";
+  return "Content";
+}
+
+function deriveCitedDomains(citations: CitationEntry[]): CitedDomainEntry[] {
+  const map = new Map<string, { mentionCount: number; authoritySum: number; n: number }>();
+  for (const c of citations) {
+    if (!c.sources || c.sources.length === 0) continue;
+    for (const src of c.sources) {
+      let host = src;
+      try { host = new URL(src).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+      const cur = map.get(host) ?? { mentionCount: 0, authoritySum: 0, n: 0 };
+      cur.mentionCount += 1;
+      cur.authoritySum += c.authority;
+      cur.n += 1;
+      map.set(host, cur);
+    }
+  }
+  return Array.from(map.entries())
+    .map(([domain, v]) => {
+      const avgAuthority = v.n > 0 ? Math.round(v.authoritySum / v.n) : 0;
+      return {
+        domain,
+        mentionCount: v.mentionCount,
+        avgAuthority,
+        score: Math.round(avgAuthority * 0.6 + Math.min(v.mentionCount, 10) * 4),
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+function derivePrompts(citations: CitationEntry[]): PromptEntry[] {
+  const map = new Map<string, { hits: number; total: number; platforms: Record<string, boolean>; lastChecked: string }>();
+  for (const c of citations) {
+    const cur = map.get(c.prompt) ?? { hits: 0, total: 0, platforms: {}, lastChecked: c.date };
+    cur.total += 1;
+    if (c.position !== "absent") cur.hits += 1;
+    cur.platforms[c.platform] = c.position !== "absent" || cur.platforms[c.platform] === true;
+    if (c.date > cur.lastChecked) cur.lastChecked = c.date;
+    map.set(c.prompt, cur);
+  }
+  return Array.from(map.entries()).map(([prompt, v], i) => ({
+    id: `${i}-${prompt}`,
+    prompt,
+    score: v.total > 0 ? Math.round((v.hits / v.total) * 100) : 0,
+    platforms: v.platforms,
+    competitorCount: 0,
+    lastChecked: v.lastChecked,
+    trendData: [],
+  }));
+}
+
+function projectScanProToResults(raw: ScanProResponseLike, fallbackBrand: string): ScanResults {
+  const today = new Date().toISOString().slice(0, 10);
+  const citations: CitationEntry[] = (raw.citations ?? []).map((c, i) => ({
+    id: String(i),
+    platform: asPlatformKey(c.platform),
+    prompt: c.prompt,
+    position: c.position,
+    context: c.context ?? "",
+    sentiment: c.sentiment,
+    authority: typeof c.authorityScore === "number" ? c.authorityScore : 0,
+    sources: c.citationUrl ? [c.citationUrl] : [],
+    date: today,
+  }));
+
+  const insights: InsightEntry[] = (raw.insights ?? []).map((ins, i) => {
+    const cat = capitalize(typeof ins.category === "string" ? ins.category : "content");
+    return {
+      id: String(i),
+      priority: ins.priority,
+      title: ins.title,
+      description: ins.description,
+      action: ins.action ?? ins.actionItem ?? "",
+      category: cat,
+      targetModule: TARGET_MODULE_BY_CATEGORY[cat.toLowerCase()] ?? "/gtm",
+    };
+  });
+
+  // platformBreakdown: scan-pro returns Record<string, PlatformScore>; history returns array.
+  let platformBreakdown: PlatformBreakdownEntry[] = [];
+  const pb = raw.platformBreakdown;
+  if (Array.isArray(pb)) {
+    platformBreakdown = pb;
+  } else if (pb && typeof pb === "object") {
+    platformBreakdown = Object.entries(pb).map(([key, v]) => ({
+      key,
+      mentions: v.mentions ?? 0,
+      score: v.score ?? 0,
+      trend: "+0%",
+      trendUp: null,
+    }));
+  }
+
+  const competitorComparison: CompetitorEntry[] = (raw.competitorComparison ?? []).map((c) => ({
+    name: c.name,
+    mentionCount: c.mentionCount ?? c.mentions ?? 0,
+    promptsAppearedIn: c.promptsAppearedIn ?? [],
+  }));
+
+  return {
+    brandName: raw.brandName ?? fallbackBrand,
+    domain: raw.domain ?? null,
+    visibilityScore: raw.visibilityScore ?? 0,
+    citationCount: raw.citationCount ?? raw.mentionedIn ?? citations.filter((c) => c.position !== "absent").length,
+    shareOfVoice: raw.shareOfVoice ?? 0,
+    recommendationRate: raw.recommendationRate ?? 0,
+    citationAuthority: raw.citationAuthority ?? 0,
+    sentiment: raw.sentiment ?? { positive: 0, neutral: 0, negative: 0 },
+    platformBreakdown,
+    promptGaps: raw.promptGaps ?? [],
+    competitorComparison,
+    citations,
+    insights,
+    prompts: raw.prompts ?? derivePrompts(citations),
+    citedDomains: raw.citedDomains ?? deriveCitedDomains(citations),
+    scannedAt: raw.scannedAt ?? new Date().toISOString(),
+    totalPromptsScanned: raw.totalPromptsScanned ?? new Set(citations.map((c) => c.prompt)).size,
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /*  SVG ring chart helper                                              */
@@ -333,6 +477,15 @@ export default function SearchLensPage() {
   const [prefilledDomain, setPrefilledDomain] = useState<string>("");
   const [currentScanPlatformIdx, setCurrentScanPlatformIdx] = useState(0);
   const [activeDomain, setActiveDomain] = useState<string>("");
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info" }>>([]);
+
+  const showToast = useCallback((message: string, type: "success" | "error" | "info" = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
 
   // Load settings and latest scan on mount
   useEffect(() => {
@@ -348,17 +501,18 @@ export default function SearchLensPage() {
       }
       setSettingsLoaded(true);
 
-      // Try to load latest scan from history
+      // Try to load latest scan from history. If endpoint is missing or
+      // returns null data, leave scanResults null — empty states will render.
       try {
         const historyRes = await fetch("/xapi/searchlens/history?limit=1");
         if (historyRes.ok) {
-          const historyJson = (await historyRes.json()) as { data?: ScanResults };
+          const historyJson = (await historyRes.json()) as { data?: ScanResults | null };
           if (historyJson.data) {
             setScanResults(historyJson.data);
           }
         }
       } catch {
-        // history not available — use mock data
+        // history not available — leave pre-scan empty state in place
       }
     }
     void loadInitialData();
@@ -408,19 +562,23 @@ export default function SearchLensPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ brandName, prompts, competitors }),
         });
-        const fallbackJson: { data?: ScanResults; error?: string } = await fallbackResponse.json();
+        const fallbackJson: { data?: ScanProResponseLike; error?: string } = await fallbackResponse.json();
         if (!fallbackResponse.ok || fallbackJson.error) {
           throw new Error(fallbackJson.error ?? `Request failed with status ${fallbackResponse.status}`);
         }
-        if (fallbackJson.data) setScanResults(fallbackJson.data);
+        if (fallbackJson.data) {
+          setScanResults(projectScanProToResults(fallbackJson.data, brandName));
+        }
         return;
       }
 
-      const json: { data?: ScanResults; error?: string } = await response.json();
+      const json: { data?: ScanProResponseLike; error?: string } = await response.json();
       if (!response.ok || json.error) {
         throw new Error(json.error ?? `Request failed with status ${response.status}`);
       }
-      if (json.data) setScanResults(json.data);
+      if (json.data) {
+        setScanResults(projectScanProToResults(json.data, brandName));
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Scan failed. Please try again.";
       setScanError(message);
@@ -429,6 +587,29 @@ export default function SearchLensPage() {
       setScanProgress("");
     }
   }, [settings]);
+
+  // Persist a newly added prompt to user settings.
+  const handleAddPrompt = useCallback(async (prompt: string): Promise<void> => {
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    const next = [...(settings?.searchlens_prompts ?? []), trimmed];
+    try {
+      const res = await fetch("/xapi/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ searchlens_prompts: next }),
+      });
+      if (!res.ok) {
+        showToast("Failed to add prompt", "error");
+        return;
+      }
+      const json = (await res.json()) as { data?: SearchLensSettings };
+      setSettings(json.data ?? { ...(settings ?? {}), searchlens_prompts: next });
+      showToast("Prompt added — run scan to score it", "success");
+    } catch {
+      showToast("Failed to add prompt", "error");
+    }
+  }, [settings, showToast]);
 
   // While scanning, advance the visual platform stepper to fake per-platform progress.
   // Real scan is parallel under the hood — this is purely UX feedback.
@@ -447,12 +628,12 @@ export default function SearchLensPage() {
     return () => clearInterval(id);
   }, [scanLoading, settings]);
 
-  // Derived display data — real scan or mock fallback
-  const visibilityScore = scanResults?.visibilityScore ?? 74;
-  const citationsFound = scanResults?.mentionedIn ?? 23;
-  const shareOfVoice = 18.5;
-  const recommendationRate = 34;
-  const citationAuthority = 65;
+  // Derived display data — real scan only; pre-scan shows zeros.
+  const visibilityScore = scanResults?.visibilityScore ?? 0;
+  const citationsFound = scanResults?.citationCount ?? 0;
+  const shareOfVoice = scanResults?.shareOfVoice ?? 0;
+  const recommendationRate = scanResults?.recommendationRate ?? 0;
+  const citationAuthority = scanResults?.citationAuthority ?? 0;
 
   // Pre-scan state: nothing has ever been scanned successfully
   const isPreScan = scanResults === null && !scanLoading;
@@ -550,45 +731,113 @@ export default function SearchLensPage() {
           shareOfVoice={shareOfVoice}
           recommendationRate={recommendationRate}
           citationAuthority={citationAuthority}
-          platformData={mockPlatformData}
-          promptGaps={scanResults
-            ? scanResults.promptGaps.map((p, i) => ({ id: i + 1, prompt: p, competitors: ["Competitor"], platform: "AI Search" }))
-            : mockPromptGaps
-          }
+          platformData={scanResults?.platformBreakdown ?? []}
+          citedDomains={scanResults?.citedDomains ?? []}
+          sentiment={scanResults?.sentiment ?? null}
+          promptGaps={(scanResults?.promptGaps ?? []).map((p, i) => ({ id: i + 1, prompt: p, competitors: ["Competitor"], platform: "AI Search" }))}
           scanLoading={scanLoading}
+          hasScan={scanResults !== null}
         />
       )}
       {tab === "Citations" && (
-        <CitationsTab citations={mockCitations} yourBrand="Creative Nexus" />
+        <CitationsTab
+          citations={scanResults?.citations ?? []}
+          yourBrand={scanResults?.brandName ?? settings?.searchlens_brand_name ?? ""}
+          onRunScan={() => openScanModal(activeDomain)}
+        />
       )}
       {tab === "Competitors" && (
         <CompetitorsTab
-          competitors={scanResults
-            ? scanResults.competitorComparison.map((c, i) => {
-                const score = Math.round((c.mentionCount / Math.max(scanResults.totalPromptsScanned, 1)) * 100);
-                return {
-                  rank: i + 1,
-                  name: c.name,
-                  visibilityScore: score,
-                  citations: c.mentionCount,
-                  shareOfVoice: Math.round((c.mentionCount / Math.max(scanResults.totalPromptsScanned, 1)) * 100 * 10) / 10,
-                  recommendationRate: Math.round(score * 0.45),
-                  promptsYouMiss: c.promptsAppearedIn.slice(0, 3),
-                };
-              })
-            : mockCompetitors
+          competitors={
+            scanResults
+              ? scanResults.competitorComparison.map((c, i) => {
+                  const total = Math.max(scanResults.totalPromptsScanned, 1);
+                  const score = Math.round((c.mentionCount / total) * 100);
+                  return {
+                    rank: i + 1,
+                    name: c.name,
+                    visibilityScore: score,
+                    citations: c.mentionCount,
+                    shareOfVoice: Math.round((c.mentionCount / total) * 1000) / 10,
+                    recommendationRate: Math.round(score * 0.45),
+                    promptsYouMiss: c.promptsAppearedIn.slice(0, 3),
+                  };
+                })
+              : []
           }
-          yourBrand="Creative Nexus"
+          yourBrand={scanResults?.brandName ?? "Your Brand"}
+          onRunScan={() => openScanModal(activeDomain)}
         />
       )}
       {tab === "Prompts" && (
-        <PromptsTab prompts={mockPrompts} />
+        <PromptsTab
+          prompts={scanResults?.prompts ?? []}
+          onAddPrompt={handleAddPrompt}
+          onRunScan={() => openScanModal(activeDomain)}
+        />
       )}
       {tab === "Insights" && (
-        <InsightsTab insights={mockInsights} />
+        <InsightsTab
+          insights={scanResults?.insights ?? []}
+          onRunScan={() => openScanModal(activeDomain)}
+        />
       )}
       {tab === "Site Audit" && (
         <SiteAuditTab domain={activeDomain || prefilledDomain || ""} />
+      )}
+
+      {/* Toast notifications */}
+      <div className="fixed bottom-6 right-6 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`animate-in slide-in-from-bottom-2 fade-in duration-300 px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium ${
+              toast.type === "success"
+                ? "bg-success text-white"
+                : toast.type === "error"
+                  ? "bg-destructive text-white"
+                  : "bg-foreground text-background"
+            }`}
+          >
+            {toast.message}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Shared empty-state card                                             */
+/* ------------------------------------------------------------------ */
+
+function EmptyTab({
+  icon: Icon,
+  title,
+  message,
+  cta,
+}: {
+  icon: typeof Lightbulb;
+  title: string;
+  message: string;
+  cta?: { label: string; onClick: () => void };
+}) {
+  return (
+    <div className="bg-background-secondary rounded-[12px] p-8 dark:border dark:border-border text-center backdrop-blur-md">
+      <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-accent/10 mb-3">
+        <Icon className="w-5 h-5 text-accent" strokeWidth={1.8} />
+      </div>
+      <h3 className="text-[14px] font-semibold text-foreground mb-1">{title}</h3>
+      <p className="text-[12px] text-foreground-tertiary leading-relaxed mb-3 max-w-md mx-auto">{message}</p>
+      {cta && (
+        <Button
+          size="sm"
+          onClick={cta.onClick}
+          className="bg-accent text-white hover:bg-accent/90"
+        >
+          <Radar className="w-3.5 h-3.5" data-icon="inline-start" />
+          {cta.label}
+        </Button>
       )}
     </div>
   );
@@ -604,9 +853,12 @@ interface OverviewTabProps {
   shareOfVoice: number;
   recommendationRate: number;
   citationAuthority: number;
-  platformData: MockPlatformData[];
+  platformData: PlatformBreakdownEntry[];
+  citedDomains: CitedDomainEntry[];
+  sentiment: { positive: number; neutral: number; negative: number } | null;
   promptGaps: Array<{ id: number; prompt: string; competitors: string[]; platform: string }>;
   scanLoading: boolean;
+  hasScan: boolean;
 }
 
 function OverviewTab({
@@ -616,8 +868,11 @@ function OverviewTab({
   recommendationRate,
   citationAuthority,
   platformData,
+  citedDomains,
+  sentiment,
   promptGaps,
   scanLoading,
+  hasScan,
 }: OverviewTabProps) {
   const [selectedPillar, setSelectedPillar] = useState(1); // 0-indexed into scorePillars
 
@@ -795,8 +1050,11 @@ function OverviewTab({
           <span className="text-xs text-foreground-tertiary">6 AI platforms monitored</span>
         </div>
         <div className="grid grid-cols-6 gap-3">
-          {platformData.map((pData) => {
-            const platformInfo = PLATFORMS.find((p) => p.key === pData.key);
+          {(platformData.length > 0
+            ? platformData
+            : PLATFORMS.map<PlatformBreakdownEntry>((p) => ({ key: p.key, mentions: 0, score: 0, trend: "0%", trendUp: null }))
+          ).map((pData) => {
+            const platformInfo = PLATFORMS.find((p) => p.key === (pData.key as PlatformKey));
             if (!platformInfo) return null;
             const Icon = platformInfo.icon;
             return (
@@ -818,6 +1076,34 @@ function OverviewTab({
           })}
         </div>
       </div>
+
+      {/* Top Cited Sources — only shown when we have citation data */}
+      {hasScan && citedDomains.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-semibold text-foreground">Top Cited Sources</span>
+            <span className="text-xs text-foreground-tertiary">{citedDomains.length} domains</span>
+          </div>
+          <GlowCard className="!p-0 overflow-hidden">
+            {citedDomains.slice(0, 5).map((d, i) => (
+              <div key={d.domain}>
+                <div className="flex items-center gap-3 px-3.5 py-2.5">
+                  <span className="text-[11px] font-bold text-foreground-tertiary w-5 text-center">{i + 1}.</span>
+                  <Globe className="w-3.5 h-3.5 text-foreground-tertiary shrink-0" strokeWidth={1.8} />
+                  <span className="text-[13px] font-medium text-foreground flex-1 truncate">{d.domain}</span>
+                  <span className="text-[11px] text-foreground-tertiary">
+                    {d.mentionCount} {d.mentionCount === 1 ? "mention" : "mentions"}
+                  </span>
+                  <StatusBadge type={d.avgAuthority >= 70 ? "success" : d.avgAuthority >= 40 ? "warning" : "neutral"}>
+                    {d.avgAuthority > 0 ? `Auth ${d.avgAuthority}` : "Auth --"}
+                  </StatusBadge>
+                </div>
+                {i < Math.min(citedDomains.length, 5) - 1 && <div className="h-px bg-divider mx-3.5" />}
+              </div>
+            ))}
+          </GlowCard>
+        </div>
+      )}
 
       {/* ====== Section 1: Score Breakdown — "What Makes Up Your Score" ====== */}
       <div>
@@ -1135,9 +1421,9 @@ function OverviewTab({
           <span className="text-[13px] font-semibold text-foreground">Sentiment Breakdown</span>
         </div>
         <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border space-y-3">
-          <SentimentBar label="Positive" value={62} color="bg-success" />
-          <SentimentBar label="Neutral" value={28} color="bg-foreground-tertiary" />
-          <SentimentBar label="Negative" value={10} color="bg-destructive" />
+          <SentimentBar label="Positive" value={sentiment?.positive ?? 0} color="bg-success" />
+          <SentimentBar label="Neutral" value={sentiment?.neutral ?? 0} color="bg-foreground-tertiary" />
+          <SentimentBar label="Negative" value={sentiment?.negative ?? 0} color="bg-destructive" />
         </div>
       </div>
     </div>
@@ -1166,7 +1452,15 @@ const sentimentLabels: Record<string, { label: string; type: "success" | "warnin
   negative: { label: "Negative", type: "warning" },
 };
 
-function CitationsTab({ citations, yourBrand }: { citations: MockCitation[]; yourBrand?: string }) {
+function CitationsTab({
+  citations,
+  yourBrand,
+  onRunScan,
+}: {
+  citations: CitationEntry[];
+  yourBrand?: string;
+  onRunScan: () => void;
+}) {
   const [filterPlatform, setFilterPlatform] = useState<string>("all");
   const [filterSentiment, setFilterSentiment] = useState<string>("all");
   const [filterPosition, setFilterPosition] = useState<string>("all");
@@ -1219,11 +1513,22 @@ function CitationsTab({ citations, yourBrand }: { citations: MockCitation[]; you
   };
 
   // Sentiment dot color
-  const sentimentDot: Record<MockCitation["sentiment"], string> = {
+  const sentimentDot: Record<CitationEntry["sentiment"], string> = {
     positive: "bg-success",
     neutral: "bg-warning",
     negative: "bg-destructive",
   };
+
+  if (citations.length === 0) {
+    return (
+      <EmptyTab
+        icon={MessageSquare}
+        title="No citations captured yet"
+        message="Run a scan to see how AI engines reference your brand across ChatGPT, Gemini, Perplexity, and more."
+        cta={{ label: "Run Scan", onClick: onRunScan }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -1369,7 +1674,35 @@ function CitationsTab({ citations, yourBrand }: { citations: MockCitation[]; you
 /*  Tab 3: Competitors                                                 */
 /* ------------------------------------------------------------------ */
 
-function CompetitorsTab({ competitors, yourBrand }: { competitors: MockCompetitor[]; yourBrand: string }) {
+interface CompetitorRow {
+  rank: number;
+  name: string;
+  visibilityScore: number;
+  citations: number;
+  shareOfVoice: number;
+  recommendationRate: number;
+  promptsYouMiss: string[];
+}
+
+function CompetitorsTab({
+  competitors,
+  yourBrand,
+  onRunScan,
+}: {
+  competitors: CompetitorRow[];
+  yourBrand: string;
+  onRunScan: () => void;
+}) {
+  if (competitors.length === 0) {
+    return (
+      <EmptyTab
+        icon={Swords}
+        title="No competitor data yet"
+        message="Add competitors in Settings, then run a scan to see how you stack up across AI search engines."
+        cta={{ label: "Run Scan", onClick: onRunScan }}
+      />
+    );
+  }
   return (
     <div className="space-y-4">
       {/* Leaderboard Table */}
@@ -1487,14 +1820,37 @@ function CompetitorsTab({ competitors, yourBrand }: { competitors: MockCompetito
 /*  Tab 4: Prompts                                                     */
 /* ------------------------------------------------------------------ */
 
-function PromptsTab({ prompts }: { prompts: MockPromptEntry[] }) {
+function PromptsTab({
+  prompts,
+  onAddPrompt,
+  onRunScan,
+}: {
+  prompts: PromptEntry[];
+  onAddPrompt: (prompt: string) => Promise<void>;
+  onRunScan: () => void;
+}) {
   const [showAddPrompt, setShowAddPrompt] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = useCallback(async () => {
+    const value = draft.trim();
+    if (!value || submitting) return;
+    setSubmitting(true);
+    try {
+      await onAddPrompt(value);
+      setDraft("");
+      setShowAddPrompt(false);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [draft, onAddPrompt, submitting]);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-1">
         <span className="text-[13px] font-semibold text-foreground">Monitored Prompts</span>
-        <Button variant="outline" size="sm" onClick={() => setShowAddPrompt(!showAddPrompt)}>
+        <Button variant="outline" size="sm" onClick={() => setShowAddPrompt((v) => !v)}>
           <Plus className="w-3.5 h-3.5" data-icon="inline-start" />
           Add Prompt
         </Button>
@@ -1506,16 +1862,31 @@ function PromptsTab({ prompts }: { prompts: MockPromptEntry[] }) {
             type="text"
             placeholder="Enter a search prompt to monitor..."
             className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-foreground-tertiary outline-none"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") setShowAddPrompt(false);
+              if (e.key === "Enter") void submit();
             }}
           />
-          <Button size="sm" className="bg-accent text-white hover:bg-accent/90" onClick={() => setShowAddPrompt(false)}>
-            Add
+          <Button
+            size="sm"
+            className="bg-accent text-white hover:bg-accent/90"
+            onClick={() => void submit()}
+            disabled={submitting || draft.trim().length === 0}
+          >
+            {submitting ? "Adding..." : "Add"}
           </Button>
         </div>
       )}
 
+      {prompts.length === 0 ? (
+        <EmptyTab
+          icon={MessageSquare}
+          title="No prompts tracked yet"
+          message="Add prompts above to monitor, or run a scan to populate this list with the prompts you've configured."
+          cta={{ label: "Run Scan", onClick: onRunScan }}
+        />
+      ) : (
       <div className="space-y-2">
         {prompts.map((entry) => {
           return (
@@ -1562,6 +1933,7 @@ function PromptsTab({ prompts }: { prompts: MockPromptEntry[] }) {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
@@ -1584,11 +1956,28 @@ const categoryIcons: Record<string, typeof Lightbulb> = {
   Competitive: Swords,
 };
 
-function InsightsTab({ insights }: { insights: MockInsight[] }) {
+function InsightsTab({
+  insights,
+  onRunScan,
+}: {
+  insights: InsightEntry[];
+  onRunScan: () => void;
+}) {
   const sorted = useMemo(() => {
     const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
     return [...insights].sort((a, b) => (order[a.priority] ?? 4) - (order[b.priority] ?? 4));
   }, [insights]);
+
+  if (insights.length === 0) {
+    return (
+      <EmptyTab
+        icon={Lightbulb}
+        title="Insights will appear after your first scan"
+        message="We'll surface prioritised, actionable recommendations based on how AI engines describe your brand."
+        cta={{ label: "Run Scan", onClick: onRunScan }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">
