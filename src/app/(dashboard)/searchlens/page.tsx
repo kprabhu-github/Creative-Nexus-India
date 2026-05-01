@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import {
   TrendingUp,
   Minus,
@@ -30,10 +30,26 @@ import {
   Video,
   Download,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import { GlowCard } from "./_components/GlowCard";
+import { ScoreCountUp } from "./_components/ScoreCountUp";
+import { ScanProgressStepper } from "./_components/ScanProgressStepper";
+import { ScanSetupModal, type ScanSetupConfig } from "./_components/ScanSetupModal";
+import { SearchLensHero } from "./_components/SearchLensHero";
+
+// Stub by default; parallel agent C ships ./_components/SiteAuditTab with real impl.
+const SiteAuditTab = dynamic(() => import("./_components/SiteAuditTab"), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-[10px] border border-divider bg-background-secondary p-6 text-[13px] text-foreground-tertiary">
+      Loading site audit…
+    </div>
+  ),
+});
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -312,6 +328,11 @@ export default function SearchLensPage() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [settings, setSettings] = useState<SearchLensSettings | null>(null);
   const [, setSettingsLoaded] = useState(false);
+  // New UI state for the redesigned scan flow
+  const [scanModalOpen, setScanModalOpen] = useState(false);
+  const [prefilledDomain, setPrefilledDomain] = useState<string>("");
+  const [currentScanPlatformIdx, setCurrentScanPlatformIdx] = useState(0);
+  const [activeDomain, setActiveDomain] = useState<string>("");
 
   // Load settings and latest scan on mount
   useEffect(() => {
@@ -343,30 +364,34 @@ export default function SearchLensPage() {
     void loadInitialData();
   }, []);
 
-  const handleRunScan = useCallback(async () => {
-    let brandName = settings?.searchlens_brand_name ?? "";
-    if (!brandName) {
-      const prompted = window.prompt("Brand name to scan:", "Creative Nexus");
-      if (!prompted) return;
-      brandName = prompted;
-    }
+  // Open the scan setup modal; optionally pre-fill the domain from the hero CTA
+  const openScanModal = useCallback((domainHint: string = "") => {
+    setPrefilledDomain(domainHint);
+    setScanModalOpen(true);
+  }, []);
 
-    let prompts = settings?.searchlens_prompts ?? [];
-    if (prompts.length === 0) {
-      const promptsInput = window.prompt(
-        "Search prompts (comma-separated):",
-        "best digital marketing agency in India, AI-powered marketing agency, best agency for AI search optimization",
-      );
-      if (!promptsInput) return;
-      prompts = promptsInput.split(",").map((p) => p.trim()).filter(Boolean);
+  // Execute the actual scan once the user has filled in the modal
+  const executeScan = useCallback(async (config: ScanSetupConfig) => {
+    setScanModalOpen(false);
+    const brandName = config.brand;
+    const prompts = config.prompts.length > 0
+      ? config.prompts
+      : (settings?.searchlens_prompts ?? []);
+    if (!brandName || prompts.length === 0) {
+      setScanError("Please provide a brand name and at least one prompt.");
+      return;
     }
+    if (config.domain) setActiveDomain(config.domain);
 
-    const competitors = settings?.searchlens_competitors ?? ["WebFX", "Siege Media", "Jasper Agency", "Single Grain"];
+    const competitors = config.competitors.length > 0
+      ? config.competitors
+      : (settings?.searchlens_competitors ?? ["WebFX", "Siege Media", "Jasper Agency", "Single Grain"]);
     const platforms = settings?.searchlens_platforms ?? ["chatgpt", "gemini", "perplexity", "ai-overviews", "copilot", "claude"];
 
     setScanLoading(true);
     setScanError(null);
-    setScanProgress(`Scanning 6 AI platforms across ${prompts.length} prompts...`);
+    setCurrentScanPlatformIdx(0);
+    setScanProgress(`Scanning ${platforms.length} AI platforms across ${prompts.length} prompts...`);
 
     try {
       const response = await fetch("/xapi/searchlens/scan-pro", {
@@ -405,6 +430,23 @@ export default function SearchLensPage() {
     }
   }, [settings]);
 
+  // While scanning, advance the visual platform stepper to fake per-platform progress.
+  // Real scan is parallel under the hood — this is purely UX feedback.
+  useEffect(() => {
+    if (!scanLoading) {
+      setCurrentScanPlatformIdx(0);
+      return;
+    }
+    const platforms = settings?.searchlens_platforms ?? ["chatgpt", "gemini", "perplexity", "ai-overviews", "copilot", "claude"];
+    const promptCount = settings?.searchlens_prompts?.length ?? 6;
+    const totalEta = promptCount * 10; // matches old banner heuristic
+    const stepMs = Math.max(800, (totalEta * 1000) / platforms.length);
+    const id = setInterval(() => {
+      setCurrentScanPlatformIdx((i) => Math.min(i + 1, platforms.length - 1));
+    }, stepMs);
+    return () => clearInterval(id);
+  }, [scanLoading, settings]);
+
   // Derived display data — real scan or mock fallback
   const visibilityScore = scanResults?.visibilityScore ?? 74;
   const citationsFound = scanResults?.mentionedIn ?? 23;
@@ -412,8 +454,24 @@ export default function SearchLensPage() {
   const recommendationRate = 34;
   const citationAuthority = 65;
 
+  // Pre-scan state: nothing has ever been scanned successfully
+  const isPreScan = scanResults === null && !scanLoading;
+  const platformLabels = (settings?.searchlens_platforms ?? ["chatgpt", "gemini", "perplexity", "ai-overviews", "copilot", "claude"])
+    .map((k) => PLATFORMS.find((p) => p.key === (k as PlatformKey))?.name ?? k);
+  const promptCountForEta = settings?.searchlens_prompts?.length ?? 6;
+
   return (
     <div className="animate-in fade-in duration-300">
+      {/* Hero — shown only before the first scan */}
+      {isPreScan && (
+        <div className="mb-6">
+          <SearchLensHero
+            scanning={scanLoading}
+            onCheck={(d) => openScanModal(d)}
+          />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -426,7 +484,7 @@ export default function SearchLensPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            onClick={handleRunScan}
+            onClick={() => openScanModal(activeDomain)}
             disabled={scanLoading}
             className="bg-accent text-white hover:bg-accent/90 disabled:opacity-50"
             size="sm"
@@ -436,15 +494,32 @@ export default function SearchLensPage() {
             ) : (
               <Radar className="w-3.5 h-3.5" data-icon="inline-start" />
             )}
-            {scanLoading ? "Scanning..." : "Run Scan"}
+            {scanLoading ? "Scanning..." : isPreScan ? "Run Scan" : "Run new scan"}
           </Button>
           <SegmentedControl
-            options={["Overview", "Citations", "Competitors", "Prompts", "Insights"]}
+            options={["Overview", "Citations", "Competitors", "Prompts", "Insights", "Site Audit"]}
             value={tab}
             onChange={setTab}
           />
         </div>
       </div>
+
+      {/* Scan Setup Modal */}
+      <ScanSetupModal
+        open={scanModalOpen}
+        onClose={() => setScanModalOpen(false)}
+        onSubmit={(cfg) => void executeScan(cfg)}
+        defaults={{
+          brand: settings?.searchlens_brand_name ?? "Creative Nexus",
+          domain: prefilledDomain || activeDomain,
+          prompts: settings?.searchlens_prompts ?? [
+            "best digital marketing agency in India",
+            "AI-powered marketing agency",
+            "best agency for AI search optimization",
+          ],
+          competitors: settings?.searchlens_competitors ?? ["WebFX", "Siege Media", "Jasper Agency", "Single Grain"],
+        }}
+      />
 
       {/* Scan Error */}
       {scanError && (
@@ -454,12 +529,17 @@ export default function SearchLensPage() {
         </div>
       )}
 
-      {/* Scanning Banner */}
+      {/* Scan Progress Stepper (replaces old ScanningBanner) */}
       {scanLoading && (
-        <ScanningBanner
-          message={scanProgress}
-          promptCount={settings?.searchlens_prompts?.length ?? 6}
+        <ScanProgressStepper
+          platforms={platformLabels}
+          currentIdx={currentScanPlatformIdx}
+          promptCount={promptCountForEta}
+          etaSeconds={Math.max(0, promptCountForEta * 10)}
         />
+      )}
+      {scanLoading && scanProgress && (
+        <p className="-mt-3 mb-4 text-[11px] text-foreground-tertiary">{scanProgress}</p>
       )}
 
       {/* Tab Content */}
@@ -479,7 +559,7 @@ export default function SearchLensPage() {
         />
       )}
       {tab === "Citations" && (
-        <CitationsTab citations={mockCitations} />
+        <CitationsTab citations={mockCitations} yourBrand="Creative Nexus" />
       )}
       {tab === "Competitors" && (
         <CompetitorsTab
@@ -507,53 +587,9 @@ export default function SearchLensPage() {
       {tab === "Insights" && (
         <InsightsTab insights={mockInsights} />
       )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Scanning Banner                                                    */
-/* ------------------------------------------------------------------ */
-
-function ScanningBanner({ message, promptCount }: { message: string; promptCount: number }) {
-  const [dots, setDots] = useState("");
-  const [elapsed, setElapsed] = useState(0);
-
-  useEffect(() => {
-    const dotInterval = setInterval(() => {
-      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
-    }, 500);
-    const timeInterval = setInterval(() => {
-      setElapsed((prev) => prev + 1);
-    }, 1000);
-    return () => {
-      clearInterval(dotInterval);
-      clearInterval(timeInterval);
-    };
-  }, []);
-
-  const estimatedTotal = promptCount * 10;
-  const progressPct = Math.min(95, (elapsed / estimatedTotal) * 100);
-
-  return (
-    <div className="mb-4 rounded-[10px] bg-foreground text-background p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-accent" />
-          <span className="text-[13px] font-medium">
-            {message}{dots}
-          </span>
-        </div>
-        <span className="text-xs text-background/60">
-          ~{Math.max(0, estimatedTotal - elapsed)}s remaining
-        </span>
-      </div>
-      <div className="h-1.5 bg-background/10 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-accent rounded-full transition-all duration-1000 ease-linear"
-          style={{ width: `${progressPct}%` }}
-        />
-      </div>
+      {tab === "Site Audit" && (
+        <SiteAuditTab domain={activeDomain || prefilledDomain || ""} />
+      )}
     </div>
   );
 }
@@ -673,11 +709,11 @@ function OverviewTab({
         </Button>
       </div>
 
-      {/* Hero Metrics Row — dark cards like DareAISearch */}
+      {/* Hero Metrics Row — frosted-glass GlowCards on dark canvas */}
       {!scanLoading && (
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-5 gap-3 rounded-[14px] bg-foreground p-3 text-background">
           {/* Visibility Score */}
-          <div className="bg-foreground text-background rounded-[10px] p-4 relative">
+          <GlowCard glow className="!p-4 !bg-white/[0.04] !border-white/10 text-background relative">
             <div className="text-[11px] font-medium uppercase tracking-wider text-background/50 mb-2">
               Visibility Score
             </div>
@@ -685,7 +721,7 @@ function OverviewTab({
               <div className="relative">
                 <ScoreRing score={visibilityScore} size={64} strokeWidth={5} />
                 <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold tracking-tight text-background">
-                  {visibilityScore}
+                  <ScoreCountUp target={visibilityScore} />
                 </span>
               </div>
               <div>
@@ -696,22 +732,24 @@ function OverviewTab({
                 </div>
               </div>
             </div>
-          </div>
+          </GlowCard>
 
           {/* Citations Found */}
-          <div className="bg-foreground text-background rounded-[10px] p-4">
+          <GlowCard className="!p-4 !bg-white/[0.04] !border-white/10 text-background">
             <div className="text-[11px] font-medium uppercase tracking-wider text-background/50 mb-2">
               Citations Found
             </div>
-            <div className="text-3xl font-bold tracking-tight">{citationsFound}</div>
+            <div className="text-3xl font-bold tracking-tight">
+              <ScoreCountUp target={citationsFound} />
+            </div>
             <div className="flex items-center gap-1 mt-1">
               <TrendingUp className="w-3 h-3 text-success" strokeWidth={2} />
               <span className="text-xs font-medium text-success">+5 this week</span>
             </div>
-          </div>
+          </GlowCard>
 
           {/* Share of Voice */}
-          <div className="bg-foreground text-background rounded-[10px] p-4">
+          <GlowCard className="!p-4 !bg-white/[0.04] !border-white/10 text-background">
             <div className="text-[11px] font-medium uppercase tracking-wider text-background/50 mb-2">
               Share of Voice
             </div>
@@ -723,10 +761,10 @@ function OverviewTab({
               <span className="text-[10px] text-background/40">You</span>
               <span className="text-[10px] text-background/40">WebFX: 28.5%</span>
             </div>
-          </div>
+          </GlowCard>
 
           {/* Recommendation Rate */}
-          <div className="bg-foreground text-background rounded-[10px] p-4">
+          <GlowCard className="!p-4 !bg-white/[0.04] !border-white/10 text-background">
             <div className="text-[11px] font-medium uppercase tracking-wider text-background/50 mb-2">
               Recommendation Rate
             </div>
@@ -735,10 +773,10 @@ function OverviewTab({
               <TrendingUp className="w-3 h-3 text-success" strokeWidth={2} />
               <span className="text-xs font-medium text-success">+2% vs last scan</span>
             </div>
-          </div>
+          </GlowCard>
 
           {/* Citation Authority */}
-          <div className="bg-foreground text-background rounded-[10px] p-4">
+          <GlowCard className="!p-4 !bg-white/[0.04] !border-white/10 text-background">
             <div className="text-[11px] font-medium uppercase tracking-wider text-background/50 mb-2">
               Citation Authority
             </div>
@@ -746,7 +784,7 @@ function OverviewTab({
             <div className="mt-2">
               <ProgressBar value={citationAuthority} color="accent" />
             </div>
-          </div>
+          </GlowCard>
         </div>
       )}
 
@@ -1122,19 +1160,13 @@ function SentimentBar({ label, value, color }: { label: string; value: number; c
 /*  Tab 2: Citations                                                   */
 /* ------------------------------------------------------------------ */
 
-const positionLabels: Record<string, { label: string; type: "success" | "warning" | "error" }> = {
-  prominent: { label: "Prominent", type: "success" },
-  passing: { label: "Passing", type: "warning" },
-  absent: { label: "Absent", type: "error" },
-};
-
 const sentimentLabels: Record<string, { label: string; type: "success" | "warning" | "neutral" }> = {
   positive: { label: "Positive", type: "success" },
   neutral: { label: "Neutral", type: "neutral" },
   negative: { label: "Negative", type: "warning" },
 };
 
-function CitationsTab({ citations }: { citations: MockCitation[] }) {
+function CitationsTab({ citations, yourBrand }: { citations: MockCitation[]; yourBrand?: string }) {
   const [filterPlatform, setFilterPlatform] = useState<string>("all");
   const [filterSentiment, setFilterSentiment] = useState<string>("all");
   const [filterPosition, setFilterPosition] = useState<string>("all");
@@ -1154,6 +1186,44 @@ function CitationsTab({ citations }: { citations: MockCitation[] }) {
 
     return result;
   }, [citations, filterPlatform, filterSentiment, filterPosition, sortBy]);
+
+  // Render LLM response text with optional brand-name highlighting (case-insensitive).
+  const renderHighlighted = (text: string): ReactNode => {
+    const brand = yourBrand?.trim();
+    if (!brand) return text;
+    const escaped = brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(${escaped})`, "gi");
+    const parts = text.split(re);
+    const lowerBrand = brand.toLowerCase();
+    return parts.map((part, i) =>
+      part.toLowerCase() === lowerBrand ? (
+        <span key={i} className="bg-accent/20 text-accent px-1 rounded font-medium">
+          {part}
+        </span>
+      ) : (
+        <span key={i}>{part}</span>
+      ),
+    );
+  };
+
+  // Rough relative-time helper based on the citation date string (YYYY-MM-DD).
+  const relativeTime = (dateStr: string): string => {
+    const then = new Date(dateStr).getTime();
+    if (Number.isNaN(then)) return dateStr;
+    const days = Math.max(0, Math.round((Date.now() - then) / (1000 * 60 * 60 * 24)));
+    if (days === 0) return "today";
+    if (days === 1) return "1d ago";
+    if (days < 7) return `${days}d ago`;
+    if (days < 30) return `${Math.round(days / 7)}w ago`;
+    return `${Math.round(days / 30)}mo ago`;
+  };
+
+  // Sentiment dot color
+  const sentimentDot: Record<MockCitation["sentiment"], string> = {
+    positive: "bg-success",
+    neutral: "bg-warning",
+    negative: "bg-destructive",
+  };
 
   return (
     <div className="space-y-3">
@@ -1207,64 +1277,90 @@ function CitationsTab({ citations }: { citations: MockCitation[] }) {
         </div>
       </div>
 
-      {/* Citations Table */}
-      <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border">
-        {/* Table Header */}
-        <div className="grid grid-cols-[40px_1fr_90px_1fr_90px_70px_80px] gap-3 px-3.5 py-2 border-b border-divider">
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
-            {/* Platform icon */}
-          </span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Prompt</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider text-center">Position</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Context</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider text-center">Sentiment</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider text-right">Authority</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider text-right">Date</span>
+      {/* Citation chat-bubble cards */}
+      {filtered.length === 0 ? (
+        <div className="bg-background-secondary rounded-[10px] px-3.5 py-8 text-center text-[13px] text-foreground-tertiary dark:border dark:border-border">
+          No citations match the selected filters.
         </div>
-
-        {filtered.length === 0 ? (
-          <div className="px-3.5 py-8 text-center text-[13px] text-foreground-tertiary">
-            No citations match the selected filters.
-          </div>
-        ) : (
-          filtered.map((citation, i) => {
+      ) : (
+        <div className="grid gap-3">
+          {filtered.map((citation) => {
             const platformInfo = PLATFORMS.find((p) => p.key === citation.platform);
             if (!platformInfo) return null;
             const Icon = platformInfo.icon;
-            const posInfo = positionLabels[citation.position];
             const sentInfo = sentimentLabels[citation.sentiment];
+            const isTopPosition = citation.position === "prominent";
+            const positionPillClass = isTopPosition
+              ? "bg-success/10 text-success"
+              : citation.position === "passing"
+                ? "bg-warning/10 text-warning"
+                : "bg-destructive/10 text-destructive";
+            const positionLabel =
+              citation.position === "prominent"
+                ? "#1-3"
+                : citation.position === "passing"
+                  ? "passing"
+                  : "absent";
 
             return (
-              <div key={citation.id}>
-                <div className="grid grid-cols-[40px_1fr_90px_1fr_90px_70px_80px] gap-3 px-3.5 py-2.5 items-center">
-                  <div className={`w-7 h-7 rounded-lg ${platformInfo.bgColor} flex items-center justify-center`}>
+              <article
+                key={citation.id}
+                className="bg-background-secondary rounded-[12px] p-4 dark:border dark:border-border"
+              >
+                {/* Header row: platform identity + meta */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-7 h-7 rounded-lg ${platformInfo.bgColor} flex items-center justify-center shrink-0`}>
                     <Icon className={`w-3.5 h-3.5 ${platformInfo.color}`} strokeWidth={2} />
                   </div>
-                  <div className="text-[12px] text-foreground truncate" title={citation.prompt}>
-                    {citation.prompt}
-                  </div>
-                  <div className="flex justify-center">
-                    <StatusBadge type={posInfo.type}>{posInfo.label}</StatusBadge>
-                  </div>
-                  <div className="text-[11px] text-foreground-secondary truncate" title={citation.context}>
-                    {citation.context || <span className="text-foreground-tertiary italic">Not found in results</span>}
-                  </div>
-                  <div className="flex justify-center">
-                    <StatusBadge type={sentInfo.type}>{sentInfo.label}</StatusBadge>
-                  </div>
-                  <div className="text-right text-[12px] font-semibold text-foreground">
-                    {citation.authority > 0 ? citation.authority : "--"}
-                  </div>
-                  <div className="text-right text-[11px] text-foreground-tertiary">
-                    {citation.date}
-                  </div>
+                  <span className="text-[13px] font-semibold text-foreground">{platformInfo.name}</span>
+                  <span className="text-[11px] text-foreground-tertiary">·</span>
+                  <span className="text-[11px] text-foreground-tertiary">{relativeTime(citation.date)}</span>
+                  <span
+                    className={`ml-auto text-[11px] font-medium px-2 py-0.5 rounded-full ${positionPillClass}`}
+                  >
+                    {positionLabel}
+                  </span>
                 </div>
-                {i < filtered.length - 1 && <div className="h-px bg-divider mx-3.5" />}
-              </div>
+
+                {/* Prompt */}
+                <div className="text-[12px] italic text-foreground-tertiary mb-2.5">
+                  Q: &ldquo;{citation.prompt}&rdquo;
+                </div>
+
+                {/* Response bubble */}
+                <div className="bg-background dark:bg-white/5 backdrop-blur-md border border-white/10 rounded-[12px] p-4">
+                  {citation.context ? (
+                    <p className="text-[13px] leading-relaxed text-foreground-secondary">
+                      &ldquo;{renderHighlighted(citation.context)}&rdquo;
+                    </p>
+                  ) : (
+                    <p className="text-[12px] italic text-foreground-tertiary">
+                      No context captured for this citation.
+                    </p>
+                  )}
+                </div>
+
+                {/* Footer meta row */}
+                <div className="flex items-center gap-3 flex-wrap mt-3 text-[11px] text-foreground-tertiary">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${sentimentDot[citation.sentiment]}`} aria-hidden="true" />
+                    <span className="text-foreground-secondary">{sentInfo.label}</span>
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    Authority{" "}
+                    <span className="text-foreground font-semibold">
+                      {citation.authority > 0 ? citation.authority : "--"}
+                    </span>
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-[11px] text-foreground-tertiary">{citation.date}</span>
+                </div>
+              </article>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 }
