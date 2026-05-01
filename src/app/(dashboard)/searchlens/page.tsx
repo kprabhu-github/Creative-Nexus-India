@@ -29,6 +29,7 @@ import {
   MapPin,
   Video,
   Download,
+  BellRing,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -50,6 +51,13 @@ const SiteAuditTab = dynamic(() => import("./_components/SiteAuditTab"), {
     </div>
   ),
 });
+
+const TrackedPromptsTab = dynamic(() => import("./_components/TrackedPromptsTab"), {
+  ssr: false,
+  loading: () => <div className="text-[12px] text-foreground-tertiary">Loading tracked prompts…</div>,
+});
+
+const TAB_OPTIONS = ["Overview", "Citations", "Competitors", "Prompts", "Tracked", "Insights", "Site Audit"] as const;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -465,7 +473,15 @@ function TrendIndicator({ value, trendUp }: { value: string; trendUp: boolean | 
 /* ------------------------------------------------------------------ */
 
 export default function SearchLensPage() {
-  const [tab, setTab] = useState("Overview");
+  const [tab, setTab] = useState<string>("Overview");
+
+  // Read ?tab= from URL on mount for direct linking (e.g. notifications link to ?tab=Tracked).
+  // Reading via window.location avoids a CSR bailout from useSearchParams during static export.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search).get("tab");
+    if (q && (TAB_OPTIONS as readonly string[]).includes(q)) setTab(q);
+  }, []);
   const [scanLoading, setScanLoading] = useState(false);
   const [scanProgress, setScanProgress] = useState("");
   const [scanResults, setScanResults] = useState<ScanResults | null>(null);
@@ -678,7 +694,7 @@ export default function SearchLensPage() {
             {scanLoading ? "Scanning..." : isPreScan ? "Run Scan" : "Run new scan"}
           </Button>
           <SegmentedControl
-            options={["Overview", "Citations", "Competitors", "Prompts", "Insights", "Site Audit"]}
+            options={[...TAB_OPTIONS]}
             value={tab}
             onChange={setTab}
           />
@@ -772,8 +788,20 @@ export default function SearchLensPage() {
       {tab === "Prompts" && (
         <PromptsTab
           prompts={scanResults?.prompts ?? []}
+          brandName={settings?.searchlens_brand_name ?? scanResults?.brandName ?? ""}
           onAddPrompt={handleAddPrompt}
           onRunScan={() => openScanModal(activeDomain)}
+          onTracked={() => {
+            showToast("Tracking enabled", "success");
+            setTab("Tracked");
+          }}
+          onTrackError={(msg) => showToast(msg, "error")}
+        />
+      )}
+      {tab === "Tracked" && (
+        <TrackedPromptsTab
+          brandName={settings?.searchlens_brand_name ?? scanResults?.brandName ?? ""}
+          onRunScan={() => setTab("Prompts")}
         />
       )}
       {tab === "Insights" && (
@@ -1822,16 +1850,61 @@ function CompetitorsTab({
 
 function PromptsTab({
   prompts,
+  brandName,
   onAddPrompt,
   onRunScan,
+  onTracked,
+  onTrackError,
 }: {
   prompts: PromptEntry[];
+  brandName: string;
   onAddPrompt: (prompt: string) => Promise<void>;
   onRunScan: () => void;
+  onTracked?: () => void;
+  onTrackError?: (msg: string) => void;
 }) {
   const [showAddPrompt, setShowAddPrompt] = useState(false);
   const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [trackedSet, setTrackedSet] = useState<Set<string>>(new Set());
+  const [trackingId, setTrackingId] = useState<string | null>(null);
+
+  // Load existing tracked prompts so the Track button can show "Tracked" when applicable.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/xapi/searchlens/tracked-prompts", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json()) as { data?: { items?: Array<{ prompt: string }> } };
+        if (!cancelled) setTrackedSet(new Set((json.data?.items ?? []).map((it) => it.prompt)));
+      } catch { /* optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const trackPrompt = useCallback(async (entry: PromptEntry) => {
+    if (!brandName) { onTrackError?.("Set your brand name first"); return; }
+    setTrackingId(entry.id);
+    try {
+      const res = await fetch("/xapi/searchlens/tracked-prompts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: entry.prompt, brand_name: brandName }),
+      });
+      if (res.status === 400) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        onTrackError?.(j.error ?? "Tracking cap reached");
+      } else if (!res.ok && res.status !== 409) {
+        onTrackError?.(`Failed to track (${res.status})`);
+      } else {
+        setTrackedSet((prev) => new Set(prev).add(entry.prompt));
+        onTracked?.();
+      }
+    } catch {
+      onTrackError?.("Network error while tracking prompt");
+    } finally { setTrackingId(null); }
+  }, [brandName, onTracked, onTrackError]);
 
   const submit = useCallback(async () => {
     const value = draft.trim();
@@ -1906,6 +1979,17 @@ function PromptsTab({
                     <div className="text-lg font-bold text-foreground tracking-tight">{entry.score}</div>
                     <div className="text-[10px] text-foreground-tertiary uppercase">Score</div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={trackedSet.has(entry.prompt) || trackingId === entry.id}
+                    onClick={() => void trackPrompt(entry)}
+                    title="Track this prompt daily"
+                    aria-label={trackedSet.has(entry.prompt) ? "Already tracked" : "Track this prompt daily"}
+                  >
+                    <BellRing className="w-3 h-3" data-icon="inline-start" strokeWidth={2} />
+                    {trackedSet.has(entry.prompt) ? "Tracked" : trackingId === entry.id ? "…" : "Track"}
+                  </Button>
                 </div>
               </div>
 
