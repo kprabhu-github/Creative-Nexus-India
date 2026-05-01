@@ -37,10 +37,12 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { GlowCard } from "./_components/GlowCard";
+import { TrendChart } from "./_components/TrendChart";
 import { ScoreCountUp } from "./_components/ScoreCountUp";
 import { ScanProgressStepper } from "./_components/ScanProgressStepper";
 import { ScanSetupModal, type ScanSetupConfig } from "./_components/ScanSetupModal";
 import { SearchLensHero } from "./_components/SearchLensHero";
+import { SectionTOC, type TOCSection } from "./_components/SectionTOC";
 
 // Stub by default; parallel agent C ships ./_components/SiteAuditTab with real impl.
 const SiteAuditTab = dynamic(() => import("./_components/SiteAuditTab"), {
@@ -141,6 +143,13 @@ interface ScanResults {
   scannedAt: string;
   // Kept for legacy stepper computations
   totalPromptsScanned: number;
+}
+
+interface TrendPoint {
+  scannedAt: string;
+  shareOfVoice: number;
+  visibilityScore: number;
+  sentiment: { positive: number; neutral: number; negative: number };
 }
 
 interface SearchLensSettings {
@@ -494,6 +503,18 @@ export default function SearchLensPage() {
   const [currentScanPlatformIdx, setCurrentScanPlatformIdx] = useState(0);
   const [activeDomain, setActiveDomain] = useState<string>("");
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: "success" | "error" | "info" }>>([]);
+  const [trendPoints, setTrendPoints] = useState<TrendPoint[]>([]);
+
+  const loadTrend = useCallback(async () => {
+    try {
+      const res = await fetch("/xapi/searchlens/sentiment-history?limit=10");
+      if (!res.ok) return;
+      const json = (await res.json()) as { data?: { points?: TrendPoint[] } };
+      setTrendPoints(json.data?.points ?? []);
+    } catch {
+      /* trend optional — leave empty */
+    }
+  }, []);
 
   const showToast = useCallback((message: string, type: "success" | "error" | "info" = "info") => {
     const id = Date.now() + Math.random();
@@ -502,6 +523,46 @@ export default function SearchLensPage() {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
   }, []);
+
+  // Lazy-trigger the PDF report download. The renderer + component chunk
+  // is split out so the synchronous /searchlens bundle stays slim.
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const handleDownloadReport = useCallback(async () => {
+    if (!scanResults || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const [{ pdf }, { ScanReportPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./_components/ScanReportPDF"),
+      ]);
+      const blob = await pdf(<ScanReportPDF data={scanResults} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeBrand = (scanResults.brandName || "report").toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+      const date = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `cnx-searchlens-${safeBrand}-${date}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Report downloaded", "success");
+    } catch {
+      showToast("Failed to generate report", "error");
+    } finally {
+      setPdfBusy(false);
+    }
+  }, [scanResults, pdfBusy, showToast]);
+
+  // Sections registered for the Overview-tab sticky TOC.
+  const overviewTOCSections = useMemo<TOCSection[]>(() => [
+    { id: "overview-summary", label: "Summary", icon: Sparkles },
+    { id: "overview-platforms", label: "Platforms", icon: Bot },
+    { id: "overview-cited-sources", label: "Cited Sources", icon: Globe },
+    { id: "overview-competitors", label: "Competitive", icon: Swords },
+    { id: "overview-prompt-gaps", label: "Prompt Gaps", icon: AlertTriangle },
+    { id: "overview-sentiment", label: "Sentiment", icon: MessageSquare },
+  ], []);
 
   // Load settings and latest scan on mount
   useEffect(() => {
@@ -530,9 +591,10 @@ export default function SearchLensPage() {
       } catch {
         // history not available — leave pre-scan empty state in place
       }
+      await loadTrend();
     }
     void loadInitialData();
-  }, []);
+  }, [loadTrend]);
 
   // Open the scan setup modal; optionally pre-fill the domain from the hero CTA
   const openScanModal = useCallback((domainHint: string = "") => {
@@ -601,8 +663,9 @@ export default function SearchLensPage() {
     } finally {
       setScanLoading(false);
       setScanProgress("");
+      void loadTrend();
     }
-  }, [settings]);
+  }, [settings, loadTrend]);
 
   // Persist a newly added prompt to user settings.
   const handleAddPrompt = useCallback(async (prompt: string): Promise<void> => {
@@ -681,6 +744,20 @@ export default function SearchLensPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleDownloadReport()}
+            disabled={scanResults === null || pdfBusy}
+            title={scanResults === null ? "Run a scan first" : "Download PDF report"}
+          >
+            {pdfBusy ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" data-icon="inline-start" />
+            ) : (
+              <Download className="w-3.5 h-3.5" data-icon="inline-start" />
+            )}
+            {pdfBusy ? "Generating..." : "Download Report"}
+          </Button>
+          <Button
             onClick={() => openScanModal(activeDomain)}
             disabled={scanLoading}
             className="bg-accent text-white hover:bg-accent/90 disabled:opacity-50"
@@ -741,19 +818,25 @@ export default function SearchLensPage() {
 
       {/* Tab Content */}
       {tab === "Overview" && (
-        <OverviewTab
-          visibilityScore={visibilityScore}
-          citationsFound={citationsFound}
-          shareOfVoice={shareOfVoice}
-          recommendationRate={recommendationRate}
-          citationAuthority={citationAuthority}
-          platformData={scanResults?.platformBreakdown ?? []}
-          citedDomains={scanResults?.citedDomains ?? []}
-          sentiment={scanResults?.sentiment ?? null}
-          promptGaps={(scanResults?.promptGaps ?? []).map((p, i) => ({ id: i + 1, prompt: p, competitors: ["Competitor"], platform: "AI Search" }))}
-          scanLoading={scanLoading}
-          hasScan={scanResults !== null}
-        />
+        <div className="flex gap-6 items-start">
+          <SectionTOC sections={overviewTOCSections} />
+          <div className="flex-1 min-w-0">
+            <OverviewTab
+              visibilityScore={visibilityScore}
+              citationsFound={citationsFound}
+              shareOfVoice={shareOfVoice}
+              recommendationRate={recommendationRate}
+              citationAuthority={citationAuthority}
+              platformData={scanResults?.platformBreakdown ?? []}
+              citedDomains={scanResults?.citedDomains ?? []}
+              sentiment={scanResults?.sentiment ?? null}
+              promptGaps={(scanResults?.promptGaps ?? []).map((p, i) => ({ id: i + 1, prompt: p, competitors: ["Competitor"], platform: "AI Search" }))}
+              scanLoading={scanLoading}
+              hasScan={scanResults !== null}
+              trendPoints={trendPoints}
+            />
+          </div>
+        </div>
       )}
       {tab === "Citations" && (
         <CitationsTab
@@ -887,6 +970,7 @@ interface OverviewTabProps {
   promptGaps: Array<{ id: number; prompt: string; competitors: string[]; platform: string }>;
   scanLoading: boolean;
   hasScan: boolean;
+  trendPoints: TrendPoint[];
 }
 
 function OverviewTab({
@@ -901,6 +985,7 @@ function OverviewTab({
   promptGaps,
   scanLoading,
   hasScan,
+  trendPoints,
 }: OverviewTabProps) {
   const [selectedPillar, setSelectedPillar] = useState(1); // 0-indexed into scorePillars
 
@@ -979,22 +1064,10 @@ function OverviewTab({
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Download Report Button */}
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => alert("Report download coming soon")}
-        >
-          <Download className="w-3.5 h-3.5" data-icon="inline-start" />
-          Download Report
-        </Button>
-      </div>
-
+    <div className="space-y-4 scroll-smooth">
       {/* Hero Metrics Row — frosted-glass GlowCards on dark canvas */}
       {!scanLoading && (
-        <div className="grid grid-cols-5 gap-3 rounded-[14px] bg-foreground p-3 text-background">
+        <div id="overview-summary" className="grid grid-cols-5 gap-3 rounded-[14px] bg-foreground p-3 text-background scroll-mt-24">
           {/* Visibility Score */}
           <GlowCard glow className="!p-4 !bg-white/[0.04] !border-white/10 text-background relative">
             <div className="text-[11px] font-medium uppercase tracking-wider text-background/50 mb-2">
@@ -1072,7 +1145,7 @@ function OverviewTab({
       )}
 
       {/* Platform Breakdown Row */}
-      <div>
+      <div id="overview-platforms" className="scroll-mt-24">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[13px] font-semibold text-foreground">Platform Breakdown</span>
           <span className="text-xs text-foreground-tertiary">6 AI platforms monitored</span>
@@ -1107,7 +1180,7 @@ function OverviewTab({
 
       {/* Top Cited Sources — only shown when we have citation data */}
       {hasScan && citedDomains.length > 0 && (
-        <div>
+        <div id="overview-cited-sources" className="scroll-mt-24">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[13px] font-semibold text-foreground">Top Cited Sources</span>
             <span className="text-xs text-foreground-tertiary">{citedDomains.length} domains</span>
@@ -1270,7 +1343,7 @@ function OverviewTab({
       </div>
 
       {/* ====== Section 4: Competitive Landscape (Donut Chart Style) ====== */}
-      <div>
+      <div id="overview-competitors" className="scroll-mt-24">
         <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1.5">Market Position</div>
         <div className="bg-background-secondary rounded-[10px] p-4 dark:border dark:border-border">
           <div className="flex items-center justify-between mb-1">
@@ -1401,7 +1474,7 @@ function OverviewTab({
       </div>
 
       {/* Prompt Gaps */}
-      <div>
+      <div id="overview-prompt-gaps" className="scroll-mt-24">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-warning" strokeWidth={1.8} />
@@ -1444,7 +1517,7 @@ function OverviewTab({
       </div>
 
       {/* Sentiment Breakdown */}
-      <div>
+      <div id="overview-sentiment" className="scroll-mt-24">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[13px] font-semibold text-foreground">Sentiment Breakdown</span>
         </div>
@@ -1454,6 +1527,18 @@ function OverviewTab({
           <SentimentBar label="Negative" value={sentiment?.negative ?? 0} color="bg-destructive" />
         </div>
       </div>
+
+      {/* Sentiment & Share of Voice trend (last 10 scans) */}
+      <GlowCard className="!bg-foreground !border-white/10 text-background">
+        <h3 className="text-[13px] font-semibold mb-3">Sentiment &amp; Share of Voice (last 10 scans)</h3>
+        <TrendChart
+          series={[
+            { name: "Share of Voice", color: "#FF6B5A", data: trendPoints.map((p) => ({ x: p.scannedAt.slice(5, 10), y: Math.round(p.shareOfVoice) })) },
+            { name: "Positive Sentiment", color: "#22C55E", data: trendPoints.map((p) => ({ x: p.scannedAt.slice(5, 10), y: Math.round(p.sentiment.positive * 100) })) },
+            { name: "Negative Sentiment", color: "#EF4444", data: trendPoints.map((p) => ({ x: p.scannedAt.slice(5, 10), y: Math.round(p.sentiment.negative * 100) })) },
+          ]}
+        />
+      </GlowCard>
     </div>
   );
 }
