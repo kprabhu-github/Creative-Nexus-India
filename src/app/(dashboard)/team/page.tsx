@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { Search, MapPin, Building2, Sparkles } from "lucide-react";
-import type { TeamListResponse, TeamMember, TeamRoleTag } from "@/lib/people/types";
+import type { TeamListResponse, TeamMember, TeamRoleTag } from "@/lib/team/types";
 
 // Lazy-loaded drawer (shipped by parallel agent C).
 const TeamMemberDrawer = dynamic(
@@ -63,7 +63,7 @@ export default function PeoplePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/people", { cache: "no-store" });
+        const res = await fetch("/api/team", { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { data: TeamListResponse; error?: string };
         if (cancelled) return;
@@ -323,7 +323,7 @@ function DeptChip({
 
 function PersonCard({ member, onClick }: { member: TeamMember; onClick: () => void }) {
   const role = roleChip(member.role_tag);
-  const href = `/people/${member.slug}`;
+  const href = `/team/${member.slug}`;
 
   return (
     <a

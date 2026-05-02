@@ -24,7 +24,7 @@ const modulesNav = [
 
 const opsNav = [
   { name: "Executive", href: "/executive", icon: TrendingUp },
-  { name: "Team", href: "/people", icon: Users },
+  { name: "Team", href: "/team", icon: Users },
   { name: "Projects", href: "/projects", icon: Briefcase },
   { name: "Attendance", href: "/attendance", icon: Clock },
   { name: "Expenses", href: "/finance/expenses", icon: Receipt },

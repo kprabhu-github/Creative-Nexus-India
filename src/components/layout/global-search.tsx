@@ -53,9 +53,9 @@ export function GlobalSearch() {
             No results found.
           </CommandEmpty>
           <CommandGroup heading="Clients & Leads">
-            <CommandItem onSelect={() => runCommand(() => router.push("/people"))}>
+            <CommandItem onSelect={() => runCommand(() => router.push("/team"))}>
               <Users className="mr-2 h-4 w-4 text-foreground-tertiary" strokeWidth={1.8} />
-              People Directory
+              Team Directory
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => router.push("/gtm/leads"))}>
               <Briefcase className="mr-2 h-4 w-4 text-foreground-tertiary" strokeWidth={1.8} />

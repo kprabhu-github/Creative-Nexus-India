@@ -1,13 +1,13 @@
 // ---------------------------------------------------------------------------
-// GET    /api/people/[slug] — fetch one team member.
-// PATCH  /api/people/[slug] — update mutable fields (Zod validated).
+// GET    /api/team/[slug] — fetch one team member.
+// PATCH  /api/team/[slug] — update mutable fields (Zod validated).
 // Auth gate handled at middleware level.
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { TeamMember } from "@/lib/people/types";
+import type { TeamMember } from "@/lib/team/types";
 
 const ORG_ID = "a0000000-0000-0000-0000-000000000001";
 

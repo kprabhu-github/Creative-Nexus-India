@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------------
 // TeamMemberDrawer — slide-in profile drawer with admin edit mode.
-// Fetches /api/people/[slug], renders profile + edit form, PATCHes on save.
+// Fetches /api/team/[slug], renders profile + edit form, PATCHes on save.
 // Apple-style frosted glass, mounted-flag transitions, esc-to-close.
 // ---------------------------------------------------------------------------
 
@@ -12,7 +12,7 @@ import {
   X, Mail, Phone, Globe, AtSign, MapPin, Calendar, Briefcase, Pencil, Check,
   type LucideIcon,
 } from "lucide-react";
-import type { TeamMember } from "@/lib/people/types";
+import type { TeamMember } from "@/lib/team/types";
 
 interface Props { slug: string; onClose: () => void }
 
@@ -77,7 +77,7 @@ export default function TeamMemberDrawer({ slug, onClose }: Props) {
     setLoading(true);
     setError(null);
     setEditing(false);
-    fetch(`/api/people/${slug}`, { signal: ctrl.signal, cache: "no-store" })
+    fetch(`/api/team/${slug}`, { signal: ctrl.signal, cache: "no-store" })
       .then(async (res) => {
         if (res.status === 404) { setMember(null); setError("Member not found"); return; }
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
@@ -115,7 +115,7 @@ export default function TeamMemberDrawer({ slug, onClose }: Props) {
         skills: draft.skills.split(",").map((s) => s.trim()).filter(Boolean),
         status: draft.status,
       };
-      const res = await fetch(`/api/people/${member.slug}`, {
+      const res = await fetch(`/api/team/${member.slug}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       if (!res.ok) {
@@ -158,7 +158,7 @@ export default function TeamMemberDrawer({ slug, onClose }: Props) {
               </button>
             )}
             {member && (
-              <Link href={`/people/${member.slug}`} className="text-[12px] font-medium text-accent hover:underline px-2">View page</Link>
+              <Link href={`/team/${member.slug}`} className="text-[12px] font-medium text-accent hover:underline px-2">View page</Link>
             )}
           </div>
         </div>

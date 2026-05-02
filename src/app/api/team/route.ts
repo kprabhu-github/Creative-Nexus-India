@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// GET /api/people — list team members for the agency directory.
+// GET /api/team — list team members for the agency directory.
 // Query params: department, status (default 'active'), search (name/title ILIKE)
 // ---------------------------------------------------------------------------
 
@@ -10,7 +10,7 @@ import type {
   TeamCounts,
   TeamListResponse,
   TeamMember,
-} from "@/lib/people/types";
+} from "@/lib/team/types";
 
 const ORG_ID = "a0000000-0000-0000-0000-000000000001";
 

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// /people/[slug] — full profile page (SSR for SEO + direct linking).
+// /team/[slug] — full profile page (SSR for SEO + direct linking).
 // Mirrors drawer content in a 2-column layout. Uses generateMetadata for og.
 // ---------------------------------------------------------------------------
 
@@ -11,7 +11,7 @@ import {
   Mail, Phone, Globe, AtSign, MapPin, Calendar, Briefcase,
   type LucideIcon,
 } from "lucide-react";
-import type { TeamMember } from "@/lib/people/types";
+import type { TeamMember } from "@/lib/team/types";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ function originFromHeaders(): string {
 
 async function fetchMember(slug: string): Promise<TeamMember | null> {
   const origin = originFromHeaders();
-  const res = await fetch(`${origin}/api/people/${slug}`, { cache: "no-store" });
+  const res = await fetch(`${origin}/api/team/${slug}`, { cache: "no-store" });
   if (!res.ok) return null;
   const json = (await res.json()) as { data?: { member: TeamMember | null } };
   return json.data?.member ?? null;
@@ -80,7 +80,7 @@ export default async function TeamMemberPage({ params }: PageProps) {
 
   return (
     <div className="container max-w-4xl mx-auto py-12 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Link href="/people" className="inline-flex items-center text-[13px] text-foreground-secondary hover:text-foreground transition-colors mb-6">
+      <Link href="/team" className="inline-flex items-center text-[13px] text-foreground-secondary hover:text-foreground transition-colors mb-6">
         ← Back to team
       </Link>
 
