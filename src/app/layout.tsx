@@ -3,6 +3,7 @@ import "@fontsource-variable/inter";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AutoReloadOnChunkError } from "@/components/auto-reload-on-chunk-error";
 
 export const metadata: Metadata = {
   title: "Creative Nexus Command Centre",
@@ -28,6 +29,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
+            <AutoReloadOnChunkError />
             {children}
           </TooltipProvider>
         </ThemeProvider>

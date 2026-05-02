@@ -41,6 +41,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Force HTML to never cache so a new deploy doesn't leave users on stale
+  // HTML referencing chunk hashes that no longer exist (404 -> blank screen).
+  // Static assets under /_next/static are excluded by the matcher below and
+  // remain cacheable via their content-hashed URLs.
+  response.headers.set("Cache-Control", "no-store, must-revalidate");
+
   return response;
 }
 
