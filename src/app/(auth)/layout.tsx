@@ -2,10 +2,75 @@ import { ReactNode } from "react";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background-secondary">
-      <main className="w-full max-w-sm px-6">
-        {children}
-      </main>
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left branding panel */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-[#0A1628] flex-col justify-between p-10">
+        {/* Gradient overlay */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(135deg, #0A1628 0%, #132040 40%, #1a2d5a 70%, #0A1628 100%)",
+          }}
+        />
+        {/* Dot pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+        {/* Coral accent glow */}
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-[#FF6B5A]/10 blur-3xl" />
+
+        {/* Logo */}
+        <div className="relative z-10">
+          <div className="w-10 h-10 bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/10">
+            <span className="text-white font-bold text-sm tracking-tight">CX</span>
+          </div>
+        </div>
+
+        {/* Tagline */}
+        <div className="relative z-10 mb-16">
+          <h2 className="text-[28px] font-semibold text-white leading-tight tracking-tight">
+            Command your agency
+            <br />
+            with AI.
+          </h2>
+          <p className="text-white/40 text-sm mt-4 max-w-xs leading-relaxed">
+            36 agents. 13 workflows. One platform.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="relative z-10">
+          <p className="text-white/25 text-xs">
+            Creative Nexus Global
+          </p>
+        </div>
+      </div>
+
+      {/* Mobile top banner */}
+      <div className="flex lg:hidden bg-[#0A1628] px-6 py-8">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center border border-white/10">
+            <span className="text-white font-bold text-xs tracking-tight">CX</span>
+          </div>
+          <div>
+            <p className="text-white font-semibold text-sm tracking-tight">Creative Nexus</p>
+            <p className="text-white/40 text-xs">Command Centre</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Right form panel */}
+      <div className="flex-1 flex items-center justify-center bg-background px-6 py-12 lg:py-0">
+        <main className="w-full max-w-[380px]">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
