@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { ContextEmailReply } from "@/components/email/ContextEmailReply";
+import { ComposeModal, type ComposeInitial } from "@/components/email/ComposeModal";
 import type { EmailMessage, EmailThread } from "@/lib/email/index";
 
 interface ThreadWithMessages extends EmailThread {
@@ -37,6 +37,7 @@ export default function InboxPage() {
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(
     null,
   );
+  const [compose, setCompose] = useState<ComposeInitial | null>(null);
 
   const accountsQ = useQuery({
     queryKey: ["email-accounts"],
@@ -119,8 +120,32 @@ export default function InboxPage() {
           padding: 16,
           background: "white",
           overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
+        <button
+          onClick={() => setCompose({})}
+          style={{
+            background: C.coral,
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 14px",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            marginBottom: 18,
+            boxShadow: "0 2px 8px rgba(255,107,74,0.25)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: 16, fontWeight: 400 }}>+</span> Compose
+        </button>
         <div
           style={{
             fontSize: 10,
@@ -382,14 +407,85 @@ export default function InboxPage() {
               ))}
             </div>
 
-            <ContextEmailReply
-              thread={selected}
-              contextType="none"
-              contextId={selected.id}
-              defaultRecipient={selected.participants?.find(
-                (p) => p && !p.includes(accountsQ.data?.find((a) => a.id === selected.account_id)?.email ?? ""),
-              )}
-            />
+            {/* Quick "Reply" trigger — opens the full compose modal */}
+            <div
+              style={{
+                borderTop: "1px solid #E5E7EB",
+                padding: "14px 28px",
+                background: "white",
+                display: "flex",
+                gap: 10,
+                flexShrink: 0,
+              }}
+            >
+              <button
+                onClick={() => {
+                  const lastInboundFrom = [...selected.messages]
+                    .reverse()
+                    .find((m) => m.direction === "inbound")?.from_email;
+                  const fallback = selected.participants?.find(
+                    (p) =>
+                      p &&
+                      !p.includes(
+                        accountsQ.data?.find((a) => a.id === selected.account_id)
+                          ?.email ?? "",
+                      ),
+                  );
+                  setCompose({
+                    account_id: selected.account_id,
+                    thread_id: selected.id,
+                    to: [lastInboundFrom ?? fallback ?? ""].filter(Boolean),
+                    subject: selected.subject?.toLowerCase().startsWith("re:")
+                      ? selected.subject
+                      : `Re: ${selected.subject ?? ""}`,
+                  });
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px 16px",
+                  borderRadius: 8,
+                  border: `1px solid ${C.coral}`,
+                  background: "white",
+                  color: C.coral,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                ↩ Reply
+              </button>
+              <button
+                onClick={() => {
+                  setCompose({
+                    account_id: selected.account_id,
+                    to: selected.participants.filter(
+                      (p) =>
+                        p &&
+                        !p.includes(
+                          accountsQ.data?.find(
+                            (a) => a.id === selected.account_id,
+                          )?.email ?? "",
+                        ),
+                    ),
+                    subject: selected.subject ?? "",
+                  });
+                }}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 8,
+                  border: `1px solid ${C.navy}`,
+                  background: "white",
+                  color: C.navy,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Forward
+              </button>
+            </div>
           </>
         ) : (
           <div
@@ -406,6 +502,16 @@ export default function InboxPage() {
           </div>
         )}
       </main>
+
+      {compose && (
+        <ComposeModal
+          initial={compose}
+          onClose={() => setCompose(null)}
+          onSent={() => {
+            qc.invalidateQueries({ queryKey: ["inbox-threads"] });
+          }}
+        />
+      )}
     </div>
   );
 }
