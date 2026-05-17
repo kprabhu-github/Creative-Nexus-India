@@ -2,6 +2,9 @@
 
 // Universal Inbox — Gmail OAuth + IMAP threads in one view.
 // Subscribes to Supabase Realtime for live updates from sync workers + send pipeline.
+// Force dynamic — this page reads live DB state, no static prerender possible.
+
+export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
