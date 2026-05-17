@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import type {
@@ -28,7 +28,10 @@ const qk = (p: Params) => [
 
 export function useContextEmails(p: Params) {
   const qc = useQueryClient();
-  const sb = createClient();
+  // Memoize: createClient() returns a new instance per call. Without this,
+  // the Realtime channel cleanup uses a different client than was used to
+  // subscribe, which works only because Supabase tolerates it.
+  const sb = useMemo(() => createClient(), []);
 
   const query = useQuery({
     queryKey: qk(p),
@@ -78,13 +81,15 @@ export function useContextEmails(p: Params) {
     },
   });
 
+  const { contextType, contextId, accountId } = p;
   useEffect(() => {
+    const queryKey = qk({ contextType, contextId, accountId });
     const channel = sb
-      .channel(`email-ctx-${p.contextType}-${p.contextId}`)
+      .channel(`email-ctx-${contextType}-${contextId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "email_messages" },
-        () => qc.invalidateQueries({ queryKey: qk(p) }),
+        () => qc.invalidateQueries({ queryKey }),
       )
       .on(
         "postgres_changes",
@@ -92,16 +97,15 @@ export function useContextEmails(p: Params) {
           event: "*",
           schema: "public",
           table: "email_contexts",
-          filter: `context_id=eq.${p.contextId}`,
+          filter: `context_id=eq.${contextId}`,
         },
-        () => qc.invalidateQueries({ queryKey: qk(p) }),
+        () => qc.invalidateQueries({ queryKey }),
       )
       .subscribe();
     return () => {
       void sb.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.contextType, p.contextId, p.accountId]);
+  }, [contextType, contextId, accountId, qc, sb]);
 
   return query;
 }

@@ -2,6 +2,11 @@
 //   - backfill(accountId, days): first-time pull (default 30 days)
 //   - incremental(accountId): uses stored gmail_history_id
 // Both upsert email_threads + email_messages and call linkEmail() per new message.
+//
+// Idempotent: messages are matched on (account_id, gmail_message_id). Outbound
+// messages already in the DB (from the send pipeline) are partial-updated to
+// preserve sent_by_user_id, sent_by_agent_id, status='delivered', retry_count,
+// failure_reason. Inbound messages are upserted with full payload.
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadGmailClient } from "@/lib/email/gmail-client";
@@ -9,6 +14,8 @@ import { sanitizeEmailHtml, htmlToPlainText } from "@/lib/email/sanitize";
 import { linkEmail } from "@/lib/email/context-linker";
 import { ORG_ID } from "@/lib/email/index";
 import type { gmail_v1 } from "googleapis";
+
+type Admin = ReturnType<typeof createAdminClient>;
 
 export interface SyncOutcome {
   account_id: string;
@@ -24,7 +31,7 @@ export async function syncGmailAccount(
 ): Promise<SyncOutcome> {
   const admin = createAdminClient();
   const { account, gmail } = await loadGmailClient(accountId);
-  primeAccountEmailCache(account.id, account.email);
+  const accountEmail = account.email.toLowerCase();
 
   const outcome: SyncOutcome = {
     account_id: accountId,
@@ -40,6 +47,7 @@ export async function syncGmailAccount(
         admin,
         gmail,
         account.id,
+        accountEmail,
         account.gmail_history_id!,
         outcome,
       );
@@ -48,6 +56,7 @@ export async function syncGmailAccount(
         admin,
         gmail,
         account.id,
+        accountEmail,
         opts?.backfillDays ?? 30,
         outcome,
       );
@@ -78,9 +87,10 @@ export async function syncGmailAccount(
 }
 
 async function backfillSync(
-  admin: ReturnType<typeof createAdminClient>,
+  admin: Admin,
   gmail: gmail_v1.Gmail,
   accountId: string,
+  accountEmail: string,
   days: number,
   outcome: SyncOutcome,
 ) {
@@ -97,7 +107,7 @@ async function backfillSync(
       if (!m.id) continue;
       outcome.fetched += 1;
       try {
-        await upsertMessage(admin, gmail, accountId, m.id);
+        await upsertMessage(admin, gmail, accountId, accountEmail, m.id);
         outcome.upserted += 1;
       } catch (err) {
         outcome.errors.push(`${m.id}: ${(err as Error).message}`);
@@ -108,9 +118,10 @@ async function backfillSync(
 }
 
 async function incrementalSync(
-  admin: ReturnType<typeof createAdminClient>,
+  admin: Admin,
   gmail: gmail_v1.Gmail,
   accountId: string,
+  accountEmail: string,
   startHistoryId: string,
   outcome: SyncOutcome,
 ) {
@@ -128,7 +139,7 @@ async function incrementalSync(
         if (!id) continue;
         outcome.fetched += 1;
         try {
-          await upsertMessage(admin, gmail, accountId, id);
+          await upsertMessage(admin, gmail, accountId, accountEmail, id);
           outcome.upserted += 1;
         } catch (err) {
           outcome.errors.push(`${id}: ${(err as Error).message}`);
@@ -140,9 +151,10 @@ async function incrementalSync(
 }
 
 async function upsertMessage(
-  admin: ReturnType<typeof createAdminClient>,
+  admin: Admin,
   gmail: gmail_v1.Gmail,
   accountId: string,
+  accountEmail: string,
   gmailMessageId: string,
 ) {
   const { data: full } = await gmail.users.messages.get({
@@ -173,12 +185,13 @@ async function upsertMessage(
   const plain = text || (sanitizedHtml ? htmlToPlainText(sanitizedHtml) : "");
 
   const gmailThreadId = full.threadId!;
-  const accountEmail = getAccountEmailLowerCached(accountId);
-  const direction =
-    accountEmail && fromEmail && fromEmail.includes(accountEmail)
-      ? "outbound"
-      : "inbound";
+  // Exact equality after normalization. `.includes()` would mis-match
+  // e.g. "bob@nexus.com" against an account "x@nexus.com".
+  const direction: "inbound" | "outbound" =
+    fromEmail && fromEmail === accountEmail ? "outbound" : "inbound";
+  const sentAtIso = dateHeader ? new Date(dateHeader).toISOString() : null;
 
+  // Find or create thread.
   const { data: existingThread } = await admin
     .from("email_threads")
     .select("id")
@@ -197,9 +210,7 @@ async function upsertMessage(
         participants: dedupe(
           [fromEmail, ...toEmails, ...ccEmails].filter(Boolean) as string[],
         ),
-        last_message_at: dateHeader
-          ? new Date(dateHeader).toISOString()
-          : new Date().toISOString(),
+        last_message_at: sentAtIso ?? new Date().toISOString(),
         message_count: 0,
         unread_count: 0,
         snippet: (plain || "").slice(0, 200),
@@ -212,10 +223,40 @@ async function upsertMessage(
     threadId = newThread.id;
   }
 
-  const { data: upserted, error: upErr } = await admin
+  // Check if this Gmail message ID already exists. Partial-update outbound rows
+  // to preserve send-pipeline state (sent_by_*, status, retry_count, etc.).
+  const { data: existingMsg } = await admin
     .from("email_messages")
-    .upsert(
-      {
+    .select("id, direction, body_html, body_text")
+    .eq("account_id", accountId)
+    .eq("gmail_message_id", gmailMessageId)
+    .maybeSingle();
+
+  let messageRowId: string;
+
+  if (existingMsg) {
+    // Partial update: only fill fields that Gmail is authoritative for and
+    // that we don't already have. Never touch sent_by_*, status, retry_count.
+    const patch: Record<string, unknown> = {
+      gmail_thread_id: gmailThreadId,
+      is_read: !(full.labelIds ?? []).includes("UNREAD"),
+    };
+    if (!existingMsg.body_html && sanitizedHtml) patch.body_html = sanitizedHtml;
+    if (!existingMsg.body_text && plain) patch.body_text = plain;
+    if (sentAtIso) patch.sent_at = sentAtIso;
+
+    const { error: updErr } = await admin
+      .from("email_messages")
+      .update(patch)
+      .eq("id", existingMsg.id);
+    if (updErr) throw new Error(updErr.message);
+    messageRowId = existingMsg.id;
+  } else {
+    // Insert new (inbound, or outbound from outside our pipeline e.g. sent
+    // from the Gmail web UI directly).
+    const { data: inserted, error: insErr } = await admin
+      .from("email_messages")
+      .insert({
         thread_id: threadId,
         account_id: accountId,
         gmail_message_id: gmailMessageId,
@@ -233,28 +274,25 @@ async function upsertMessage(
         direction,
         is_read: !(full.labelIds ?? []).includes("UNREAD"),
         status: "received",
-        sent_at: dateHeader ? new Date(dateHeader).toISOString() : null,
+        sent_at: sentAtIso,
         org_id: ORG_ID,
-      },
-      { onConflict: "account_id,gmail_message_id" },
-    )
-    .select("id")
-    .single();
-
-  if (upErr || !upserted)
-    throw new Error(upErr?.message ?? "message upsert failed");
+      })
+      .select("id")
+      .single();
+    if (insErr || !inserted)
+      throw new Error(insErr?.message ?? "message insert failed");
+    messageRowId = inserted.id;
+  }
 
   await admin
     .from("email_threads")
     .update({
-      last_message_at: dateHeader
-        ? new Date(dateHeader).toISOString()
-        : new Date().toISOString(),
+      last_message_at: sentAtIso ?? new Date().toISOString(),
       snippet: (plain || "").slice(0, 200),
     })
     .eq("id", threadId);
 
-  await linkEmail(upserted.id);
+  await linkEmail(messageRowId);
 }
 
 function parseAddress(raw: string): string | null {
@@ -286,12 +324,4 @@ function extractBodies(payload: gmail_v1.Schema$MessagePart): {
   };
   walk(payload);
   return { html, text };
-}
-
-const emailCache = new Map<string, string>();
-function getAccountEmailLowerCached(accountId: string): string {
-  return emailCache.get(accountId) ?? "";
-}
-export function primeAccountEmailCache(accountId: string, email: string) {
-  emailCache.set(accountId, email.toLowerCase());
 }

@@ -1,6 +1,7 @@
 // GET /api/email/oauth/google/callback?code=...&state=...
-// Validates state, exchanges code for tokens, persists encrypted refresh token,
-// upserts email_accounts row, redirects to /settings/integrations?connected=1.
+// Verifies HMAC-bound state cookie, exchanges code, persists encrypted refresh
+// token, upserts email_accounts row only if it is unowned or owned by the same
+// user (prevents cross-user account hijack).
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -9,34 +10,42 @@ import {
   exchangeCodeForTokens,
   fetchGoogleUserInfo,
   GMAIL_SCOPES,
+  verifyOAuthState,
 } from "@/lib/email/gmail-oauth";
 import { encrypt } from "@/lib/email/encryption";
 import { ORG_ID } from "@/lib/email/index";
 
 export const dynamic = "force-dynamic";
 
+function redirectWithError(req: NextRequest, code: string, detail?: string) {
+  const params = new URLSearchParams({ error: code });
+  if (detail) params.set("detail", detail);
+  const res = NextResponse.redirect(
+    new URL(`/settings/integrations?${params.toString()}`, req.url),
+  );
+  res.cookies.delete("gmail_oauth_nonce");
+  return res;
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  const stateCookie = req.cookies.get("gmail_oauth_state")?.value;
+  const cookieNonce = req.cookies.get("gmail_oauth_nonce")?.value;
 
-  if (!code || !state || !stateCookie || state !== stateCookie) {
-    return NextResponse.redirect(
-      new URL("/settings/integrations?error=oauth_state_mismatch", req.url),
-    );
+  if (!code) return redirectWithError(req, "oauth_missing_code");
+
+  const verified = verifyOAuthState(state, cookieNonce);
+  if ("error" in verified) {
+    return redirectWithError(req, verified.error);
   }
-
-  const userId = state.split(".")[0];
 
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || user.id !== userId) {
-    return NextResponse.redirect(
-      new URL("/settings/integrations?error=oauth_user_mismatch", req.url),
-    );
+  if (!user || user.id !== verified.userId) {
+    return redirectWithError(req, "oauth_user_mismatch");
   }
 
   let tokens, profile;
@@ -44,54 +53,75 @@ export async function GET(req: NextRequest) {
     tokens = await exchangeCodeForTokens(code);
     profile = await fetchGoogleUserInfo(tokens.access_token!);
   } catch (err) {
-    const msg = encodeURIComponent((err as Error).message);
-    return NextResponse.redirect(
-      new URL(
-        `/settings/integrations?error=oauth_exchange&detail=${msg}`,
-        req.url,
-      ),
+    return redirectWithError(
+      req,
+      "oauth_exchange",
+      encodeURIComponent((err as Error).message),
     );
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.from("email_accounts").upsert(
-    {
-      user_id: user.id,
-      email: profile.email,
-      display_name: profile.name,
-      provider: "gmail_oauth",
-      oauth_refresh_token_encrypted: encrypt(tokens.refresh_token!),
-      oauth_access_token_encrypted: tokens.access_token
-        ? encrypt(tokens.access_token)
-        : null,
-      oauth_expires_at: tokens.expiry_date
+
+  // Ownership guard: if a row exists for (org_id, email), only allow update
+  // when the existing row's user_id is null or matches the current user.
+  // Prevents user B from silently overwriting user A's encrypted refresh token.
+  const { data: existing, error: lookupErr } = await admin
+    .from("email_accounts")
+    .select("id, user_id")
+    .eq("org_id", ORG_ID)
+    .eq("email", profile.email)
+    .maybeSingle();
+
+  if (lookupErr) {
+    return redirectWithError(
+      req,
+      "oauth_lookup",
+      encodeURIComponent(lookupErr.message),
+    );
+  }
+
+  if (existing && existing.user_id && existing.user_id !== user.id) {
+    return redirectWithError(req, "oauth_account_owned_by_other_user");
+  }
+
+  const row = {
+    user_id: user.id,
+    email: profile.email,
+    display_name: profile.name,
+    provider: "gmail_oauth" as const,
+    oauth_refresh_token_encrypted: encrypt(tokens.refresh_token!),
+    oauth_access_token_encrypted: tokens.access_token
+      ? encrypt(tokens.access_token)
+      : null,
+    oauth_expires_at:
+      tokens.expiry_date && tokens.expiry_date > 0
         ? new Date(tokens.expiry_date).toISOString()
         : null,
-      oauth_scopes: [...GMAIL_SCOPES],
-      status: "connected",
-      last_error: null,
-      org_id: ORG_ID,
-      smtp_host: "smtp.gmail.com",
-      smtp_port: 465,
-      imap_host: "imap.gmail.com",
-      imap_port: 993,
-    },
-    { onConflict: "org_id,email" },
-  );
+    oauth_scopes: [...GMAIL_SCOPES],
+    status: "connected" as const,
+    last_error: null,
+    org_id: ORG_ID,
+    smtp_host: "smtp.gmail.com",
+    smtp_port: 465,
+    imap_host: "imap.gmail.com",
+    imap_port: 993,
+  };
 
-  if (error) {
-    const msg = encodeURIComponent(error.message);
-    return NextResponse.redirect(
-      new URL(
-        `/settings/integrations?error=oauth_persist&detail=${msg}`,
-        req.url,
-      ),
+  const { error: writeErr } = existing
+    ? await admin.from("email_accounts").update(row).eq("id", existing.id)
+    : await admin.from("email_accounts").insert(row);
+
+  if (writeErr) {
+    return redirectWithError(
+      req,
+      "oauth_persist",
+      encodeURIComponent(writeErr.message),
     );
   }
 
   const res = NextResponse.redirect(
     new URL("/settings/integrations?connected=1", req.url),
   );
-  res.cookies.delete("gmail_oauth_state");
+  res.cookies.delete("gmail_oauth_nonce");
   return res;
 }

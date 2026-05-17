@@ -38,22 +38,25 @@ export async function linkEmail(messageId: string): Promise<number> {
 
   const candidates: LinkCandidate[] = [];
 
-  // Rule 1: clients by domain (skip silently if table absent)
-  try {
-    const { data: clients } = await admin
+  // Rule 1: clients by domain. Only swallow "undefined_table" (42P01) so a
+  // misconfigured RLS policy / permission error surfaces in the logs.
+  if (domains.length) {
+    const { data: clients, error: clientErr } = await admin
       .from("clients")
       .select("id")
       .in("domain", domains);
-    for (const c of clients ?? []) {
-      candidates.push({
-        context_type: "client",
-        context_id: c.id,
-        link_source: "auto_domain",
-        confidence: 0.9,
-      });
+    if (clientErr && clientErr.code !== "42P01") {
+      console.error("[context-linker] clients lookup failed", clientErr);
+    } else {
+      for (const c of clients ?? []) {
+        candidates.push({
+          context_type: "client",
+          context_id: c.id,
+          link_source: "auto_domain",
+          confidence: 0.9,
+        });
+      }
     }
-  } catch {
-    /* table missing — skip */
   }
 
   // Rule 2: leads by email
@@ -72,26 +75,24 @@ export async function linkEmail(messageId: string): Promise<number> {
     }
   }
 
-  // Rule 3: proposal code in subject
+  // Rule 3: proposal code in subject. Same error-code-specific tolerance as Rule 1.
   if (msg.subject) {
     const m = msg.subject.match(/PROP-\d{4}-\d{4}/);
     if (m) {
-      try {
-        const { data: prop } = await admin
-          .from("proposals")
-          .select("id")
-          .eq("code", m[0])
-          .maybeSingle();
-        if (prop) {
-          candidates.push({
-            context_type: "proposal",
-            context_id: prop.id,
-            link_source: "auto_subject",
-            confidence: 1.0,
-          });
-        }
-      } catch {
-        /* proposals table not yet built — skip */
+      const { data: prop, error: propErr } = await admin
+        .from("proposals")
+        .select("id")
+        .eq("code", m[0])
+        .maybeSingle();
+      if (propErr && propErr.code !== "42P01") {
+        console.error("[context-linker] proposals lookup failed", propErr);
+      } else if (prop) {
+        candidates.push({
+          context_type: "proposal",
+          context_id: prop.id,
+          link_source: "auto_subject",
+          confidence: 1.0,
+        });
       }
     }
   }
