@@ -5,6 +5,22 @@ a context engine that any Command Centre module can plug into via the reusable
 `<ContextEmailPanel />` component. The legacy IMAP+SMTP (app password) path is
 preserved for accounts that have not yet been migrated.
 
+## Lessons learned from initial deploy (May 17, 2026)
+
+Pitfalls hit during first prod deploy, recorded so the next person doesn't repeat:
+
+1. **Use a Workspace-owned Google Cloud project**, not a personal `@gmail.com` one. Workspace projects let you set **Internal** user type on the OAuth consent screen — no Google verification required for sensitive `gmail.modify` scope (≤100 users limit only applies to External).
+2. **Enable Gmail API on the new project** — not just on whatever project the OAuth client lives in. Symptom: sync fails with `Gmail API has not been used in project NNNNN before or it is disabled`.
+3. **Reuse one OAuth client for both Supabase Auth and Email Core.** Add three redirect URIs to the same client:
+   - `https://app.creativenexus.in/api/email/oauth/google/callback`
+   - `http://localhost:3000/api/email/oauth/google/callback`
+   - `https://<project>.supabase.co/auth/v1/callback` ← Supabase Auth
+4. **Update Supabase Auth → Providers → Google** with the same Client ID/Secret if you create a new OAuth client. Otherwise users get `Error 401: deleted_client` on sign-in.
+5. **If sync errors once, account status flips to `failed`** and the cron stops picking it up. Reset with `UPDATE email_accounts SET status='connected', last_error=NULL WHERE email='...'` before retrying.
+6. **Hostinger hCDN WAF 403s short `/api/*` paths.** All client-side `fetch()` should use `/xapi/*` — the existing rewrite in `next.config.mjs` maps `/xapi/:path*` → `/api/:path*` to bypass. Curl tests bypass CDN so they work either way; browsers do not.
+7. **OAuth callback redirect host needs `NEXT_PUBLIC_SITE_URL`** in env, or Hostinger's reverse proxy sends users to `http://0.0.0.0:3000/...` (ERR_SSL_PROTOCOL_ERROR). The `resolvePublicOrigin()` helper in `src/lib/url.ts` handles this — env wins, then `x-forwarded-host`, then `req.url`.
+8. **Add `src/instrumentation.ts`** with `uncaughtException` + `unhandledRejection` handlers. Without these, ANY unhandled error in a route kills the entire Node process, which Hostinger restarts in a silent crashloop visible only as repeating "Starting…" / "Ready in NNms" lines in Runtime logs. Enable via `experimental.instrumentationHook: true` in `next.config.mjs`.
+
 ## One-time Google Cloud setup (by Prabhu)
 
 1. Visit https://console.cloud.google.com/apis/credentials
