@@ -110,7 +110,7 @@ export default function EmailIntegrationsPage() {
 
   async function handleConnectGoogle() {
     try {
-      const res = await fetch("/api/email/oauth/google/start", {
+      const res = await fetch("/xapi/email/oauth/google/start", {
         method: "POST",
       });
       const json = (await res.json()) as { url?: string; error?: string };

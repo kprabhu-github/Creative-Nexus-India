@@ -33,7 +33,7 @@ export function ContextEmailReply({
     setSending(true);
     setError(null);
     try {
-      const res = await fetch("/api/email/send", {
+      const res = await fetch("/xapi/email/send", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
