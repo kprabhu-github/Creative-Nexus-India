@@ -14,14 +14,16 @@ import {
 } from "@/lib/email/gmail-oauth";
 import { encrypt } from "@/lib/email/encryption";
 import { ORG_ID } from "@/lib/email/index";
+import { resolvePublicOrigin } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 function redirectWithError(req: NextRequest, code: string, detail?: string) {
   const params = new URLSearchParams({ error: code });
   if (detail) params.set("detail", detail);
+  const origin = resolvePublicOrigin(req);
   const res = NextResponse.redirect(
-    new URL(`/settings/integrations?${params.toString()}`, req.url),
+    `${origin}/settings/integrations?${params.toString()}`,
   );
   res.cookies.delete("gmail_oauth_nonce");
   return res;
@@ -141,8 +143,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const origin = resolvePublicOrigin(req);
   const res = NextResponse.redirect(
-    new URL("/settings/integrations?connected=1", req.url),
+    `${origin}/settings/integrations?connected=1`,
   );
   res.cookies.delete("gmail_oauth_nonce");
   return res;
