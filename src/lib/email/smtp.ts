@@ -11,7 +11,16 @@ export interface EmailAccountRow {
   display_name: string;
   smtp_host: string;
   smtp_port: number;
-  app_password_encrypted: string;
+  app_password_encrypted: string | null;
+}
+
+function requireAppPassword(account: EmailAccountRow): string {
+  if (!account.app_password_encrypted) {
+    throw new Error(
+      `Account ${account.email} has no app password (likely a Gmail OAuth account; use the OAuth send path instead)`,
+    );
+  }
+  return account.app_password_encrypted;
 }
 
 export interface SendArgs {
@@ -33,7 +42,7 @@ export interface SendResult {
 }
 
 function buildTransport(account: EmailAccountRow): Transporter {
-  const password = decrypt(account.app_password_encrypted);
+  const password = decrypt(requireAppPassword(account));
   return nodemailer.createTransport({
     host: account.smtp_host,
     port: account.smtp_port,

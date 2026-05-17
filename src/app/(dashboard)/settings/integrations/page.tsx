@@ -108,6 +108,21 @@ export default function EmailIntegrationsPage() {
     }
   }
 
+  async function handleConnectGoogle() {
+    try {
+      const res = await fetch("/api/email/oauth/google/start", {
+        method: "POST",
+      });
+      const json = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !json.url) {
+        throw new Error(json.error ?? `HTTP ${res.status}`);
+      }
+      window.location.href = json.url;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "OAuth start failed");
+    }
+  }
+
   async function handleDisconnect(id: string, email: string) {
     if (!confirm(`Disconnect ${email}? Stored credentials will be deactivated.`)) return;
     try {
@@ -126,6 +141,23 @@ export default function EmailIntegrationsPage() {
         <p style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>
           Connect each @creativenexus.in mailbox so the dashboard can send and receive on its behalf.
         </p>
+      </div>
+
+      <div style={{ background: "#F0F4FF", border: "1px solid #C7D2FE", borderRadius: 10, padding: "14px 18px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 2 }}>
+            Connect with Google (recommended)
+          </div>
+          <div style={{ fontSize: 12, color: "#475569" }}>
+            Full Gmail API access — read, send, label. No app password needed.
+          </div>
+        </div>
+        <button
+          onClick={handleConnectGoogle}
+          style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: C.navy, color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+        >
+          Connect with Google
+        </button>
       </div>
 
       <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 10, padding: "10px 14px", marginBottom: 18, fontSize: 12, color: "#9A3412" }}>

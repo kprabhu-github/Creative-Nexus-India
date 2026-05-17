@@ -26,6 +26,11 @@ export interface ImapAccountRow extends EmailAccountRow {
 }
 
 async function open(account: ImapAccountRow): Promise<ImapFlow> {
+  if (!account.app_password_encrypted) {
+    throw new Error(
+      `Account ${account.email} has no app password (likely a Gmail OAuth account; use the OAuth sync path instead)`,
+    );
+  }
   const password = decrypt(account.app_password_encrypted);
   const client = new ImapFlow({
     host: account.imap_host,

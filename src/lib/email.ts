@@ -3,6 +3,14 @@
 // gone — sends now route through `email_accounts` rows in Supabase.
 // Callers may pass `from_account_id` to target a specific mailbox; if
 // omitted, the first connected account is used.
+//
+// @deprecated Phase 1 Email Core is live. New code should use either:
+//   - POST /api/email/send  (HTTP entry, requires Idempotency-Key)
+//   - enqueueSend() from @/lib/email/queue  (server-internal, returns 202-style)
+// Both route through the queued worker pipeline with native Gmail threading.
+// This shim remains for synchronous SMTP semantics used by lead_emails flows
+// that update the row immediately after success; migrate when those flows are
+// refactored to read worker status updates via Supabase Realtime.
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendFromAccount, type EmailAccountRow } from "@/lib/email/smtp";
