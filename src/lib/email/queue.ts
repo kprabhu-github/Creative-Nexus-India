@@ -86,11 +86,18 @@ export async function enqueueSend(
   });
   if (jobErr) {
     // Rollback: mark the message failed so it can't sit in 'queued' forever
-    // with no worker to drain it.
-    await admin
+    // with no worker to drain it. Log if the rollback itself fails — that's
+    // the only way an orphaned 'queued' row could escape.
+    const { error: rollbackErr } = await admin
       .from("email_messages")
       .update({ status: "failed", failure_reason: "enqueue_failed" })
       .eq("id", msg.id);
+    if (rollbackErr) {
+      console.error(
+        `[enqueueSend] rollback failed for message ${msg.id} (orphan risk):`,
+        rollbackErr,
+      );
+    }
     throw new Error(jobErr.message);
   }
 

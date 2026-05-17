@@ -17,9 +17,14 @@ const BATCH = Number(process.env.EMAIL_WORKER_BATCH_SIZE ?? 10);
 const STALE_LOCK_MS = 5 * 60 * 1000;
 // A gmail.send call genuinely in progress should never be interrupted. The
 // reaper does NOT reset jobs whose message is in status='sending' with a
-// recent sending_started_at; we use a window 2x the stale-lock window so a
-// slow Gmail call still completes before we ever consider it crashed.
-const SENDING_HEARTBEAT_MS = 10 * 60 * 1000;
+// recent sending_started_at. Aligned with the route's maxDuration (60s) plus
+// safety margin: if the Node process was killed mid-send by Hostinger, we
+// know within 2 minutes and can retry. Longer values (e.g. 10m) cause
+// pointless unavailability when a worker is genuinely dead.
+const SENDING_HEARTBEAT_MS = 2 * 60 * 1000;
+// Cap how many stale-locked candidates we inspect per tick. Without this the
+// IN(...) clause could grow unbounded during extended outages.
+const REAP_CANDIDATE_LIMIT = BATCH * 5;
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -56,12 +61,14 @@ async function reapStaleLocks(admin: Admin): Promise<number> {
     Date.now() - SENDING_HEARTBEAT_MS,
   ).toISOString();
 
-  // Pull candidate locked jobs that look stale by lock age.
+  // Pull candidate locked jobs that look stale by lock age. Capped so we don't
+  // build an unbounded IN(...) below during long outages.
   const { data: candidates } = await admin
     .from("email_send_jobs")
     .select("id, message_id")
     .eq("status", "locked")
-    .lt("locked_at", lockCutoff);
+    .lt("locked_at", lockCutoff)
+    .limit(REAP_CANDIDATE_LIMIT);
 
   if (!candidates || candidates.length === 0) return 0;
 
@@ -212,13 +219,19 @@ async function processJob(admin: Admin, job: LockedJob): Promise<string> {
     // else: heartbeat stale → fall through and take over.
   }
 
+  // Conditional flip: only transition from 'queued' (or 'failed' on retry).
+  // If another worker beat us to it (raced past the heartbeat check above),
+  // the WHERE clause matches nothing and the rowcount-less update is a no-op.
+  // Combined with `lock_email_send_jobs` (FOR UPDATE SKIP LOCKED) this is
+  // belt-and-suspenders against double-send.
   await admin
     .from("email_messages")
     .update({
       status: "sending",
       sending_started_at: new Date().toISOString(),
     })
-    .eq("id", job.message_id);
+    .eq("id", job.message_id)
+    .in("status", ["queued", "failed"]);
 
   const { data: thread } = await admin
     .from("email_threads")

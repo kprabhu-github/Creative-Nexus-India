@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { callClaude, parseClaudeJson } from "@/lib/anthropic";
 import { sendEmail, getDefaultCc } from "@/lib/email";
 import { sanitizeEmailHtml } from "@/lib/email/sanitize";
+import { plainTextToHtml } from "@/lib/email/format";
+import { htmlToPlainText } from "@/lib/email/sanitize";
 import { createNotification } from "@/lib/notifications";
 import { PRABHU_SIGNATURE_HTML } from "@/lib/email-signature";
 import { buildEmailPrompt } from "@/lib/leads/prompts";
@@ -96,9 +98,13 @@ This is follow-up ${followup.step} of 4. Make it feel natural and provide new va
         continue;
       }
 
+      // Mirror draft-email's pattern: wrap Claude's plain text in <p> tags so
+      // the rendered HTML has paragraph spacing, then sanitize. Derive
+      // body_text from the original plain text, not from regex-stripped HTML.
       const fullBodyHtml = sanitizeEmailHtml(
-        parsed.body + PRABHU_SIGNATURE_HTML,
+        plainTextToHtml(parsed.body) + PRABHU_SIGNATURE_HTML,
       );
+      const fullBodyText = htmlToPlainText(fullBodyHtml);
 
       const { data: emailRow } = await supabase
         .from("lead_emails")
@@ -109,7 +115,7 @@ This is follow-up ${followup.step} of 4. Make it feel natural and provide new va
           cc_emails: cc,
           subject: parsed.subject,
           body_html: fullBodyHtml,
-          body_text: fullBodyHtml.replace(/<[^>]*>/g, ""),
+          body_text: fullBodyText,
           status: "queued",
           org_id: ORG_ID,
         })

@@ -18,12 +18,20 @@ import { resolvePublicOrigin } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
-function redirectWithError(req: NextRequest, code: string, detail?: string) {
-  const params = new URLSearchParams({ error: code });
-  if (detail) params.set("detail", detail);
+// Error redirect: code only in URL. Detail logged server-side. Prevents leaking
+// DB error messages (which may include row values / constraint names) into the
+// browser history / nginx access logs.
+function redirectWithError(
+  req: NextRequest,
+  code: string,
+  serverDetail?: unknown,
+) {
+  if (serverDetail) {
+    console.error(`[oauth/callback] ${code}:`, serverDetail);
+  }
   const origin = resolvePublicOrigin(req);
   const res = NextResponse.redirect(
-    `${origin}/settings/integrations?${params.toString()}`,
+    `${origin}/settings/integrations?error=${encodeURIComponent(code)}`,
   );
   res.cookies.delete("gmail_oauth_nonce");
   return res;
@@ -55,11 +63,7 @@ export async function GET(req: NextRequest) {
     tokens = await exchangeCodeForTokens(code);
     profile = await fetchGoogleUserInfo(tokens.access_token!);
   } catch (err) {
-    return redirectWithError(
-      req,
-      "oauth_exchange",
-      encodeURIComponent((err as Error).message),
-    );
+    return redirectWithError(req, "oauth_exchange", err);
   }
 
   const admin = createAdminClient();
@@ -75,11 +79,7 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   if (lookupErr) {
-    return redirectWithError(
-      req,
-      "oauth_lookup",
-      encodeURIComponent(lookupErr.message),
-    );
+    return redirectWithError(req, "oauth_lookup", lookupErr);
   }
 
   if (existing && existing.user_id && existing.user_id !== user.id) {
@@ -120,27 +120,31 @@ export async function GET(req: NextRequest) {
     const { error } = await admin.from("email_accounts").insert(row);
     writeErr = error;
     // TOCTOU: another concurrent OAuth flow for the same (org_id, email)
-    // raced past our SELECT and inserted first. Re-run the ownership check
-    // so the user gets the precise reason instead of a generic persist error.
+    // raced past our SELECT and inserted first. Re-resolve ownership:
+    //   - row now owned by someone else → refuse w/ precise reason
+    //   - row now unowned OR owned by us → claim it via UPDATE
     if (error?.code === "23505") {
       const { data: now } = await admin
         .from("email_accounts")
-        .select("user_id")
+        .select("id, user_id")
         .eq("org_id", ORG_ID)
         .eq("email", profile.email)
         .maybeSingle();
-      if (now && now.user_id && now.user_id !== user.id) {
-        return redirectWithError(req, "oauth_account_owned_by_other_user");
+      if (now) {
+        if (now.user_id && now.user_id !== user.id) {
+          return redirectWithError(req, "oauth_account_owned_by_other_user");
+        }
+        const { error: updErr } = await admin
+          .from("email_accounts")
+          .update(row)
+          .eq("id", now.id);
+        writeErr = updErr;
       }
     }
   }
 
   if (writeErr) {
-    return redirectWithError(
-      req,
-      "oauth_persist",
-      encodeURIComponent(writeErr.message),
-    );
+    return redirectWithError(req, "oauth_persist", writeErr);
   }
 
   const origin = resolvePublicOrigin(req);
