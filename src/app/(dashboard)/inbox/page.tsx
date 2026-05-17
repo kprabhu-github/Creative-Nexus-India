@@ -386,6 +386,9 @@ export default function InboxPage() {
               thread={selected}
               contextType="none"
               contextId={selected.id}
+              defaultRecipient={selected.participants?.find(
+                (p) => p && !p.includes(accountsQ.data?.find((a) => a.id === selected.account_id)?.email ?? ""),
+              )}
             />
           </>
         ) : (
