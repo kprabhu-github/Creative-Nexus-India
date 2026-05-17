@@ -59,19 +59,23 @@ export async function linkEmail(messageId: string): Promise<number> {
     }
   }
 
-  // Rule 2: leads by email
+  // Rule 2: leads by email. Project uses `gtm_leads` not `leads`.
   if (senders.length) {
-    const { data: leads } = await admin
-      .from("leads")
+    const { data: leads, error: leadErr } = await admin
+      .from("gtm_leads")
       .select("id")
       .in("email", senders);
-    for (const l of leads ?? []) {
-      candidates.push({
-        context_type: "lead",
-        context_id: l.id,
-        link_source: "auto_email",
-        confidence: 1.0,
-      });
+    if (leadErr && leadErr.code !== "42P01") {
+      console.error("[context-linker] gtm_leads lookup failed", leadErr);
+    } else {
+      for (const l of leads ?? []) {
+        candidates.push({
+          context_type: "lead",
+          context_id: l.id,
+          link_source: "auto_email",
+          confidence: 1.0,
+        });
+      }
     }
   }
 
