@@ -33,6 +33,9 @@ const ALLOWED_ATTR = [
 const ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel|cid):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
 
 export function sanitizeEmailHtml(html: string): string {
+  // NOTE: Do NOT set USE_PROFILES here. USE_PROFILES overrides ALLOWED_TAGS
+  // and ALLOWED_ATTR with DOMPurify's built-in HTML profile, voiding the
+  // explicit allowlist below. The FORBID lists are kept as belt-and-suspenders.
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
@@ -53,7 +56,6 @@ export function sanitizeEmailHtml(html: string): string {
     KEEP_CONTENT: true,
     RETURN_TRUSTED_TYPE: false,
     SANITIZE_DOM: true,
-    USE_PROFILES: { html: true },
   });
 }
 

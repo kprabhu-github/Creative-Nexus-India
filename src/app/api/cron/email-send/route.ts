@@ -15,6 +15,11 @@ export const maxDuration = 60;
 const WORKER_ID = `worker-${process.pid}-${Date.now()}`;
 const BATCH = Number(process.env.EMAIL_WORKER_BATCH_SIZE ?? 10);
 const STALE_LOCK_MS = 5 * 60 * 1000;
+// A gmail.send call genuinely in progress should never be interrupted. The
+// reaper does NOT reset jobs whose message is in status='sending' with a
+// recent sending_started_at; we use a window 2x the stale-lock window so a
+// slow Gmail call still completes before we ever consider it crashed.
+const SENDING_HEARTBEAT_MS = 10 * 60 * 1000;
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -46,18 +51,51 @@ interface LockedJob {
 }
 
 async function reapStaleLocks(admin: Admin): Promise<number> {
-  const cutoff = new Date(Date.now() - STALE_LOCK_MS).toISOString();
-  const { data } = await admin
+  const lockCutoff = new Date(Date.now() - STALE_LOCK_MS).toISOString();
+  const sendingCutoff = new Date(
+    Date.now() - SENDING_HEARTBEAT_MS,
+  ).toISOString();
+
+  // Pull candidate locked jobs that look stale by lock age.
+  const { data: candidates } = await admin
+    .from("email_send_jobs")
+    .select("id, message_id")
+    .eq("status", "locked")
+    .lt("locked_at", lockCutoff);
+
+  if (!candidates || candidates.length === 0) return 0;
+
+  const messageIds = candidates.map((c) => c.message_id);
+  const { data: msgs } = await admin
+    .from("email_messages")
+    .select("id, status, sending_started_at")
+    .in("id", messageIds);
+
+  const msgById = new Map(msgs?.map((m) => [m.id, m]) ?? []);
+  const safeToReap = candidates.filter((c) => {
+    const m = msgById.get(c.message_id);
+    if (!m) return true; // message gone, job is junk
+    if (m.status !== "sending") return true; // not mid-send, safe
+    // Mid-send: only reap if heartbeat is also stale (worker truly crashed
+    // during the Gmail API call, not just slow).
+    return m.sending_started_at && m.sending_started_at < sendingCutoff;
+  });
+
+  if (safeToReap.length === 0) return 0;
+
+  const { data: reaped } = await admin
     .from("email_send_jobs")
     .update({
       status: "pending",
       locked_at: null,
       locked_by: null,
     })
-    .eq("status", "locked")
-    .lt("locked_at", cutoff)
+    .in(
+      "id",
+      safeToReap.map((j) => j.id),
+    )
     .select("id");
-  return data?.length ?? 0;
+  return reaped?.length ?? 0;
 }
 
 export async function GET(req: NextRequest) {
@@ -123,12 +161,17 @@ export async function GET(req: NextRequest) {
 }
 
 async function processJob(admin: Admin, job: LockedJob): Promise<string> {
-  // Idempotency guard: if a prior worker delivered this message but crashed
-  // before clearing the lock, do NOT re-send. Just settle the job.
+  // Pre-send idempotency guard. Three conditions short-circuit the actual send:
+  //   1) Message already delivered  → settle job, do nothing.
+  //   2) Message currently in 'sending' with a fresh heartbeat → another worker
+  //      is mid-flight (reaper raced us). Release the lock back to pending so
+  //      the original worker can finish, with a small backoff.
+  //   3) Message in 'sending' with a stale heartbeat → original worker crashed
+  //      mid-flight. We take over.
   const { data: pre } = await admin
     .from("email_messages")
     .select(
-      "id, status, sent_at, gmail_message_id, message_id, in_reply_to, references_chain, to_emails, cc_emails, subject, body_html, body_text, thread_id",
+      "id, status, sent_at, gmail_message_id, sending_started_at, message_id, in_reply_to, references_chain, to_emails, cc_emails, subject, body_html, body_text, thread_id",
     )
     .eq("id", job.message_id)
     .single();
@@ -149,9 +192,32 @@ async function processJob(admin: Admin, job: LockedJob): Promise<string> {
     return "already_delivered";
   }
 
+  if (pre.status === "sending") {
+    const heartbeatFresh =
+      pre.sending_started_at &&
+      Date.now() - new Date(pre.sending_started_at).getTime() <
+        SENDING_HEARTBEAT_MS;
+    if (heartbeatFresh) {
+      await admin
+        .from("email_send_jobs")
+        .update({
+          status: "pending",
+          locked_at: null,
+          locked_by: null,
+          run_after: new Date(Date.now() + 30_000).toISOString(),
+        })
+        .eq("id", job.id);
+      return "in_progress_by_another_worker";
+    }
+    // else: heartbeat stale → fall through and take over.
+  }
+
   await admin
     .from("email_messages")
-    .update({ status: "sending" })
+    .update({
+      status: "sending",
+      sending_started_at: new Date().toISOString(),
+    })
     .eq("id", job.message_id);
 
   const { data: thread } = await admin

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { callClaude, parseClaudeJson } from "@/lib/anthropic";
 import { sendEmail, getDefaultCc } from "@/lib/email";
+import { sanitizeEmailHtml } from "@/lib/email/sanitize";
 import { createNotification } from "@/lib/notifications";
 import { PRABHU_SIGNATURE_HTML } from "@/lib/email-signature";
 import { buildEmailPrompt } from "@/lib/leads/prompts";
@@ -95,7 +96,9 @@ This is follow-up ${followup.step} of 4. Make it feel natural and provide new va
         continue;
       }
 
-      const fullBodyHtml = parsed.body + PRABHU_SIGNATURE_HTML;
+      const fullBodyHtml = sanitizeEmailHtml(
+        parsed.body + PRABHU_SIGNATURE_HTML,
+      );
 
       const { data: emailRow } = await supabase
         .from("lead_emails")

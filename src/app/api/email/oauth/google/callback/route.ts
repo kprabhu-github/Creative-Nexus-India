@@ -107,9 +107,31 @@ export async function GET(req: NextRequest) {
     imap_port: 993,
   };
 
-  const { error: writeErr } = existing
-    ? await admin.from("email_accounts").update(row).eq("id", existing.id)
-    : await admin.from("email_accounts").insert(row);
+  let writeErr: { code?: string; message: string } | null = null;
+  if (existing) {
+    const { error } = await admin
+      .from("email_accounts")
+      .update(row)
+      .eq("id", existing.id);
+    writeErr = error;
+  } else {
+    const { error } = await admin.from("email_accounts").insert(row);
+    writeErr = error;
+    // TOCTOU: another concurrent OAuth flow for the same (org_id, email)
+    // raced past our SELECT and inserted first. Re-run the ownership check
+    // so the user gets the precise reason instead of a generic persist error.
+    if (error?.code === "23505") {
+      const { data: now } = await admin
+        .from("email_accounts")
+        .select("user_id")
+        .eq("org_id", ORG_ID)
+        .eq("email", profile.email)
+        .maybeSingle();
+      if (now && now.user_id && now.user_id !== user.id) {
+        return redirectWithError(req, "oauth_account_owned_by_other_user");
+      }
+    }
+  }
 
   if (writeErr) {
     return redirectWithError(

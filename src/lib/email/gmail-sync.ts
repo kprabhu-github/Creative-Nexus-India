@@ -223,14 +223,46 @@ async function upsertMessage(
     threadId = newThread.id;
   }
 
-  // Check if this Gmail message ID already exists. Partial-update outbound rows
-  // to preserve send-pipeline state (sent_by_*, status, retry_count, etc.).
-  const { data: existingMsg } = await admin
-    .from("email_messages")
-    .select("id, direction, body_html, body_text")
-    .eq("account_id", accountId)
-    .eq("gmail_message_id", gmailMessageId)
-    .maybeSingle();
+  // Find an existing row. Two match paths exist because the send pipeline
+  // populates `gmail_message_id` AFTER the worker calls gmail.users.messages.send,
+  // but the same row already carries the RFC-5322 `Message-ID` header we
+  // generated at enqueue time. If sync runs in the window between gmail.send
+  // returning and the worker writing back `gmail_message_id`, the
+  // `gmail_message_id` lookup would miss and we would INSERT a duplicate that
+  // later conflicts with the worker's UPDATE on the partial unique index. So:
+  //   1) Try matching by `(account_id, gmail_message_id)` — covers messages
+  //      Gmail synced before or messages from outside our pipeline.
+  //   2) If that misses AND we have a parseable `Message-ID` header, try
+  //      matching by `(account_id, message_id)` — covers in-flight outbound
+  //      messages where the worker has not yet written gmail_message_id.
+  let existingMsg: {
+    id: string;
+    direction: "inbound" | "outbound";
+    body_html: string | null;
+    body_text: string | null;
+    gmail_message_id: string | null;
+  } | null = null;
+
+  {
+    const { data } = await admin
+      .from("email_messages")
+      .select("id, direction, body_html, body_text, gmail_message_id")
+      .eq("account_id", accountId)
+      .eq("gmail_message_id", gmailMessageId)
+      .maybeSingle();
+    existingMsg = data ?? null;
+  }
+
+  if (!existingMsg && messageHeaderId) {
+    const { data } = await admin
+      .from("email_messages")
+      .select("id, direction, body_html, body_text, gmail_message_id")
+      .eq("account_id", accountId)
+      .eq("message_id", messageHeaderId)
+      .is("gmail_message_id", null)
+      .maybeSingle();
+    existingMsg = data ?? null;
+  }
 
   let messageRowId: string;
 
@@ -241,6 +273,11 @@ async function upsertMessage(
       gmail_thread_id: gmailThreadId,
       is_read: !(full.labelIds ?? []).includes("UNREAD"),
     };
+    // If we matched on message_id (existing row has no gmail_message_id yet),
+    // backfill it so the next sync tick takes the fast path.
+    if (!existingMsg.gmail_message_id) {
+      patch.gmail_message_id = gmailMessageId;
+    }
     if (!existingMsg.body_html && sanitizedHtml) patch.body_html = sanitizedHtml;
     if (!existingMsg.body_text && plain) patch.body_text = plain;
     if (sentAtIso) patch.sent_at = sentAtIso;

@@ -5,6 +5,7 @@ import { PRABHU_SIGNATURE_HTML } from "@/lib/email-signature";
 import { buildEmailPrompt } from "@/lib/leads/prompts";
 import { EmailType, EmailStatus, LeadData, ORG_ID } from "@/lib/leads/types";
 import { getDefaultCc } from "@/lib/email";
+import { sanitizeEmailHtml } from "@/lib/email/sanitize";
 
 // Convert plain-text body (paragraphs separated by blank lines) to styled HTML.
 // Inline styles are required — email clients strip CSS classes.
@@ -90,7 +91,7 @@ Source page: ${sourceUrl}`;
 
     // AI returns plain text; convert to HTML for email clients.
     const bodyHtml = plainTextToHtml(parsed.body);
-    const fullBodyHtml = bodyHtml + PRABHU_SIGNATURE_HTML;
+    const fullBodyHtml = sanitizeEmailHtml(bodyHtml + PRABHU_SIGNATURE_HTML);
     const fullBodyText = parsed.body;
 
     let status: EmailStatus = "draft";
@@ -196,7 +197,9 @@ export async function PATCH(request: NextRequest) {
   }
   if (body_text !== undefined) {
     updates.body_text = body_text;
-    updates.body_html = plainTextToHtml(body_text) + PRABHU_SIGNATURE_HTML;
+    updates.body_html = sanitizeEmailHtml(
+      plainTextToHtml(body_text) + PRABHU_SIGNATURE_HTML,
+    );
   }
 
   const { error: updateError } = await supabase

@@ -84,7 +84,15 @@ export async function enqueueSend(
     account_id: input.account_id,
     org_id: ORG_ID,
   });
-  if (jobErr) throw new Error(jobErr.message);
+  if (jobErr) {
+    // Rollback: mark the message failed so it can't sit in 'queued' forever
+    // with no worker to drain it.
+    await admin
+      .from("email_messages")
+      .update({ status: "failed", failure_reason: "enqueue_failed" })
+      .eq("id", msg.id);
+    throw new Error(jobErr.message);
+  }
 
   if (input.context_type && input.context_id) {
     await admin.from("email_contexts").insert({

@@ -78,6 +78,7 @@ export interface EmailMessage {
   retry_count: number;
   sent_by_user_id: string | null;
   sent_by_agent_id: string | null;
+  sending_started_at: string | null;
 }
 
 export type EmailContextType =
