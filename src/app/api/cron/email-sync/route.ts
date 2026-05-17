@@ -1,9 +1,10 @@
 // GET /api/cron/email-sync — runs every 2 min via Hostinger cron.
-// Iterates connected accounts and syncs each.
+// Dispatches per-account by provider: Gmail OAuth via gmail-sync, legacy IMAP via sync.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { syncAccount } from "@/lib/email/sync";
+import { syncAccount as syncImap } from "@/lib/email/sync";
+import { syncGmailAccount } from "@/lib/email/gmail-sync";
 import { ORG_ID, type EmailAccount } from "@/lib/email/index";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,10 @@ function authorised(request: NextRequest): boolean {
   const token = process.env.CRON_SECRET;
   if (!token) return true; // no secret set → allow (dev only)
   const header = request.headers.get("authorization") ?? "";
-  return header === `Bearer ${token}` || request.nextUrl.searchParams.get("secret") === token;
+  return (
+    header === `Bearer ${token}` ||
+    request.nextUrl.searchParams.get("secret") === token
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -32,14 +36,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const results = [];
+  const results: unknown[] = [];
   for (const acc of (accounts ?? []) as EmailAccount[]) {
     try {
-      const r = await syncAccount(acc);
-      results.push(r);
+      if (acc.provider === "gmail_oauth") {
+        results.push(await syncGmailAccount(acc.id));
+      } else {
+        results.push(await syncImap(acc));
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sync threw";
-      results.push({ account_id: acc.id, email: acc.email, fetched: 0, newThreads: 0, newMessages: 0, error: msg });
+      results.push({
+        account_id: acc.id,
+        email: acc.email,
+        fetched: 0,
+        newThreads: 0,
+        newMessages: 0,
+        error: msg,
+      });
     }
   }
 

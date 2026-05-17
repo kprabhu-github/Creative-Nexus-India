@@ -36,6 +36,7 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ContextEmailPanel } from "@/components/email/ContextEmailPanel";
 import { createClient } from "@/lib/supabase/client";
 import {
   LeadScore,
@@ -534,6 +535,24 @@ function LeadDetail({
         composeRequest={composeRequest}
         onComposeHandled={onComposeHandled}
       />
+
+      {/* Task 16: ContextEmailPanel — new context-engine surface that
+          shows emails linked via the email_contexts table. Lives alongside
+          the legacy ConversationsSection until Task 19 migrates it away. */}
+      {lead?.id ? (
+        <section className="mt-6">
+          <h3 className="text-sm font-semibold text-foreground mb-2">
+            Linked emails (context engine)
+          </h3>
+          <div className="h-[480px]">
+            <ContextEmailPanel
+              contextType="lead"
+              contextId={lead.id}
+              defaultRecipient={lead.email ?? undefined}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {/* Legacy Email History — read-only archive of pre-Path-A sent emails.
           New sends go through Conversations. Decommission once `lead_emails`
