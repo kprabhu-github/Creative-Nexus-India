@@ -1,13 +1,16 @@
 "use client";
 
-// Gmail-style floating compose. Bottom-right of screen, minimizable, closable.
-// Used for both new emails (open from "+ Compose") and replies (pre-fills
-// recipient, subject, thread_id, in_reply_to). Sends via /xapi/email/send.
+// Gmail-style floating compose. Bottom-right of screen, minimizable, closable,
+// fullscreen-toggleable. Rich text body (Tiptap), recipient chips with
+// autocomplete from past senders, keyboard shortcuts (⌘↵ send, Esc minimize).
+// Used for new emails and replies. Sends via /xapi/email/send.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import type { EmailContextType } from "@/lib/email/index";
+import { RichTextEditor } from "./RichTextEditor";
+import { RecipientChips } from "./RecipientChips";
 
 interface AccountRow {
   id: string;
@@ -40,7 +43,10 @@ const C = {
   gray: "#9CA3AF",
   border: "#E5E7EB",
   bg: "#FAFAFA",
+  err: "#EF4444",
 };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function ComposeModal({ initial, onClose, onSent }: Props) {
   const sb = useMemo(() => createClient(), []);
@@ -58,17 +64,19 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
   });
 
   const [accountId, setAccountId] = useState(initial?.account_id ?? "");
-  const [to, setTo] = useState((initial?.to ?? []).join(", "));
-  const [cc, setCc] = useState((initial?.cc ?? []).join(", "));
-  const [bcc, setBcc] = useState((initial?.bcc ?? []).join(", "));
+  const [to, setTo] = useState<string[]>(initial?.to ?? []);
+  const [cc, setCc] = useState<string[]>(initial?.cc ?? []);
+  const [bcc, setBcc] = useState<string[]>(initial?.bcc ?? []);
   const [subject, setSubject] = useState(initial?.subject ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
   const [showCcBcc, setShowCcBcc] = useState(
     Boolean(initial?.cc?.length || initial?.bcc?.length),
   );
   const [minimized, setMinimized] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sendRef = useRef<() => void>(() => {});
 
   // Default account = first connected one.
   useEffect(() => {
@@ -77,31 +85,18 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
     }
   }, [accountId, accountsQ.data]);
 
-  const splitEmails = (raw: string): string[] =>
-    raw
-      .split(/[,;\s]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
   const send = async () => {
     setError(null);
-    const toList = splitEmails(to);
-    if (!accountId) {
-      setError("Pick a From account");
-      return;
-    }
-    if (toList.length === 0) {
-      setError("At least one recipient required");
-      return;
-    }
-    if (!subject.trim()) {
-      setError("Subject required");
-      return;
-    }
-    if (!body.trim()) {
-      setError("Body required");
-      return;
-    }
+    if (!accountId) return setError("Pick a From account");
+    if (to.length === 0) return setError("At least one recipient required");
+    const invalid = [...to, ...(showCcBcc ? cc : []), ...(showCcBcc ? bcc : [])].filter(
+      (e) => !EMAIL_RE.test(e),
+    );
+    if (invalid.length) return setError(`Invalid email: ${invalid[0]}`);
+    if (!subject.trim()) return setError("Subject required");
+    const plain = htmlToText(body).trim();
+    if (!plain) return setError("Body required");
+
     setSending(true);
     try {
       const res = await fetch("/xapi/email/send", {
@@ -113,11 +108,11 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
         body: JSON.stringify({
           account_id: accountId,
           thread_id: initial?.thread_id,
-          to: toList,
-          cc: showCcBcc && cc ? splitEmails(cc) : undefined,
-          bcc: showCcBcc && bcc ? splitEmails(bcc) : undefined,
+          to,
+          cc: showCcBcc && cc.length ? cc : undefined,
+          bcc: showCcBcc && bcc.length ? bcc : undefined,
           subject: subject.trim(),
-          html: `<p>${body.replace(/\n/g, "<br>")}</p>`,
+          html: body,
           context_type: initial?.context_type,
           context_id: initial?.context_id,
         }),
@@ -127,9 +122,7 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
         thread_id?: string;
         error?: string;
       };
-      if (!res.ok) {
-        throw new Error(json.error ?? `HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       onSent?.(json.message_id ?? "", json.thread_id ?? "");
       onClose();
     } catch (err) {
@@ -138,6 +131,30 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
       setSending(false);
     }
   };
+
+  // Keep latest send in ref so shortcut handler stays stable.
+  useEffect(() => {
+    sendRef.current = send;
+  });
+
+  // Global keyboard shortcuts: Esc = minimize, ⌘/Ctrl+Enter = send.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !minimized) {
+        const tgt = e.target as HTMLElement | null;
+        if (tgt?.tagName === "INPUT" || tgt?.tagName === "SELECT") return;
+        e.preventDefault();
+        setMinimized(true);
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        sendRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [minimized]);
+
+  const canSend = !sending && to.length > 0 && !!subject.trim() && accountId;
 
   if (minimized) {
     return (
@@ -192,13 +209,28 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
     );
   }
 
-  return (
-    <div
-      style={{
+  const frameStyle: React.CSSProperties = fullscreen
+    ? {
+        position: "fixed",
+        inset: "40px 40px 0 40px",
+        width: "auto",
+        maxWidth: 980,
+        margin: "0 auto",
+        maxHeight: "calc(100vh - 40px)",
+        background: "white",
+        borderRadius: "12px 12px 0 0",
+        boxShadow: "0 -8px 40px rgba(0,0,0,0.22)",
+        display: "flex",
+        flexDirection: "column",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        zIndex: 9999,
+        border: `1px solid ${C.border}`,
+      }
+    : {
         position: "fixed",
         bottom: 0,
         right: 20,
-        width: 540,
+        width: 560,
         maxHeight: "85vh",
         background: "white",
         borderRadius: "10px 10px 0 0",
@@ -208,15 +240,17 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
         fontFamily: "system-ui, -apple-system, sans-serif",
         zIndex: 9999,
         border: `1px solid ${C.border}`,
-      }}
-    >
+      };
+
+  return (
+    <div style={frameStyle}>
       {/* Header */}
       <header
         style={{
           background: C.navy,
           color: "white",
           padding: "10px 16px",
-          borderRadius: "10px 10px 0 0",
+          borderRadius: fullscreen ? "12px 12px 0 0" : "10px 10px 0 0",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -227,9 +261,16 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
         </span>
         <div style={{ display: "flex", gap: 8 }}>
           <button
+            onClick={() => setFullscreen((f) => !f)}
+            style={iconBtn}
+            title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {fullscreen ? "⤡" : "⤢"}
+          </button>
+          <button
             onClick={() => setMinimized(true)}
             style={iconBtn}
-            title="Minimize"
+            title="Minimize (Esc)"
           >
             ─
           </button>
@@ -260,51 +301,33 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
       {/* To */}
       <div style={fieldRow}>
         <label style={fieldLabel}>To</label>
-        <input
+        <RecipientChips
           value={to}
-          onChange={(e) => setTo(e.target.value)}
-          placeholder="comma-separated emails"
-          style={fieldInput}
+          onChange={setTo}
+          placeholder="Recipients"
+          autoFocus={!initial?.to?.length}
         />
         {!showCcBcc && (
           <button
             onClick={() => setShowCcBcc(true)}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: C.gray,
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: "pointer",
-              padding: "2px 6px",
-              whiteSpace: "nowrap",
-            }}
+            style={inlineLink}
+            type="button"
           >
             Cc · Bcc
           </button>
         )}
       </div>
 
-      {/* Cc */}
+      {/* Cc / Bcc */}
       {showCcBcc && (
         <>
           <div style={fieldRow}>
             <label style={fieldLabel}>Cc</label>
-            <input
-              value={cc}
-              onChange={(e) => setCc(e.target.value)}
-              placeholder="comma-separated"
-              style={fieldInput}
-            />
+            <RecipientChips value={cc} onChange={setCc} placeholder="Cc" />
           </div>
           <div style={fieldRow}>
             <label style={fieldLabel}>Bcc</label>
-            <input
-              value={bcc}
-              onChange={(e) => setBcc(e.target.value)}
-              placeholder="comma-separated"
-              style={fieldInput}
-            />
+            <RecipientChips value={bcc} onChange={setBcc} placeholder="Bcc" />
           </div>
         </>
       )}
@@ -321,24 +344,22 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, padding: "10px 16px", display: "flex", flexDirection: "column", minHeight: 200 }}>
-        <textarea
+      <div
+        style={{
+          flex: 1,
+          padding: "10px 16px 12px",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 220,
+          overflow: "hidden",
+        }}
+      >
+        <RichTextEditor
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={setBody}
+          onCmdEnter={send}
+          minHeight={fullscreen ? 380 : 220}
           placeholder="Write your message…"
-          style={{
-            flex: 1,
-            minHeight: 200,
-            padding: 10,
-            borderRadius: 6,
-            border: `1px solid ${C.border}`,
-            fontSize: 14,
-            lineHeight: 1.5,
-            fontFamily: "inherit",
-            resize: "none",
-            outline: "none",
-            boxSizing: "border-box",
-          }}
         />
       </div>
 
@@ -351,43 +372,44 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
           justifyContent: "space-between",
           alignItems: "center",
           background: C.bg,
-          borderRadius: "0 0 0 0",
         }}
       >
-        <button
-          onClick={send}
-          disabled={sending || !body.trim() || !to.trim() || !accountId}
-          style={{
-            padding: "9px 22px",
-            borderRadius: 7,
-            border: "none",
-            background:
-              sending || !body.trim() || !to.trim() || !accountId
-                ? "#F3F4F6"
-                : C.coral,
-            color:
-              sending || !body.trim() || !to.trim() || !accountId
-                ? C.gray
-                : "white",
-            fontSize: 13,
-            fontWeight: 700,
-            cursor:
-              sending || !body.trim() || !to.trim() || !accountId
-                ? "default"
-                : "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          {sending ? "Sending…" : "Send"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={send}
+            disabled={!canSend}
+            style={{
+              padding: "9px 22px",
+              borderRadius: 7,
+              border: "none",
+              background: !canSend ? "#F3F4F6" : C.coral,
+              color: !canSend ? C.gray : "white",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: !canSend ? "default" : "pointer",
+              fontFamily: "inherit",
+            }}
+            title="Send (⌘↵)"
+          >
+            {sending ? "Sending…" : "Send"}
+          </button>
+          <span style={{ fontSize: 11, color: C.gray }}>⌘↵ to send · Esc to minimize</span>
+        </div>
         {error && (
-          <span style={{ fontSize: 11, color: "#EF4444", flex: 1, marginLeft: 12 }}>
+          <span style={{ fontSize: 11, color: C.err, marginLeft: 12, textAlign: "right" }}>
             {error}
           </span>
         )}
       </footer>
     </div>
   );
+}
+
+function htmlToText(html: string): string {
+  if (typeof window === "undefined") return html.replace(/<[^>]*>/g, "");
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  return tmp.textContent ?? "";
 }
 
 const iconBtn: React.CSSProperties = {
@@ -407,7 +429,7 @@ const iconBtn: React.CSSProperties = {
 
 const fieldRow: React.CSSProperties = {
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-start",
   gap: 10,
   padding: "8px 16px",
   borderBottom: `1px solid ${C.border}`,
@@ -421,6 +443,7 @@ const fieldLabel: React.CSSProperties = {
   letterSpacing: "0.4px",
   width: 48,
   flexShrink: 0,
+  paddingTop: 5,
 };
 
 const fieldInput: React.CSSProperties = {
@@ -433,4 +456,16 @@ const fieldInput: React.CSSProperties = {
   outline: "none",
   background: "transparent",
   color: C.navy,
+};
+
+const inlineLink: React.CSSProperties = {
+  border: "none",
+  background: "transparent",
+  color: C.gray,
+  fontSize: 11,
+  fontWeight: 600,
+  cursor: "pointer",
+  padding: "4px 6px",
+  whiteSpace: "nowrap",
+  alignSelf: "center",
 };
