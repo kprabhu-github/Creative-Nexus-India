@@ -7,7 +7,39 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadGmailClient } from "@/lib/email/gmail-client";
-import { buildMime, toBase64Url } from "@/lib/email/mime";
+import {
+  buildMime,
+  toBase64Url,
+  type MimeAttachment,
+} from "@/lib/email/mime";
+
+interface AttachmentMeta {
+  name: string;
+  mime: string;
+  size: number;
+  storage_path: string;
+}
+
+async function fetchAttachmentBytes(
+  admin: Admin,
+  metas: AttachmentMeta[] | null,
+): Promise<MimeAttachment[] | undefined> {
+  if (!metas || metas.length === 0) return undefined;
+  const out: MimeAttachment[] = [];
+  for (const meta of metas) {
+    const { data, error } = await admin.storage
+      .from("email-attachments")
+      .download(meta.storage_path);
+    if (error || !data) {
+      throw new Error(
+        `attachment fetch failed (${meta.storage_path}): ${error?.message ?? "no data"}`,
+      );
+    }
+    const buf = Buffer.from(await data.arrayBuffer());
+    out.push({ name: meta.name, mime: meta.mime, content: buf });
+  }
+  return out;
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -178,7 +210,7 @@ async function processJob(admin: Admin, job: LockedJob): Promise<string> {
   const { data: pre } = await admin
     .from("email_messages")
     .select(
-      "id, status, sent_at, gmail_message_id, sending_started_at, message_id, in_reply_to, references_chain, to_emails, cc_emails, subject, body_html, body_text, thread_id",
+      "id, status, sent_at, gmail_message_id, sending_started_at, message_id, in_reply_to, references_chain, to_emails, cc_emails, subject, body_html, body_text, thread_id, attachments_json",
     )
     .eq("id", job.message_id)
     .single();
@@ -242,6 +274,11 @@ async function processJob(admin: Admin, job: LockedJob): Promise<string> {
 
   const { account, gmail } = await loadGmailClient(job.account_id);
 
+  const attachments = await fetchAttachmentBytes(
+    admin,
+    pre.attachments_json as AttachmentMeta[] | null,
+  );
+
   const mime = buildMime({
     from: account.email,
     fromName: account.display_name,
@@ -253,6 +290,7 @@ async function processJob(admin: Admin, job: LockedJob): Promise<string> {
     messageId: pre.message_id!,
     inReplyTo: pre.in_reply_to,
     references: pre.references_chain,
+    attachments,
   });
   const raw = toBase64Url(mime);
 

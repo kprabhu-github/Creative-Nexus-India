@@ -2,7 +2,8 @@
 
 // Gmail-style floating compose. Bottom-right of screen, minimizable, closable,
 // fullscreen-toggleable. Rich text body (Tiptap), recipient chips with
-// autocomplete from past senders, keyboard shortcuts (⌘↵ send, Esc minimize).
+// autocomplete from past senders, keyboard shortcuts (⌘↵ send, Esc minimize),
+// drag-drop attachments, per-account signature auto-append, draft autosave.
 // Used for new emails and replies. Sends via /xapi/email/send.
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,12 +12,24 @@ import { useQuery } from "@tanstack/react-query";
 import type { EmailContextType } from "@/lib/email/index";
 import { RichTextEditor } from "./RichTextEditor";
 import { RecipientChips } from "./RecipientChips";
+import {
+  AttachmentList,
+  type AttachmentListHandle,
+  type UploadedAttachment,
+} from "./AttachmentList";
+import {
+  useDraftAutosave,
+  loadDraft,
+  clearDraft,
+  buildDraftKey,
+} from "./useDraftAutosave";
 
 interface AccountRow {
   id: string;
   email: string;
   display_name: string;
   provider: "smtp_imap" | "gmail_oauth";
+  signature_html: string | null;
 }
 
 export interface ComposeInitial {
@@ -48,6 +61,25 @@ const C = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Signature is appended once per account. We wrap it in a marker div so swapping
+// accounts can replace the previous signature instead of stacking them.
+const SIG_MARKER_CLASS = "cnx-sig-block";
+const SIG_OPEN = `<div class="${SIG_MARKER_CLASS}">`;
+const SIG_CLOSE = `</div>`;
+
+function wrapSignature(sig: string): string {
+  return `<p></p><p></p>${SIG_OPEN}${sig}${SIG_CLOSE}`;
+}
+
+function stripSignature(html: string): string {
+  if (!html.includes(SIG_MARKER_CLASS)) return html;
+  const re = new RegExp(
+    `<div class="${SIG_MARKER_CLASS}">[\\s\\S]*?<\\/div>`,
+    "g",
+  );
+  return html.replace(re, "").replace(/(<p><\/p>)+$/g, "");
+}
+
 export function ComposeModal({ initial, onClose, onSent }: Props) {
   const sb = useMemo(() => createClient(), []);
 
@@ -56,19 +88,41 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
     queryFn: async (): Promise<AccountRow[]> => {
       const { data } = await sb
         .from("email_accounts")
-        .select("id, email, display_name, provider")
+        .select("id, email, display_name, provider, signature_html")
         .eq("status", "connected")
         .order("email");
       return (data ?? []) as AccountRow[];
     },
   });
 
+  const draftKey = useMemo(
+    () =>
+      buildDraftKey({
+        accountId: initial?.account_id,
+        threadId: initial?.thread_id,
+        contextType: initial?.context_type,
+        contextId: initial?.context_id,
+      }),
+    [
+      initial?.account_id,
+      initial?.thread_id,
+      initial?.context_type,
+      initial?.context_id,
+    ],
+  );
+
+  // Restore draft on mount if present; otherwise use the prefill from `initial`.
+  const restored = useMemo(() => loadDraft(draftKey), [draftKey]);
+
   const [accountId, setAccountId] = useState(initial?.account_id ?? "");
-  const [to, setTo] = useState<string[]>(initial?.to ?? []);
-  const [cc, setCc] = useState<string[]>(initial?.cc ?? []);
-  const [bcc, setBcc] = useState<string[]>(initial?.bcc ?? []);
-  const [subject, setSubject] = useState(initial?.subject ?? "");
-  const [body, setBody] = useState(initial?.body ?? "");
+  const [to, setTo] = useState<string[]>(restored?.to ?? initial?.to ?? []);
+  const [cc, setCc] = useState<string[]>(restored?.cc ?? initial?.cc ?? []);
+  const [bcc, setBcc] = useState<string[]>(restored?.bcc ?? initial?.bcc ?? []);
+  const [subject, setSubject] = useState(
+    restored?.subject ?? initial?.subject ?? "",
+  );
+  const [body, setBody] = useState(restored?.body ?? initial?.body ?? "");
+  const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [showCcBcc, setShowCcBcc] = useState(
     Boolean(initial?.cc?.length || initial?.bcc?.length),
   );
@@ -76,7 +130,13 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
   const [fullscreen, setFullscreen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSigEditor, setShowSigEditor] = useState(false);
+  const [sigDraft, setSigDraft] = useState("");
+  const [savingSig, setSavingSig] = useState(false);
+
   const sendRef = useRef<() => void>(() => {});
+  const attachRef = useRef<AttachmentListHandle | null>(null);
+  const sigInitialized = useRef(false);
 
   // Default account = first connected one.
   useEffect(() => {
@@ -84,6 +144,51 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
       setAccountId(accountsQ.data[0].id);
     }
   }, [accountId, accountsQ.data]);
+
+  // Append signature once on first new compose with an empty body. Replies
+  // (initial.thread_id) inherit the parent's signature in the quoted block.
+  useEffect(() => {
+    if (sigInitialized.current) return;
+    if (initial?.thread_id) {
+      sigInitialized.current = true;
+      return;
+    }
+    if (restored) {
+      sigInitialized.current = true;
+      return;
+    }
+    if (!accountId || !accountsQ.data) return;
+
+    const acct = accountsQ.data.find((a) => a.id === accountId);
+    const sig = acct?.signature_html?.trim();
+    if (sig) {
+      setBody((curr) => {
+        if (curr && curr.replace(/<[^>]*>/g, "").trim()) return curr;
+        return wrapSignature(sig);
+      });
+    }
+    sigInitialized.current = true;
+  }, [accountId, accountsQ.data, initial?.thread_id, restored]);
+
+  // Swap signature when From account changes (only on new compose).
+  useEffect(() => {
+    if (!sigInitialized.current) return;
+    if (initial?.thread_id) return;
+    if (!accountId || !accountsQ.data) return;
+    const acct = accountsQ.data.find((a) => a.id === accountId);
+    const sig = acct?.signature_html?.trim();
+    setBody((curr) => {
+      const without = stripSignature(curr);
+      if (sig) return without + wrapSignature(sig);
+      return without;
+    });
+  }, [accountId, accountsQ.data, initial?.thread_id]);
+
+  useDraftAutosave({
+    key: draftKey,
+    enabled: !sending,
+    state: { to, cc, bcc, subject, body },
+  });
 
   const send = async () => {
     setError(null);
@@ -113,6 +218,7 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
           bcc: showCcBcc && bcc.length ? bcc : undefined,
           subject: subject.trim(),
           html: body,
+          attachments: attachments.length ? attachments : undefined,
           context_type: initial?.context_type,
           context_id: initial?.context_id,
         }),
@@ -123,6 +229,7 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
         error?: string;
       };
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      clearDraft(draftKey);
       onSent?.(json.message_id ?? "", json.thread_id ?? "");
       onClose();
     } catch (err) {
@@ -154,7 +261,42 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [minimized]);
 
-  const canSend = !sending && to.length > 0 && !!subject.trim() && accountId;
+  const openSigEditor = () => {
+    const current = accountsQ.data?.find((a) => a.id === accountId);
+    setSigDraft(current?.signature_html ?? "");
+    setShowSigEditor(true);
+  };
+
+  const saveSignature = async () => {
+    if (!accountId) return;
+    setSavingSig(true);
+    try {
+      const res = await fetch(`/xapi/email/accounts/${accountId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signature_html: sigDraft }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      await accountsQ.refetch();
+      // Re-apply the new signature to the open draft.
+      const trimmed = sigDraft.trim();
+      setBody((curr) => {
+        const without = stripSignature(curr);
+        return trimmed ? without + wrapSignature(trimmed) : without;
+      });
+      setShowSigEditor(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSavingSig(false);
+    }
+  };
+
+  const canSend =
+    !sending && to.length > 0 && !!subject.trim() && Boolean(accountId);
 
   if (minimized) {
     return (
@@ -296,6 +438,9 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
           ))}
           {!accountsQ.data?.length && <option>No connected accounts</option>}
         </select>
+        <button onClick={openSigEditor} style={inlineLink} type="button">
+          Signature
+        </button>
       </div>
 
       {/* To */}
@@ -343,6 +488,78 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
         />
       </div>
 
+      {/* Attachments */}
+      <AttachmentList
+        ref={attachRef}
+        attachments={attachments}
+        onChange={setAttachments}
+      />
+
+      {/* Inline signature editor */}
+      {showSigEditor && (
+        <div
+          style={{
+            padding: "10px 16px",
+            borderBottom: `1px solid ${C.border}`,
+            background: "#FAFAFA",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: C.gray,
+              textTransform: "uppercase",
+              letterSpacing: "0.4px",
+              marginBottom: 6,
+            }}
+          >
+            Edit signature
+          </div>
+          <RichTextEditor
+            value={sigDraft}
+            onChange={setSigDraft}
+            placeholder="Your signature (HTML)…"
+            minHeight={100}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button
+              onClick={saveSignature}
+              disabled={savingSig}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: "none",
+                background: savingSig ? "#F3F4F6" : C.coral,
+                color: savingSig ? C.gray : "white",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: savingSig ? "default" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {savingSig ? "Saving…" : "Save signature"}
+            </button>
+            <button
+              onClick={() => setShowSigEditor(false)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: `1px solid ${C.border}`,
+                background: "white",
+                color: C.navy,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Body */}
       <div
         style={{
@@ -374,7 +591,7 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
           background: C.bg,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={send}
             disabled={!canSend}
@@ -393,7 +610,25 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
           >
             {sending ? "Sending…" : "Send"}
           </button>
-          <span style={{ fontSize: 11, color: C.gray }}>⌘↵ to send · Esc to minimize</span>
+          <button
+            type="button"
+            onClick={() => attachRef.current?.openPicker()}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: C.gray,
+              fontSize: 18,
+              padding: "4px 6px",
+              borderRadius: 4,
+            }}
+            title="Attach files"
+          >
+            📎
+          </button>
+          <span style={{ fontSize: 11, color: C.gray }}>
+            ⌘↵ send · Esc minimize · drag files to attach
+          </span>
         </div>
         {error && (
           <span style={{ fontSize: 11, color: C.err, marginLeft: 12, textAlign: "right" }}>

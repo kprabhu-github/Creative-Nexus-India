@@ -27,6 +27,7 @@ export interface EmailAccount {
   gmail_history_id: string | null;
   gmail_watch_expiration: string | null;
   is_default: boolean;
+  signature_html: string | null;
 }
 
 export interface EmailThread {

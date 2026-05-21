@@ -14,6 +14,7 @@ export async function PATCH(
   const body = (await request.json()) as {
     display_name?: string;
     app_password?: string;
+    signature_html?: string | null;
   };
 
   const updates: Record<string, unknown> = {};
@@ -22,6 +23,12 @@ export async function PATCH(
     updates.app_password_encrypted = encrypt(body.app_password);
     updates.status = "connected";
     updates.last_error = null;
+  }
+  if (body.signature_html !== undefined) {
+    // Empty string → store NULL so "no signature" stays canonical.
+    const trimmed =
+      typeof body.signature_html === "string" ? body.signature_html.trim() : "";
+    updates.signature_html = trimmed === "" ? null : trimmed;
   }
 
   if (Object.keys(updates).length === 0) {

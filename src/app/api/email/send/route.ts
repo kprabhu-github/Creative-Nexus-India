@@ -17,6 +17,15 @@ export const dynamic = "force-dynamic";
 const CLAIM_TTL_MS = 30_000;
 const PG_UNIQUE_VIOLATION = "23505";
 
+const ATTACHMENT_TOTAL_CAP = 25 * 1024 * 1024;
+
+const attachmentSchema = z.object({
+  name: z.string().min(1).max(255),
+  mime: z.string().min(1).max(255),
+  size: z.number().int().positive().max(20 * 1024 * 1024),
+  storage_path: z.string().min(1).max(1024),
+});
+
 const sendSchema = z.object({
   account_id: z.string().uuid(),
   thread_id: z.string().uuid().optional(),
@@ -25,6 +34,7 @@ const sendSchema = z.object({
   bcc: z.array(z.string().email()).max(20).optional(),
   subject: z.string().min(1).max(998),
   html: z.string().min(1).max(500_000),
+  attachments: z.array(attachmentSchema).max(10).optional(),
   context_type: z
     .enum([
       "lead",
@@ -157,6 +167,16 @@ export async function POST(req: NextRequest) {
   }
   const p = parsed.data;
 
+  if (p.attachments?.length) {
+    const total = p.attachments.reduce((sum, a) => sum + a.size, 0);
+    if (total > ATTACHMENT_TOTAL_CAP) {
+      return NextResponse.json(
+        { error: `Attachments exceed ${ATTACHMENT_TOTAL_CAP} byte cap` },
+        { status: 413 },
+      );
+    }
+  }
+
   const admin = createAdminClient();
 
   // Atomically claim or detect the idempotency key BEFORE side effects.
@@ -258,6 +278,7 @@ export async function POST(req: NextRequest) {
         snippet: text.slice(0, 200),
         body_html: html,
         body_text: text,
+        attachments_json: p.attachments?.length ? p.attachments : null,
         direction: "outbound",
         status: "queued",
         sent_by_user_id: user.id,
