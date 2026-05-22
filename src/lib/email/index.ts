@@ -43,6 +43,9 @@ export interface EmailThread {
   created_at: string;
   gmail_thread_id: string | null;
   snippet: string | null;
+  starred: boolean;
+  archived: boolean;
+  trashed_at: string | null;
 }
 
 export interface EmailMessage {
