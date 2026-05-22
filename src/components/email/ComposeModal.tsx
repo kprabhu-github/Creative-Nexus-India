@@ -612,6 +612,26 @@ export function ComposeModal({ initial, onClose, onSent }: Props) {
           </button>
           <button
             type="button"
+            onClick={() => {
+              clearDraft(draftKey);
+              onClose();
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: C.gray,
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "6px 10px",
+              borderRadius: 4,
+            }}
+            title="Discard draft and close"
+          >
+            Discard
+          </button>
+          <button
+            type="button"
             onClick={() => attachRef.current?.openPicker()}
             style={{
               background: "transparent",

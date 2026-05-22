@@ -4,6 +4,8 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Underline from "@tiptap/extension-underline";
+import Image from "@tiptap/extension-image";
 import { useEffect } from "react";
 
 interface Props {
@@ -31,6 +33,8 @@ export function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3] } }),
+      Underline,
+      Image.configure({ inline: true, allowBase64: false }),
       Link.configure({
         openOnClick: false,
         autolink: true,
@@ -89,6 +93,7 @@ export function RichTextEditor({
         .compose-tiptap blockquote { border-left: 3px solid ${C.border}; padding-left: 10px; color: #6B7280; margin: 0 0 8px; }
         .compose-tiptap code { background: #F3F4F6; padding: 1px 5px; border-radius: 3px; font-size: 12.5px; }
         .compose-tiptap pre { background: #0F172A; color: #E2E8F0; padding: 10px; border-radius: 6px; overflow-x: auto; }
+        .compose-tiptap img { max-width: 100%; height: auto; border-radius: 4px; }
         .compose-tiptap p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
           color: ${C.gray};
@@ -135,6 +140,12 @@ function Toolbar({ editor }: { editor: Editor }) {
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   };
 
+  const insertImage = () => {
+    const url = window.prompt("Image URL (paste a hosted image link)");
+    if (!url) return;
+    editor.chain().focus().setImage({ src: url }).run();
+  };
+
   return (
     <div
       style={{
@@ -148,6 +159,7 @@ function Toolbar({ editor }: { editor: Editor }) {
     >
       {btn(editor.isActive("bold"), () => editor.chain().focus().toggleBold().run(), "B", "Bold (⌘B)")}
       {btn(editor.isActive("italic"), () => editor.chain().focus().toggleItalic().run(), "I", "Italic (⌘I)")}
+      {btn(editor.isActive("underline"), () => editor.chain().focus().toggleUnderline().run(), "U", "Underline (⌘U)")}
       {btn(editor.isActive("strike"), () => editor.chain().focus().toggleStrike().run(), "S", "Strikethrough")}
       <Divider />
       {btn(editor.isActive("bulletList"), () => editor.chain().focus().toggleBulletList().run(), "•", "Bullet list")}
@@ -155,6 +167,7 @@ function Toolbar({ editor }: { editor: Editor }) {
       {btn(editor.isActive("blockquote"), () => editor.chain().focus().toggleBlockquote().run(), "❝", "Quote")}
       <Divider />
       {btn(editor.isActive("link"), setLink, "🔗", "Add link")}
+      {btn(false, insertImage, "🖼", "Insert image by URL")}
       {btn(editor.isActive("code"), () => editor.chain().focus().toggleCode().run(), "</>", "Inline code")}
     </div>
   );
