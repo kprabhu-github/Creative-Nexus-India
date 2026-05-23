@@ -9,6 +9,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+// Single-tenant constant mirrored across api routes. Hoist to lib/constants
+// once a refactor pass is justified.
+const ORG_ID = "a0000000-0000-0000-0000-000000000001";
+
 // ---------------------------------------------------------------------------
 // GET — List active agent templates
 // ---------------------------------------------------------------------------
@@ -79,6 +83,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("ais_agent_templates")
       .insert({
+        org_id: ORG_ID,
         code,
         name,
         description,

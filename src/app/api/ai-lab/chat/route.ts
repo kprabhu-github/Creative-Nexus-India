@@ -12,6 +12,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { callClaude } from "@/lib/anthropic";
 import type { ClaudeModelTier } from "@/lib/anthropic";
 
+// Single-tenant constant mirrored across other routes (api/settings, api/auth/setup,
+// lib/email/index). Hoist to lib/constants once a refactor pass is justified.
+const ORG_ID = "a0000000-0000-0000-0000-000000000001";
+
 // ---------------------------------------------------------------------------
 // Input validation
 // ---------------------------------------------------------------------------
@@ -110,6 +114,7 @@ export async function POST(request: Request) {
       const { data: newSession, error: createError } = await supabase
         .from("ais_agent_sessions")
         .insert({
+          org_id: ORG_ID,
           agent_template_id: agentTemplateId,
           title: message.slice(0, 100),
           messages: [],
