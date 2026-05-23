@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Zap, Share2, Radar, Target, Link2,
   FileText, Briefcase, MessageCircle, Settings,
-  Users, DollarSign, Clock, ListChecks, Hash, BrainCircuit, TrendingUp,
+  Users, DollarSign, Clock, Hash, BrainCircuit, TrendingUp,
   Receipt, FileSignature, CalendarDays, UserPlus,
   ChevronLeft, ChevronRight,
 } from "lucide-react";
@@ -34,7 +34,6 @@ const opsNav = [
   { name: "Calendar", href: "/calendar", icon: CalendarDays },
   { name: "Onboarding", href: "/onboarding", icon: UserPlus },
   { name: "Inbox", href: "/inbox", icon: MessageCircle },
-  { name: "Sprints", href: "/ops/projects", icon: ListChecks },
   { name: "Channels", href: "/slack", icon: Hash },
   { name: "AI Lab", href: "/ops", icon: BrainCircuit },
   { name: "Settings", href: "/settings", icon: Settings },
