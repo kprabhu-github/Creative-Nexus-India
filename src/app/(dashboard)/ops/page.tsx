@@ -24,6 +24,9 @@ import {
   Sparkles,
   Bot,
   Loader2,
+  ArrowRight,
+  Star,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -254,6 +257,41 @@ function tierLabel(tier: string): string {
   }
 }
 
+// Compact one-letter tier tag for the agent card (O/S/H).
+function tierAbbrev(tier: string): string {
+  switch (tier) {
+    case "strategy":
+      return "O";
+    case "execution":
+      return "S";
+    case "research":
+      return "H";
+    default:
+      return "·";
+  }
+}
+
+// Category colour tokens for the agent icon background + foreground.
+// Uses arbitrary Tailwind values so a future palette swap touches one file.
+function categoryColor(category: string): { bg: string; fg: string } {
+  switch (category.toLowerCase()) {
+    case "marketing":
+      return { bg: "bg-blue-500/10", fg: "text-blue-500" };
+    case "research":
+      return { bg: "bg-amber-500/10", fg: "text-amber-500" };
+    case "content":
+      return { bg: "bg-emerald-500/10", fg: "text-emerald-500" };
+    case "operations":
+      return { bg: "bg-violet-500/10", fg: "text-violet-500" };
+    case "data":
+      return { bg: "bg-rose-500/10", fg: "text-rose-500" };
+    case "assistant":
+      return { bg: "bg-foreground/10", fg: "text-foreground-secondary" };
+    default:
+      return { bg: "bg-foreground/10", fg: "text-foreground-secondary" };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Animated loading dots
 // ---------------------------------------------------------------------------
@@ -288,9 +326,11 @@ export default function AILabPage() {
   const [agents, setAgents] = useState<AgentTemplate[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<Category>("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedAgent, setSelectedAgent] = useState<AgentTemplate | null>(
     null,
   );
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // --- Chat state ---
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -325,13 +365,58 @@ export default function AILabPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isSending]);
 
-  // --- Filter agents by category ---
-  const filteredAgents =
+  // --- Filter agents by category then by search query ---
+  const categoryFiltered =
     categoryFilter === "All"
       ? agents
       : agents.filter(
           (a) => a.category.toLowerCase() === categoryFilter.toLowerCase(),
         );
+
+  const filteredAgents = (() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return categoryFiltered;
+    return categoryFiltered.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        a.description.toLowerCase().includes(q) ||
+        a.category.toLowerCase().includes(q),
+    );
+  })();
+
+  // Counts per tab (always against full agent list, ignoring search).
+  const categoryCounts: Record<Category, number> = {
+    All: agents.length,
+    Marketing: agents.filter((a) => a.category.toLowerCase() === "marketing")
+      .length,
+    Research: agents.filter((a) => a.category.toLowerCase() === "research")
+      .length,
+    Content: agents.filter((a) => a.category.toLowerCase() === "content")
+      .length,
+    Operations: agents.filter((a) => a.category.toLowerCase() === "operations")
+      .length,
+  };
+
+  // Set of "Popular" agent ids = top 3 by usage_count, only when usage > 0.
+  const popularIds = new Set(
+    [...agents]
+      .filter((a) => a.usage_count > 0)
+      .sort((a, b) => b.usage_count - a.usage_count)
+      .slice(0, 3)
+      .map((a) => a.id),
+  );
+
+  // ⌘K / Ctrl+K focuses the agent search.
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // --- Select an agent (starts fresh chat) ---
   const selectAgent = useCallback((agent: AgentTemplate) => {
@@ -512,87 +597,169 @@ export default function AILabPage() {
         {/* LEFT PANEL — Agent List */}
         {/* =============================================================== */}
         <div className="hidden lg:flex flex-col w-[340px] shrink-0">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <span className="text-[13px] font-semibold text-foreground">
               Agents
             </span>
             <span className="text-[11px] font-medium text-foreground-tertiary">
-              {filteredAgents.length} available
+              {filteredAgents.length} of {agents.length}
             </span>
           </div>
 
-          {/* Category filter */}
-          <div className="mb-3">
-            <SegmentedControl
-              options={[...CATEGORIES]}
-              value={categoryFilter}
-              onChange={(v) => setCategoryFilter(v as Category)}
+          {/* Search */}
+          <div className="relative mb-2">
+            <Search
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground-tertiary pointer-events-none"
+              strokeWidth={1.8}
             />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search agents… ⌘K"
+              aria-label="Search agents"
+              className="w-full pl-8 pr-7 py-1.5 rounded-lg border border-input bg-background text-[12px] text-foreground placeholder:text-foreground-tertiary outline-none focus:border-accent/40 focus:ring-2 focus:ring-accent/15 transition-colors dark:bg-card"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 inline-flex items-center justify-center rounded text-foreground-tertiary hover:text-foreground hover:bg-foreground/10"
+                aria-label="Clear search"
+              >
+                <X className="w-3 h-3" strokeWidth={2} />
+              </button>
+            )}
+          </div>
+
+          {/* Category tabs with counts + underline active state */}
+          <div
+            role="tablist"
+            aria-label="Filter agents by category"
+            className="flex items-center gap-0.5 border-b border-divider mb-2 overflow-x-auto"
+          >
+            {CATEGORIES.map((cat) => {
+              const active = categoryFilter === cat;
+              const count = categoryCounts[cat];
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={cn(
+                    "relative px-2.5 py-1.5 text-[11.5px] whitespace-nowrap transition-colors",
+                    active
+                      ? "text-foreground font-semibold"
+                      : "text-foreground-tertiary hover:text-foreground-secondary font-medium",
+                  )}
+                >
+                  {cat}
+                  <span
+                    className={cn(
+                      "ml-1 text-[10px]",
+                      active
+                        ? "text-accent"
+                        : "text-foreground-tertiary/70",
+                    )}
+                  >
+                    {count}
+                  </span>
+                  {active && (
+                    <span className="absolute left-1.5 right-1.5 -bottom-px h-0.5 rounded-full bg-accent" />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Agent cards */}
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 pb-16 relative">
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1 pb-16 relative">
             {agentsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-foreground-tertiary" />
               </div>
             ) : filteredAgents.length === 0 ? (
-              <div className="text-center py-12 text-[13px] text-foreground-tertiary">
-                No agents in this category
+              <div className="text-center py-12 text-[12.5px] text-foreground-tertiary">
+                {searchQuery
+                  ? `No agents match "${searchQuery}"`
+                  : "No agents in this category"}
               </div>
             ) : (
               filteredAgents.map((agent) => {
                 const Icon = getIcon(agent.icon);
                 const isActive = selectedAgent?.id === agent.id;
+                const colour = categoryColor(agent.category);
+                const isPopular = popularIds.has(agent.id);
 
                 return (
                   <button
                     key={agent.id}
                     onClick={() => selectAgent(agent)}
                     className={cn(
-                      "w-full text-left rounded-[10px] p-3 transition-all duration-200 group",
+                      "w-full text-left rounded-[10px] px-2.5 py-2 transition-all duration-150 group relative",
                       isActive
-                        ? "bg-accent/10 border border-accent/20 shadow-sm"
-                        : "bg-background-secondary hover:bg-surface-hover border border-transparent dark:border-border dark:hover:border-foreground-tertiary/20",
+                        ? "bg-accent/10 border border-accent/30 shadow-sm"
+                        : "border border-transparent hover:bg-foreground/[0.04] hover:border-foreground/10 dark:hover:bg-foreground/[0.06]",
                     )}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-center gap-2.5">
                       <div
                         className={cn(
-                          "w-9 h-9 rounded-[8px] flex items-center justify-center shrink-0 transition-colors",
+                          "w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-colors",
                           isActive
                             ? "bg-accent/20 text-accent"
-                            : "bg-foreground/5 text-foreground-tertiary group-hover:text-foreground-secondary dark:bg-foreground/10",
+                            : `${colour.bg} ${colour.fg}`,
                         )}
                       >
-                        <Icon className="w-4.5 h-4.5" strokeWidth={1.8} />
+                        <Icon className="w-3.5 h-3.5" strokeWidth={1.9} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <span
                             className={cn(
-                              "text-[13px] font-medium truncate",
-                              isActive
-                                ? "text-accent"
-                                : "text-foreground",
+                              "text-[12.5px] font-semibold truncate",
+                              isActive ? "text-accent" : "text-foreground",
                             )}
                           >
                             {agent.name}
                           </span>
+                          <span
+                            className="shrink-0 inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold bg-foreground/10 text-foreground-secondary"
+                            title={tierLabel(agent.model_tier)}
+                          >
+                            {tierAbbrev(agent.model_tier)}
+                          </span>
+                          {isPopular && (
+                            <Star
+                              className="shrink-0 w-3 h-3 text-amber-500"
+                              strokeWidth={2}
+                              fill="currentColor"
+                              aria-label="Popular agent"
+                            />
+                          )}
                         </div>
-                        <p className="text-[11px] text-foreground-tertiary mt-0.5 line-clamp-2 leading-relaxed">
+                        <p className="text-[11px] text-foreground-tertiary mt-0.5 truncate leading-snug">
                           {agent.description}
                         </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <StatusBadge
-                            type={categoryBadgeType(agent.category)}
-                          >
-                            {agent.category}
-                          </StatusBadge>
-                          <span className="text-[10px] text-foreground-tertiary">
-                            {agent.usage_count} uses
-                          </span>
-                        </div>
+                      </div>
+                      <div
+                        className={cn(
+                          "shrink-0 inline-flex items-center gap-1 text-[10.5px] font-semibold transition-opacity",
+                          isActive
+                            ? "text-accent opacity-100"
+                            : "text-foreground-tertiary opacity-0 group-hover:opacity-100",
+                        )}
+                      >
+                        {agent.usage_count > 0 && !isActive && (
+                          <span className="opacity-60">{agent.usage_count}x</span>
+                        )}
+                        <ArrowRight
+                          className="w-3.5 h-3.5"
+                          strokeWidth={2}
+                        />
                       </div>
                     </div>
                   </button>
