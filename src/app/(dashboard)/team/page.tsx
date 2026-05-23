@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import { Search, MapPin, Building2, Sparkles } from "lucide-react";
 import type { TeamListResponse, TeamMember, TeamRoleTag } from "@/lib/team/types";
 
@@ -154,12 +153,12 @@ export default function PeoplePage() {
                   title={m.name}
                 >
                   {m.photo_url ? (
-                    <Image
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
                       src={m.photo_url}
                       alt={m.name}
-                      fill
-                      sizes="64px"
-                      className="object-cover"
+                      loading="lazy"
+                      className="h-full w-full object-cover"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-foreground-secondary">
@@ -339,12 +338,12 @@ function PersonCard({ member, onClick }: { member: TeamMember; onClick: () => vo
       {/* Photo */}
       <div className="relative aspect-square w-full overflow-hidden bg-foreground-tertiary/10">
         {member.photo_url ? (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={member.photo_url}
             alt={member.name}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-foreground-tertiary/15 to-foreground-tertiary/5">
