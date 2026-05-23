@@ -5,6 +5,23 @@ const nextConfig = {
     // prevent silent crashloops on uncaughtException / unhandledRejection.
     instrumentationHook: true,
   },
+  images: {
+    // Team photos hosted on the marketing site (creativenexus.in/wp-content)
+    // and the WordPress Shopify shop subdomain (creativefunda.com). Whitelist
+    // both so next/image can optimize them without blocking.
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "creativenexus.in",
+        pathname: "/wp-content/**",
+      },
+      {
+        protocol: "https",
+        hostname: "www.creativenexus.in",
+        pathname: "/wp-content/**",
+      },
+    ],
+  },
   async rewrites() {
     // Hostinger hCDN's WAF blocks short single-segment /api/* paths
     // (returns 403). We expose the same routes under /xapi/* — multi-segment
