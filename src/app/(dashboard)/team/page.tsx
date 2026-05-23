@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Search, MapPin, Building2, Sparkles } from "lucide-react";
+import { Search } from "lucide-react";
 import type { TeamListResponse, TeamMember, TeamRoleTag } from "@/lib/team/types";
 
 // Lazy-loaded drawer (shipped by parallel agent C).
@@ -135,10 +135,10 @@ export default function PeoplePage() {
 
           {/* Stats pills */}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-            <StatPill icon={<Sparkles className="h-3.5 w-3.5" strokeWidth={2} />} label={`${counts.founder} Founders`} />
-            <StatPill icon={<Building2 className="h-3.5 w-3.5" strokeWidth={2} />} label={`${counts.team} Team`} />
-            <StatPill icon={<Sparkles className="h-3.5 w-3.5" strokeWidth={2} />} label={`${counts.intern} Interns`} />
-            <StatPill icon={<MapPin className="h-3.5 w-3.5" strokeWidth={2} />} label="2 Locations · Gurugram · Bengaluru" />
+            <StatPill label={`${counts.founder} Founders`} />
+            <StatPill label={`${counts.team} Team`} />
+            <StatPill label={`${counts.intern} Interns`} />
+            <StatPill label="2 Locations · Gurugram · Bengaluru" />
           </div>
         </section>
 
@@ -277,10 +277,9 @@ export default function PeoplePage() {
 // Sub-components (kept inline; each <80 lines)
 // ---------------------------------------------------------------------------
 
-function StatPill({ icon, label }: { icon: React.ReactNode; label: string }) {
+function StatPill({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[12px] font-medium text-foreground-secondary backdrop-blur-md dark:bg-white/[0.03]">
-      <span className="text-accent">{icon}</span>
+    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[12px] font-medium text-foreground-secondary backdrop-blur-md dark:bg-white/[0.03]">
       {label}
     </span>
   );
