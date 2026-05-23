@@ -30,7 +30,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownMessage } from "@/components/ai-lab/MarkdownMessage";
 import { MessageActions } from "@/components/ai-lab/MessageActions";
