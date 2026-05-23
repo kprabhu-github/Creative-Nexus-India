@@ -29,6 +29,9 @@ import {
 import { cn } from "@/lib/utils";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { MarkdownMessage } from "@/components/ai-lab/MarkdownMessage";
+import { MessageActions } from "@/components/ai-lab/MessageActions";
+import { StarterPrompts } from "@/components/ai-lab/StarterPrompts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -345,72 +348,89 @@ export default function AILabPage() {
     textareaRef.current?.focus();
   }, []);
 
-  // --- Send message ---
-  const sendMessage = useCallback(async () => {
-    const trimmed = inputValue.trim();
-    if (!trimmed || !selectedAgent || isSending) return;
+  // --- Send message (optional override lets starter prompts + regenerate
+  //     bypass the input value) ---
+  const sendMessage = useCallback(
+    async (override?: string) => {
+      const trimmed = (override ?? inputValue).trim();
+      if (!trimmed || !selectedAgent || isSending) return;
 
-    // Optimistically add user message
-    const userMsg: ChatMessage = {
-      role: "user",
-      content: trimmed,
-      timestamp: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setInputValue("");
-    setIsSending(true);
+      // Optimistically add user message
+      const userMsg: ChatMessage = {
+        role: "user",
+        content: trimmed,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      if (!override) setInputValue("");
+      setIsSending(true);
 
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
 
-    try {
-      const res = await fetch("/xapi/ai-lab/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentTemplateId: selectedAgent.id,
-          sessionId,
-          message: trimmed,
-        }),
-      });
+      try {
+        const res = await fetch("/xapi/ai-lab/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentTemplateId: selectedAgent.id,
+            sessionId,
+            message: trimmed,
+          }),
+        });
 
-      if (!res.ok) {
-        const errorJson = (await res.json().catch(() => ({}))) as {
-          error?: string;
+        if (!res.ok) {
+          const errorJson = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(errorJson.error ?? `HTTP ${res.status}`);
+        }
+
+        const json = (await res.json()) as {
+          data: { sessionId: string; response: string };
         };
-        throw new Error(errorJson.error ?? `HTTP ${res.status}`);
+
+        if (!sessionId) {
+          setSessionId(json.data.sessionId);
+        }
+
+        const assistantMsg: ChatMessage = {
+          role: "assistant",
+          content: json.data.response,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+      } catch (err) {
+        const errorText =
+          err instanceof Error ? err.message : "Something went wrong";
+        const errorMsg: ChatMessage = {
+          role: "assistant",
+          content: `Error: ${errorText}. Please try again.`,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      } finally {
+        setIsSending(false);
       }
+    },
+    [inputValue, selectedAgent, isSending, sessionId],
+  );
 
-      const json = (await res.json()) as {
-        data: { sessionId: string; response: string };
-      };
-
-      // Set sessionId if this was a new session
-      if (!sessionId) {
-        setSessionId(json.data.sessionId);
-      }
-
-      const assistantMsg: ChatMessage = {
-        role: "assistant",
-        content: json.data.response,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err) {
-      const errorText =
-        err instanceof Error ? err.message : "Something went wrong";
-      const errorMsg: ChatMessage = {
-        role: "assistant",
-        content: `Error: ${errorText}. Please try again.`,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setIsSending(false);
-    }
-  }, [inputValue, selectedAgent, isSending, sessionId]);
+  // --- Regenerate last assistant response (drop it + re-send last user turn) ---
+  const regenerate = useCallback(() => {
+    if (isSending) return;
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUser) return;
+    setMessages((prev) => {
+      // Drop trailing assistant messages so the regenerated one replaces them.
+      const out = [...prev];
+      while (out.length && out[out.length - 1].role === "assistant") out.pop();
+      return out.slice(0, -1); // also drop the user msg, send() re-adds it
+    });
+    void sendMessage(lastUser.content);
+  }, [messages, isSending, sendMessage]);
 
   // --- Keyboard handling for textarea ---
   const handleKeyDown = useCallback(
@@ -655,50 +675,60 @@ export default function AILabPage() {
               </div>
 
               {/* ---------- Messages area ---------- */}
-              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
                 {messages.length === 0 && !isSending && (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <Sparkles
-                      className="w-8 h-8 text-foreground-tertiary/40 mb-3"
-                      strokeWidth={1.5}
-                    />
-                    <p className="text-[13px] text-foreground-tertiary">
-                      Start a conversation with{" "}
-                      <span className="font-medium text-foreground-secondary">
-                        {selectedAgent.name}
-                      </span>
-                    </p>
-                  </div>
+                  <StarterPrompts
+                    agentName={selectedAgent.name}
+                    agentDescription={selectedAgent.description}
+                    agentCategory={selectedAgent.category}
+                    onPick={(p) => void sendMessage(p)}
+                  />
                 )}
 
-                {messages.map((msg, i) => (
-                  <div
-                    key={`${msg.role}-${i}`}
-                    className={cn(
-                      "flex",
-                      msg.role === "user"
-                        ? "justify-end"
-                        : "justify-start",
-                    )}
-                  >
+                {messages.map((msg, i) => {
+                  const isLastAssistant =
+                    msg.role === "assistant" &&
+                    i === messages.length - 1 &&
+                    !isSending;
+                  return (
                     <div
+                      key={`${msg.role}-${i}`}
                       className={cn(
-                        "max-w-[80%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed",
+                        "flex",
                         msg.role === "user"
-                          ? "bg-accent text-white rounded-br-md"
-                          : "bg-background text-foreground rounded-bl-md dark:bg-card",
+                          ? "justify-end"
+                          : "justify-start",
                       )}
                     >
-                      <pre className="whitespace-pre-wrap font-sans break-words">
-                        {msg.content}
-                      </pre>
+                      <div className={cn("max-w-[82%] min-w-0")}>
+                        <div
+                          className={cn(
+                            "rounded-2xl px-4 py-2.5",
+                            msg.role === "user"
+                              ? "bg-accent text-white rounded-br-md"
+                              : "bg-background text-foreground rounded-bl-md border border-divider dark:bg-card",
+                          )}
+                        >
+                          <MarkdownMessage
+                            content={msg.content}
+                            variant={msg.role}
+                          />
+                        </div>
+                        {msg.role === "assistant" && (
+                          <MessageActions
+                            content={msg.content}
+                            agentName={selectedAgent.name}
+                            onRegenerate={isLastAssistant ? regenerate : undefined}
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {isSending && (
                   <div className="flex justify-start">
-                    <div className="bg-background rounded-2xl rounded-bl-md dark:bg-card">
+                    <div className="bg-background rounded-2xl rounded-bl-md dark:bg-card border border-divider">
                       <LoadingDots />
                     </div>
                   </div>
@@ -727,7 +757,7 @@ export default function AILabPage() {
                     )}
                   />
                   <button
-                    onClick={sendMessage}
+                    onClick={() => void sendMessage()}
                     disabled={!inputValue.trim() || isSending}
                     className={cn(
                       "shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200",
