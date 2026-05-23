@@ -221,7 +221,6 @@ const CATEGORIES = [
   "Marketing",
   "Research",
   "Content",
-  "Operations",
 ] as const;
 type Category = (typeof CATEGORIES)[number];
 
@@ -392,8 +391,6 @@ export default function AILabPage() {
     Research: agents.filter((a) => a.category.toLowerCase() === "research")
       .length,
     Content: agents.filter((a) => a.category.toLowerCase() === "content")
-      .length,
-    Operations: agents.filter((a) => a.category.toLowerCase() === "operations")
       .length,
   };
 
