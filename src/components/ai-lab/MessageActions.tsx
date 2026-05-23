@@ -112,12 +112,12 @@ export function MessageActions({
     "h-7 w-7 inline-flex items-center justify-center rounded-md text-foreground-tertiary hover:text-foreground hover:bg-foreground/5 transition-colors disabled:opacity-50";
 
   return (
-    <div className="mt-1.5 flex items-center gap-0.5 select-none">
+    <div className="mt-1 flex items-center gap-0 select-none">
       <button
         type="button"
         onClick={doCopy}
         className={btn}
-        title={copied ? "Copied!" : "Copy message"}
+        title={copied ? "Copied!" : "Copy"}
         aria-label="Copy message"
       >
         {copied ? (
@@ -126,7 +126,34 @@ export function MessageActions({
           <Copy className="w-3.5 h-3.5" strokeWidth={1.8} />
         )}
       </button>
-
+      <button
+        type="button"
+        onClick={() => giveFeedback("up")}
+        className={btn}
+        title="Good response"
+        aria-label="Mark as helpful"
+        aria-pressed={feedback === "up"}
+      >
+        <ThumbsUp
+          className="w-3.5 h-3.5"
+          strokeWidth={1.8}
+          fill={feedback === "up" ? "currentColor" : "none"}
+        />
+      </button>
+      <button
+        type="button"
+        onClick={() => giveFeedback("down")}
+        className={btn}
+        title="Bad response"
+        aria-label="Mark as not helpful"
+        aria-pressed={feedback === "down"}
+      >
+        <ThumbsDown
+          className="w-3.5 h-3.5"
+          strokeWidth={1.8}
+          fill={feedback === "down" ? "currentColor" : "none"}
+        />
+      </button>
       <div className="relative" ref={shareRef}>
         <button
           type="button"
@@ -173,7 +200,6 @@ export function MessageActions({
           </div>
         )}
       </div>
-
       {onRegenerate && (
         <button
           type="button"
@@ -185,37 +211,6 @@ export function MessageActions({
           <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.8} />
         </button>
       )}
-
-      <span className="mx-1 h-3.5 w-px bg-divider" />
-
-      <button
-        type="button"
-        onClick={() => giveFeedback("up")}
-        className={btn}
-        title="Helpful"
-        aria-label="Mark as helpful"
-        aria-pressed={feedback === "up"}
-      >
-        <ThumbsUp
-          className="w-3.5 h-3.5"
-          strokeWidth={1.8}
-          fill={feedback === "up" ? "currentColor" : "none"}
-        />
-      </button>
-      <button
-        type="button"
-        onClick={() => giveFeedback("down")}
-        className={btn}
-        title="Not helpful"
-        aria-label="Mark as not helpful"
-        aria-pressed={feedback === "down"}
-      >
-        <ThumbsDown
-          className="w-3.5 h-3.5"
-          strokeWidth={1.8}
-          fill={feedback === "down" ? "currentColor" : "none"}
-        />
-      </button>
     </div>
   );
 }

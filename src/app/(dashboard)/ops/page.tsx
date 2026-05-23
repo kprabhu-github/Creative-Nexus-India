@@ -32,6 +32,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownMessage } from "@/components/ai-lab/MarkdownMessage";
 import { MessageActions } from "@/components/ai-lab/MessageActions";
 import { StarterPrompts } from "@/components/ai-lab/StarterPrompts";
+import { ChatActions } from "@/components/ai-lab/ChatActions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -665,13 +666,23 @@ export default function AILabPage() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={startNewChat}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-foreground-secondary hover:text-foreground hover:bg-surface-hover transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-                  New Chat
-                </button>
+                <div className="shrink-0 flex items-center gap-1">
+                  <ChatActions
+                    messages={messages}
+                    agentName={selectedAgent.name}
+                    onRegenerate={regenerate}
+                    onClear={startNewChat}
+                    disabled={isSending}
+                  />
+                  <span className="mx-1 h-4 w-px bg-divider" />
+                  <button
+                    onClick={startNewChat}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium text-foreground-secondary hover:text-foreground hover:bg-surface-hover transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                    New Chat
+                  </button>
+                </div>
               </div>
 
               {/* ---------- Messages area ---------- */}
