@@ -142,35 +142,6 @@ export default function PeoplePage() {
           </div>
         </section>
 
-        {/* ---- Photo collage ---- */}
-        {!loading && members.length > 0 && (
-          <section className="mb-8 flex justify-center">
-            <div className="grid grid-cols-7 gap-1.5 max-w-fit">
-              {members.slice(0, 28).map((m) => (
-                <div
-                  key={`collage-${m.id}`}
-                  className="relative h-16 w-16 overflow-hidden rounded-xl border border-white/10 bg-foreground-tertiary/10 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md"
-                  title={m.name}
-                >
-                  {m.photo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={m.photo_url}
-                      alt={m.name}
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-foreground-secondary">
-                      {initials(m.name)}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* ---- Filter row ---- */}
         <section className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="relative w-full max-w-[400px]">
