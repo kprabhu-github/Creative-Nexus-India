@@ -7,8 +7,17 @@
 // Keyboard: arrows navigate, Enter selects, Esc closes.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Search, Check, X, User, Sparkles, ChevronDown } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Search,
+  Check,
+  X,
+  User,
+  Sparkles,
+  ChevronDown,
+  UserPlus,
+  Loader2,
+} from "lucide-react";
 
 export interface AssigneeOption {
   id: string;
@@ -41,11 +50,19 @@ export function AssigneeCombo({
   disabled,
   variant = "full",
 }: Props) {
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [hoverIdx, setHoverIdx] = useState(0);
+  const [addMode, setAddMode] = useState(false);
+  const [addingName, setAddingName] = useState("");
+  const [addingTitle, setAddingTitle] = useState("");
+  const [addingDept, setAddingDept] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const addNameRef = useRef<HTMLInputElement | null>(null);
 
   const dataQ = useQuery({
     queryKey: ["pm-team-recommended", projectId ?? "none"],
@@ -107,8 +124,64 @@ export function AssigneeCombo({
       setHoverIdx(0);
       // Defer focus so the popover finishes mounting first.
       setTimeout(() => inputRef.current?.focus(), 30);
+    } else {
+      setAddMode(false);
+      setAddError(null);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (addMode) {
+      // Prefill name from the current search query so the user doesn't retype.
+      if (!addingName) setAddingName(q.trim());
+      setTimeout(() => addNameRef.current?.focus(), 30);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addMode]);
+
+  const addTeammate = async () => {
+    const name = addingName.trim();
+    if (!name) {
+      setAddError("Name required");
+      return;
+    }
+    setAdding(true);
+    setAddError(null);
+    try {
+      const res = await fetch("/xapi/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          title: addingTitle.trim() || "Team member",
+          department: addingDept.trim() || null,
+          role_tag: "team",
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        data?: { member: { id: string } };
+        error?: string;
+      };
+      if (!res.ok || !json.data?.member) {
+        throw new Error(json.error ?? `HTTP ${res.status}`);
+      }
+      // Invalidate so the new teammate shows in this combo (and elsewhere)
+      // and select them immediately.
+      await qc.invalidateQueries({ queryKey: ["pm-team-recommended"] });
+      await qc.invalidateQueries({ queryKey: ["pm-team-lite"] });
+      onChange(json.data.member.id);
+      setAddingName("");
+      setAddingTitle("");
+      setAddingDept("");
+      setAddMode(false);
+      setOpen(false);
+      setQ("");
+    } catch (err) {
+      setAddError((err as Error).message);
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
@@ -277,10 +350,114 @@ export function AssigneeCombo({
               />
             ))}
           </div>
+
+          {/* Add-new-teammate footer */}
+          <div className="border-t border-divider bg-background-secondary/40">
+            {!addMode ? (
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setAddMode(true);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-accent hover:bg-foreground/5 transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" strokeWidth={2} />
+                Add new teammate{q ? ` "${q}"` : ""}
+              </button>
+            ) : (
+              <div
+                className="p-2.5 space-y-2"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !adding) {
+                    e.preventDefault();
+                    void addTeammate();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setAddMode(false);
+                  }
+                }}
+              >
+                <input
+                  ref={addNameRef}
+                  type="text"
+                  value={addingName}
+                  onChange={(e) => setAddingName(e.target.value)}
+                  placeholder="Full name *"
+                  required
+                  disabled={adding}
+                  className={inlineInput()}
+                />
+                <input
+                  type="text"
+                  value={addingTitle}
+                  onChange={(e) => setAddingTitle(e.target.value)}
+                  placeholder="Title (e.g. Designer)"
+                  disabled={adding}
+                  className={inlineInput()}
+                />
+                <input
+                  type="text"
+                  value={addingDept}
+                  onChange={(e) => setAddingDept(e.target.value)}
+                  placeholder="Department (optional)"
+                  disabled={adding}
+                  className={inlineInput()}
+                />
+                {addError && (
+                  <div className="text-[11px] text-rose-500" role="alert">
+                    {addError}
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-foreground-tertiary">
+                    Enter to save · Esc to cancel
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setAddMode(false);
+                      }}
+                      disabled={adding}
+                      className="h-7 px-2 rounded text-[11px] font-medium text-foreground-secondary hover:bg-foreground/5"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        void addTeammate();
+                      }}
+                      disabled={adding || !addingName.trim()}
+                      className="h-7 px-2.5 inline-flex items-center gap-1 rounded bg-accent text-white text-[11px] font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                    >
+                      {adding ? (
+                        <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+                      ) : null}
+                      {adding ? "Saving" : "Add"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
+}
+
+function inlineInput(): string {
+  return [
+    "w-full h-7 px-2 rounded border border-input bg-background text-foreground text-[12px]",
+    "placeholder:text-foreground-tertiary outline-none transition-all",
+    "focus:border-accent/40 focus:ring-2 focus:ring-accent/15",
+    "disabled:opacity-50 dark:bg-card",
+  ].join(" ");
 }
 
 function GroupLabel({
