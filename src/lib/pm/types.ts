@@ -37,10 +37,22 @@ export interface PmTask {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  start_date: string | null;
   due_date: string | null;
   assignee_id: string | null;
   assignee_team_member_id: string | null;
   position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PmTaskComment {
+  id: string;
+  org_id: string;
+  task_id: string;
+  author_team_member_id: string | null;
+  author_name: string | null;
+  body: string;
   created_at: string;
   updated_at: string;
 }

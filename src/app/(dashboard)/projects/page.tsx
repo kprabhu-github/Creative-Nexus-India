@@ -6,7 +6,7 @@
 // instantly on another browser. Drag-and-drop kanban is a later slice;
 // this one ships the dynamic + realtime contract.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
@@ -39,6 +39,8 @@ import {
   TASK_STATUS_LABEL,
   TASK_PRIORITIES,
 } from "@/lib/pm/types";
+import { TaskFormModal } from "@/components/pm/TaskFormModal";
+import { TaskDrawer } from "@/components/pm/TaskDrawer";
 
 interface TeamLite {
   id: string;
@@ -92,6 +94,7 @@ async function jfetch<T>(url: string, init?: RequestInit): Promise<T> {
 export default function ProjectsPage() {
   const qc = useQueryClient();
   const supabase = useMemo(() => createClient(), []);
+  const [openTask, setOpenTask] = useState<{ task: PmTask; projectName: string } | null>(null);
 
   // ---- Projects ----
   const projectsQ = useQuery({
@@ -220,9 +223,24 @@ export default function ProjectsPage() {
       ) : (
         <div className="space-y-3">
           {projects.map((p) => (
-            <ProjectRow key={p.id} project={p} team={team} />
+            <ProjectRow
+              key={p.id}
+              project={p}
+              team={team}
+              onOpenTask={(task) =>
+                setOpenTask({ task, projectName: p.name })
+              }
+            />
           ))}
         </div>
+      )}
+
+      {openTask && (
+        <TaskDrawer
+          task={openTask.task}
+          projectName={openTask.projectName}
+          onClose={() => setOpenTask(null)}
+        />
       )}
     </div>
   );
@@ -232,10 +250,19 @@ export default function ProjectsPage() {
 // ProjectRow — collapsible card with inline task list
 // ---------------------------------------------------------------------------
 
-function ProjectRow({ project, team }: { project: PmProjectWithStats; team: TeamLite[] }) {
+function ProjectRow({
+  project,
+  team,
+  onOpenTask,
+}: {
+  project: PmProjectWithStats;
+  team: TeamLite[];
+  onOpenTask: (task: PmTask) => void;
+}) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(project.task_count === 0);
   const [showDelete, setShowDelete] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const tasksQ = useQuery({
     queryKey: ["pm-tasks", project.id],
@@ -355,12 +382,39 @@ function ProjectRow({ project, team }: { project: PmProjectWithStats; team: Team
                 </p>
               )}
               {(tasksQ.data?.tasks ?? []).map((t) => (
-                <TaskRow key={t.id} task={t} team={team} />
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  team={team}
+                  onOpen={() => onOpenTask(t)}
+                />
               ))}
-              <NewTaskRow projectId={project.id} />
+              <div className="px-2 py-1.5">
+                <button
+                  type="button"
+                  onClick={() => setNewTaskOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent hover:underline"
+                >
+                  <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                  Add task
+                </button>
+              </div>
             </>
           )}
         </div>
+      )}
+
+      {newTaskOpen && (
+        <TaskFormModal
+          mode="create"
+          projectId={project.id}
+          onClose={() => setNewTaskOpen(false)}
+          onSaved={() => {
+            void qc.invalidateQueries({ queryKey: ["pm-tasks", project.id] });
+            void qc.invalidateQueries({ queryKey: ["pm-projects"] });
+            setNewTaskOpen(false);
+          }}
+        />
       )}
     </section>
   );
@@ -370,7 +424,15 @@ function ProjectRow({ project, team }: { project: PmProjectWithStats; team: Team
 // TaskRow — status cycle, priority, assignee, due date, delete
 // ---------------------------------------------------------------------------
 
-function TaskRow({ task, team }: { task: PmTask; team: TeamLite[] }) {
+function TaskRow({
+  task,
+  team,
+  onOpen,
+}: {
+  task: PmTask;
+  team: TeamLite[];
+  onOpen: () => void;
+}) {
   const qc = useQueryClient();
   const [saving, setSaving] = useState(false);
 
@@ -437,8 +499,19 @@ function TaskRow({ task, team }: { task: PmTask; team: TeamLite[] }) {
         <StatusIcon className="w-3.5 h-3.5" strokeWidth={2} />
       </button>
 
-      {/* Title (inline editable) */}
-      <InlineTitle task={task} disabled={saving} onSave={(title) => patch({ title })} />
+      {/* Title — click to open drawer */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className={[
+          "flex-1 min-w-0 text-left text-[12.5px] truncate hover:text-foreground hover:underline underline-offset-2 transition-colors",
+          task.status === "done"
+            ? "line-through text-foreground-tertiary"
+            : "text-foreground",
+        ].join(" ")}
+      >
+        {task.title}
+      </button>
 
       {/* Priority */}
       <button
@@ -513,121 +586,6 @@ function TaskRow({ task, team }: { task: PmTask; team: TeamLite[] }) {
       >
         <Trash2 className="w-3 h-3" strokeWidth={1.8} />
       </button>
-    </div>
-  );
-}
-
-function InlineTitle({
-  task,
-  disabled,
-  onSave,
-}: {
-  task: PmTask;
-  disabled: boolean;
-  onSave: (title: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(task.title);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (!editing) setDraft(task.title);
-  }, [task.title, editing]);
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  const commit = () => {
-    setEditing(false);
-    const next = draft.trim();
-    if (!next || next === task.title) return;
-    onSave(next);
-  };
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit();
-          if (e.key === "Escape") {
-            setDraft(task.title);
-            setEditing(false);
-          }
-        }}
-        disabled={disabled}
-        className="flex-1 min-w-0 h-7 px-1.5 rounded border border-accent/40 bg-background text-[12.5px] text-foreground outline-none focus:ring-2 focus:ring-accent/20"
-      />
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className={[
-        "flex-1 min-w-0 text-left text-[12.5px] truncate hover:text-foreground transition-colors",
-        task.status === "done" ? "line-through text-foreground-tertiary" : "text-foreground",
-      ].join(" ")}
-    >
-      {task.title}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// NewTaskRow — inline add task at bottom of each project
-// ---------------------------------------------------------------------------
-
-function NewTaskRow({ projectId }: { projectId: string }) {
-  const qc = useQueryClient();
-  const [title, setTitle] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const add = async () => {
-    const t = title.trim();
-    if (!t) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await jfetch(`/xapi/projects/${projectId}/tasks`, {
-        method: "POST",
-        body: JSON.stringify({ title: t }),
-      });
-      setTitle("");
-      void qc.invalidateQueries({ queryKey: ["pm-tasks", projectId] });
-      void qc.invalidateQueries({ queryKey: ["pm-projects"] });
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-2 px-2 py-1.5">
-      <span className="shrink-0 w-5 h-5 inline-flex items-center justify-center text-foreground-tertiary/60">
-        <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-      </span>
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") void add();
-        }}
-        placeholder="Add task — press Enter"
-        disabled={saving}
-        className="flex-1 h-7 px-1.5 text-[12.5px] bg-transparent text-foreground placeholder:text-foreground-tertiary/60 outline-none border-b border-transparent focus:border-accent/30 transition-colors disabled:opacity-50"
-      />
-      {error && (
-        <span className="text-[10.5px] text-rose-500">{error}</span>
-      )}
     </div>
   );
 }

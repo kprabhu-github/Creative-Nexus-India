@@ -19,6 +19,7 @@ const PatchSchema = z
       .enum(["todo", "in_progress", "review", "done", "blocked"])
       .optional(),
     priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+    start_date: z.string().date().nullable().optional(),
     due_date: z.string().date().nullable().optional(),
     assignee_team_member_id: z.string().uuid().nullable().optional(),
     position: z.number().int().min(0).optional(),

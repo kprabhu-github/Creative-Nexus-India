@@ -18,6 +18,7 @@ const CreateSchema = z.object({
     .enum(["todo", "in_progress", "review", "done", "blocked"])
     .default("todo"),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+  start_date: z.string().date().nullable().optional(),
   due_date: z.string().date().nullable().optional(),
   assignee_team_member_id: z.string().uuid().nullable().optional(),
 });
