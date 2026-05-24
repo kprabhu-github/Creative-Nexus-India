@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Check, X, User, Sparkles } from "lucide-react";
+import { Search, Check, X, User, Sparkles, ChevronDown } from "lucide-react";
 
 export interface AssigneeOption {
   id: string;
@@ -152,8 +152,13 @@ export function AssigneeCombo({
     onChange(null);
   };
 
+  const isFull = variant === "full";
+
   return (
-    <div className="relative inline-block" ref={popRef}>
+    <div
+      className={["relative", isFull ? "block w-full" : "inline-block"].join(" ")}
+      ref={popRef}
+    >
       <button
         type="button"
         onClick={() => !disabled && setOpen((o) => !o)}
@@ -161,28 +166,41 @@ export function AssigneeCombo({
         aria-haspopup="listbox"
         aria-expanded={open}
         className={[
-          "inline-flex items-center gap-1.5 max-w-[200px] rounded-md border border-transparent hover:border-divider bg-transparent px-2 text-[12px] transition-colors disabled:opacity-50",
-          variant === "compact" ? "h-7" : "h-9 w-full justify-start border-input bg-background dark:bg-card",
+          "inline-flex items-center gap-1.5 rounded-md border transition-colors disabled:opacity-50",
+          isFull
+            ? "h-9 w-full justify-between border-input bg-background dark:bg-card px-3 text-[13px]"
+            : "h-7 max-w-[200px] border-transparent hover:border-divider bg-transparent px-2 text-[12px]",
           open ? "border-accent/40 ring-2 ring-accent/15" : "",
         ].join(" ")}
       >
         <TriggerInner />
-        {selected && !disabled && (
-          <span
-            role="button"
-            onClick={clear}
-            className="ml-1 inline-flex w-4 h-4 items-center justify-center rounded text-foreground-tertiary hover:text-foreground hover:bg-foreground/10"
-            aria-label="Clear assignee"
-          >
-            <X className="w-3 h-3" strokeWidth={2} />
-          </span>
-        )}
+        <span className="ml-auto inline-flex items-center gap-1 shrink-0">
+          {selected && !disabled && (
+            <span
+              role="button"
+              onClick={clear}
+              className="inline-flex w-4 h-4 items-center justify-center rounded text-foreground-tertiary hover:text-foreground hover:bg-foreground/10"
+              aria-label="Clear assignee"
+            >
+              <X className="w-3 h-3" strokeWidth={2} />
+            </span>
+          )}
+          {isFull && (
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-foreground-tertiary transition-transform ${open ? "rotate-180" : ""}`}
+              strokeWidth={2}
+            />
+          )}
+        </span>
       </button>
 
       {open && (
         <div
           role="listbox"
-          className="absolute z-30 mt-1 w-[300px] right-0 rounded-lg border border-divider bg-background shadow-xl overflow-hidden"
+          className={[
+            "absolute z-30 mt-1 rounded-lg border border-divider bg-background shadow-xl overflow-hidden",
+            isFull ? "left-0 right-0" : "right-0 w-[300px]",
+          ].join(" ")}
         >
           {/* Search */}
           <div className="relative border-b border-divider">

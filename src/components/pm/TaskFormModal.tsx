@@ -168,7 +168,7 @@ export function TaskFormModal(props: Props) {
       />
       <div
         className={[
-          "relative w-full max-w-[540px] rounded-2xl border border-divider bg-background shadow-2xl overflow-hidden",
+          "relative w-full max-w-[540px] rounded-2xl border border-divider bg-background shadow-2xl",
           "transition-all duration-200 ease-out",
           mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
         ].join(" ")}
