@@ -198,7 +198,10 @@ export function AssigneeCombo({
         <div
           role="listbox"
           className={[
-            "absolute z-30 mt-1 rounded-lg border border-divider bg-background shadow-xl overflow-hidden",
+            // z-[60] keeps the popover above any modal scrim (z-50) it might
+            // live inside; bg-background is intentionally opaque so the
+            // popover never bleeds the form behind it.
+            "absolute z-[60] mt-1 rounded-lg border border-divider bg-background shadow-xl overflow-hidden",
             isFull ? "left-0 right-0" : "right-0 w-[300px]",
           ].join(" ")}
         >
@@ -220,15 +223,20 @@ export function AssigneeCombo({
             />
           </div>
 
-          <div className="max-h-[280px] overflow-y-auto py-1">
+          <div className="max-h-[280px] overflow-y-auto py-1 min-h-[60px]">
             {dataQ.isLoading && (
               <div className="px-3 py-3 text-[12px] text-foreground-tertiary">
-                Loading…
+                Loading teammates…
               </div>
             )}
-            {!dataQ.isLoading && flat.length === 0 && (
+            {dataQ.isError && (
+              <div className="px-3 py-3 text-[12px] text-rose-500">
+                Failed to load: {(dataQ.error as Error)?.message ?? "unknown"}
+              </div>
+            )}
+            {!dataQ.isLoading && !dataQ.isError && flat.length === 0 && (
               <div className="px-3 py-3 text-[12px] text-foreground-tertiary">
-                No match
+                {q ? `No teammate matches "${q}"` : "No teammates yet"}
               </div>
             )}
 
