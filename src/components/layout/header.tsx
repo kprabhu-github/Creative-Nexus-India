@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GlobalSearch } from "./global-search";
 import { NotificationPanel } from "./notification-panel";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { User, Settings, Mail, LogOut } from "lucide-react";
 
 interface MeShape {
@@ -79,7 +79,7 @@ export default function Header() {
         <GlobalSearch />
       </div>
       <div className="flex items-center gap-2">
-        <ThemeToggle />
+        <AnimatedThemeToggler />
         <NotificationPanel />
         <div className="h-4 w-px bg-border/70 mx-1" />
 
