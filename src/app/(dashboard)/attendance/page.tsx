@@ -1,429 +1,342 @@
 "use client";
 
-import { useState } from "react";
+// Attendance dashboard. Three blocks:
+//   1. AttendanceStatusBar — auto check-in + status pills (per current user)
+//   2. My month grid — calendar of the user's status per day this month
+//   3. Team today — every active teammate's current status
+
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Clock, LogIn, LogOut, Home, Calendar, Plus,
-  CheckCircle2, UserCheck,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Home,
+  Video,
+  Coffee,
+  Thermometer,
+  XCircle,
+  Plane,
+  Circle,
+  type LucideIcon,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/ui/page-header";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { ProgressBar } from "@/components/ui/progress-bar";
-import { Button } from "@/components/ui/button";
+import { AttendanceStatusBar } from "@/components/hr/AttendanceStatusBar";
+import type { AttendanceLog, AttendanceStatus } from "@/lib/hr/types";
+import { ATTENDANCE_LABEL } from "@/lib/hr/types";
 
-// ---------------------------------------------------------------------------
-// Types & Data
-// ---------------------------------------------------------------------------
+const STATUS_ICON: Record<AttendanceStatus, LucideIcon> = {
+  present: CheckCircle2,
+  wfh: Home,
+  meeting: Video,
+  away: Coffee,
+  sick: Thermometer,
+  absent: XCircle,
+  leave: Plane,
+};
 
-type ViewTab = "My Log" | "Team View" | "Leave Requests";
+const STATUS_COLOR: Record<AttendanceStatus, string> = {
+  present: "text-emerald-500 bg-emerald-500/10",
+  wfh: "text-blue-500 bg-blue-500/10",
+  meeting: "text-violet-500 bg-violet-500/10",
+  away: "text-amber-500 bg-amber-500/10",
+  sick: "text-rose-500 bg-rose-500/10",
+  absent: "text-foreground-tertiary bg-foreground/10",
+  leave: "text-indigo-500 bg-indigo-500/10",
+};
 
-interface DayLog {
-  id: string;
-  day: string;
-  date: string;
-  checkIn: string;
-  checkOut: string;
-  hours: string;
-  status: "Present" | "WFH" | "Leave" | "Holiday";
-}
-
-const weekLog: DayLog[] = [
-  { id: "d1", day: "Monday", date: "Apr 14", checkIn: "09:10 AM", checkOut: "06:40 PM", hours: "9h 30m", status: "Present" },
-  { id: "d2", day: "Tuesday", date: "Apr 15", checkIn: "09:15 AM", checkOut: "--", hours: "7h 23m", status: "Present" },
-  { id: "d3", day: "Wednesday", date: "Apr 16", checkIn: "--", checkOut: "--", hours: "--", status: "Holiday" },
-  { id: "d4", day: "Thursday", date: "Apr 17", checkIn: "--", checkOut: "--", hours: "--", status: "Holiday" },
-  { id: "d5", day: "Friday", date: "Apr 18", checkIn: "--", checkOut: "--", hours: "--", status: "Holiday" },
-];
-
-interface TeamMember {
+interface TeamTodayRow {
   id: string;
   name: string;
-  initials: string;
-  dept: string;
-  checkIn: string;
-  hours: string;
-  status: "Present" | "WFH" | "Leave";
+  title: string;
+  department: string | null;
+  photo_url: string | null;
+  log: AttendanceLog | null;
 }
-
-const teamView: TeamMember[] = [
-  { id: "tm1", name: "K. Prabhu", initials: "KP", dept: "Ops", checkIn: "09:00 AM", hours: "7h 30m", status: "Present" },
-  { id: "tm2", name: "Rishabh Kumar", initials: "RK", dept: "Eng", checkIn: "09:05 AM", hours: "7h 25m", status: "Present" },
-  { id: "tm3", name: "Ashish Kumar", initials: "AK", dept: "Design", checkIn: "09:30 AM", hours: "7h 00m", status: "WFH" },
-  { id: "tm4", name: "Natraj", initials: "NR", dept: "Mktg", checkIn: "--", hours: "--", status: "Leave" },
-  { id: "tm5", name: "Anit Sharma", initials: "AS", dept: "Eng", checkIn: "09:12 AM", hours: "7h 18m", status: "Present" },
-  { id: "tm6", name: "Priya Nair", initials: "PN", dept: "Mktg", checkIn: "09:20 AM", hours: "7h 10m", status: "Present" },
-  { id: "tm7", name: "Sneha Patel", initials: "SP", dept: "Design", checkIn: "10:00 AM", hours: "6h 30m", status: "WFH" },
-  { id: "tm8", name: "Vikram Singh", initials: "VS", dept: "Eng", checkIn: "--", hours: "--", status: "Leave" },
-  { id: "tm9", name: "Meera Reddy", initials: "MR", dept: "Ops", checkIn: "09:08 AM", hours: "7h 22m", status: "Present" },
-  { id: "tm10", name: "Karan Joshi", initials: "KJ", dept: "Mktg", checkIn: "09:45 AM", hours: "6h 45m", status: "WFH" },
-  { id: "tm11", name: "Anjali Gupta", initials: "AG", dept: "Ops", checkIn: "09:15 AM", hours: "7h 15m", status: "Present" },
-  { id: "tm12", name: "Dev Patel", initials: "DP", dept: "Eng", checkIn: "09:25 AM", hours: "7h 05m", status: "WFH" },
-];
-
-interface LeaveRequest {
-  id: string;
-  name: string;
-  initials: string;
-  type: "Casual" | "Sick" | "Earned";
-  from: string;
-  to: string;
-  days: number;
-  reason: string;
-  status: "Pending" | "Approved" | "Rejected";
-}
-
-const leaveRequests: LeaveRequest[] = [
-  { id: "lr1", name: "Natraj", initials: "NR", type: "Casual", from: "Apr 18", to: "Apr 20", days: 3, reason: "Personal travel", status: "Pending" },
-  { id: "lr2", name: "Vikram Singh", initials: "VS", type: "Sick", from: "Apr 15", to: "Apr 15", days: 1, reason: "Not feeling well", status: "Pending" },
-];
-
-interface LeaveBalance {
-  type: string;
-  used: number;
-  total: number;
-  color: "accent" | "success" | "warning";
-}
-
-const leaveBalances: LeaveBalance[] = [
-  { type: "Casual", used: 4, total: 12, color: "accent" },
-  { type: "Sick", used: 1, total: 6, color: "warning" },
-  { type: "Earned", used: 3, total: 18, color: "success" },
-  { type: "Comp Off", used: 0, total: 2, color: "accent" },
-];
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function dayStatusType(status: DayLog["status"]) {
-  switch (status) {
-    case "Present": return "success" as const;
-    case "WFH": return "info" as const;
-    case "Leave": return "warning" as const;
-    case "Holiday": return "neutral" as const;
-  }
-}
-
-function teamStatusType(status: TeamMember["status"]) {
-  switch (status) {
-    case "Present": return "success" as const;
-    case "WFH": return "info" as const;
-    case "Leave": return "warning" as const;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Tab Content
-// ---------------------------------------------------------------------------
-
-function MyLogTab({ isWfh, setIsWfh, checkedIn, setCheckedIn }: {
-  isWfh: boolean;
-  setIsWfh: (v: boolean) => void;
-  checkedIn: boolean;
-  setCheckedIn: (v: boolean) => void;
-}) {
-  return (
-    <div>
-      {/* Today Card */}
-      <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border mb-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Today</div>
-            <div className="text-[15px] font-semibold text-foreground mt-0.5">Tuesday, April 15, 2026</div>
-            <div className="flex items-center gap-3 mt-1">
-              {checkedIn && (
-                <>
-                  <span className="text-xs text-foreground-tertiary">Check-in: <span className="font-medium text-foreground">09:15 AM</span></span>
-                  <span className="text-xs text-foreground-tertiary">Hours: <span className="font-medium text-foreground">7h 23m</span></span>
-                  {isWfh && <StatusBadge type="info">WFH</StatusBadge>}
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setIsWfh(!isWfh)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                isWfh
-                  ? "bg-accent/10 text-accent"
-                  : "bg-foreground-tertiary/8 text-foreground-tertiary hover:text-foreground-secondary"
-              }`}
-            >
-              <Home className="w-3.5 h-3.5" strokeWidth={2} />
-              WFH
-            </button>
-            {!checkedIn ? (
-              <Button
-                size="sm"
-                className="bg-success text-white hover:bg-success/90 border-transparent"
-                onClick={() => setCheckedIn(true)}
-              >
-                <LogIn className="w-3.5 h-3.5 mr-1" strokeWidth={2} />
-                Check In
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                className="bg-destructive/10 text-destructive hover:bg-destructive/20 border-transparent"
-                onClick={() => setCheckedIn(false)}
-              >
-                <LogOut className="w-3.5 h-3.5 mr-1" strokeWidth={2} />
-                Check Out
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Weekly Table */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[13px] font-semibold text-foreground">This Week</span>
-        <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Apr 14 - Apr 18</span>
-      </div>
-      <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border mb-5">
-        <div className="grid grid-cols-6 gap-3 px-3.5 py-2 bg-foreground-tertiary/5">
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Day</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Check In</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Check Out</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Hours</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider col-span-2">Status</span>
-        </div>
-        {weekLog.map((log, i) => (
-          <div key={log.id}>
-            <div className="grid grid-cols-6 gap-3 items-center px-3.5 py-2.5">
-              <div>
-                <div className="text-[13px] font-medium text-foreground">{log.day}</div>
-                <div className="text-[11px] text-foreground-tertiary">{log.date}</div>
-              </div>
-              <span className="text-[13px] text-foreground-secondary">{log.checkIn}</span>
-              <span className="text-[13px] text-foreground-secondary">{log.checkOut}</span>
-              <span className="text-[13px] font-medium text-foreground">{log.hours}</span>
-              <div className="col-span-2">
-                <StatusBadge type={dayStatusType(log.status)}>{log.status}</StatusBadge>
-              </div>
-            </div>
-            {i < weekLog.length - 1 && <div className="h-px bg-divider mx-3.5" />}
-          </div>
-        ))}
-      </div>
-
-      {/* Monthly Summary */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[13px] font-semibold text-foreground">Monthly Summary</span>
-        <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">April 2026</span>
-      </div>
-      <div className="grid grid-cols-4 gap-3">
-        <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
-          <div className="flex items-center gap-2 mb-1">
-            <Calendar className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Working Days</span>
-          </div>
-          <div className="text-xl font-bold text-foreground tracking-tight">22</div>
-        </div>
-        <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
-          <div className="flex items-center gap-2 mb-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-success" strokeWidth={2} />
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Present</span>
-          </div>
-          <div className="text-xl font-bold text-foreground tracking-tight">
-            19 <span className="text-[13px] font-normal text-foreground-tertiary">/ 22</span>
-          </div>
-        </div>
-        <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-3.5 h-3.5 text-warning" strokeWidth={2} />
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Leaves</span>
-          </div>
-          <div className="text-xl font-bold text-foreground tracking-tight">
-            2 <span className="text-[13px] font-normal text-foreground-tertiary">days</span>
-          </div>
-        </div>
-        <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Avg Hours</span>
-          </div>
-          <div className="text-xl font-bold text-foreground tracking-tight">
-            9.2 <span className="text-[13px] font-normal text-foreground-tertiary">hrs/day</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TeamViewTab() {
-  return (
-    <div>
-      {/* Team Summary */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
-          <div className="flex items-center gap-2 mb-1">
-            <UserCheck className="w-3.5 h-3.5 text-success" strokeWidth={2} />
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Present</span>
-          </div>
-          <div className="text-xl font-bold text-foreground tracking-tight">38</div>
-        </div>
-        <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
-          <div className="flex items-center gap-2 mb-1">
-            <Home className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">WFH</span>
-          </div>
-          <div className="text-xl font-bold text-foreground tracking-tight">4</div>
-        </div>
-        <div className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-3.5 h-3.5 text-warning" strokeWidth={2} />
-            <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">On Leave</span>
-          </div>
-          <div className="text-xl font-bold text-foreground tracking-tight">3</div>
-        </div>
-      </div>
-
-      {/* Team List */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[13px] font-semibold text-foreground">Today&apos;s Attendance</span>
-        <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">
-          {teamView.length} members
-        </span>
-      </div>
-      <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border">
-        <div className="grid grid-cols-6 gap-3 px-3.5 py-2 bg-foreground-tertiary/5">
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider col-span-2">Employee</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Check In</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Hours</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Dept</span>
-          <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">Status</span>
-        </div>
-        {teamView.map((member, i) => (
-          <div key={member.id}>
-            <div className="grid grid-cols-6 gap-3 items-center px-3.5 py-2.5">
-              <div className="col-span-2 flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-                  <span className="text-[10px] font-semibold text-accent">{member.initials}</span>
-                </div>
-                <span className="text-[13px] font-medium text-foreground truncate">{member.name}</span>
-              </div>
-              <span className="text-[13px] text-foreground-secondary">{member.checkIn}</span>
-              <span className="text-[13px] font-medium text-foreground">{member.hours}</span>
-              <span className="text-[11px] text-foreground-tertiary">{member.dept}</span>
-              <StatusBadge type={teamStatusType(member.status)}>{member.status}</StatusBadge>
-            </div>
-            {i < teamView.length - 1 && <div className="h-px bg-divider mx-3.5" />}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LeaveRequestsTab() {
-  return (
-    <div>
-      {/* Apply Button + Pending */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-foreground">Leave Requests</span>
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-warning/10 text-[11px] font-semibold text-warning">
-            {leaveRequests.filter((r) => r.status === "Pending").length}
-          </span>
-        </div>
-        <Button size="sm">
-          <Plus className="w-3.5 h-3.5 mr-1" strokeWidth={2} />
-          Apply Leave
-        </Button>
-      </div>
-
-      {/* Pending Requests */}
-      <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border mb-5">
-        {leaveRequests.map((req, i) => (
-          <div key={req.id}>
-            <div className="flex items-center gap-3 px-3.5 py-3">
-              <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
-                <span className="text-[10px] font-semibold text-accent">{req.initials}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-semibold text-foreground">{req.name}</div>
-                <div className="text-[12px] text-foreground-tertiary mt-0.5">
-                  {req.type} Leave &middot; {req.from} - {req.to} ({req.days} {req.days === 1 ? "day" : "days"})
-                </div>
-                <div className="text-[11px] text-foreground-tertiary mt-0.5">{req.reason}</div>
-              </div>
-              <StatusBadge type="warning">{req.status}</StatusBadge>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Button
-                  size="xs"
-                  className="bg-success/10 text-success hover:bg-success/20 border-transparent"
-                >
-                  Approve
-                </Button>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="text-destructive hover:bg-destructive/10"
-                >
-                  Reject
-                </Button>
-              </div>
-            </div>
-            {i < leaveRequests.length - 1 && <div className="h-px bg-divider mx-3.5" />}
-          </div>
-        ))}
-      </div>
-
-      {/* Leave Balance */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[13px] font-semibold text-foreground">Leave Balance</span>
-        <span className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider">FY 2026-27</span>
-      </div>
-      <div className="grid grid-cols-4 gap-3">
-        {leaveBalances.map((bal) => (
-          <div key={bal.type} className="bg-background-secondary rounded-[10px] p-3.5 dark:border dark:border-border">
-            <div className="text-[11px] font-medium text-foreground-tertiary uppercase tracking-wider mb-1">{bal.type}</div>
-            <div className="text-xl font-bold text-foreground tracking-tight">
-              {bal.total - bal.used} <span className="text-[13px] font-normal text-foreground-tertiary">/ {bal.total}</span>
-            </div>
-            <ProgressBar value={bal.total - bal.used} max={bal.total} color={bal.color} className="mt-2" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
 
 export default function AttendancePage() {
-  const [activeTab, setActiveTab] = useState<ViewTab>("My Log");
-  const [isWfh, setIsWfh] = useState(false);
-  const [checkedIn, setCheckedIn] = useState(true);
+  const qc = useQueryClient();
+  const supabase = useMemo(() => createClient(), []);
+  const [monthOffset, setMonthOffset] = useState(0);
+
+  const monthAnchor = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + monthOffset);
+    return d;
+  }, [monthOffset]);
+  const monthIso = useMemo(
+    () => `${monthAnchor.getFullYear()}-${String(monthAnchor.getMonth() + 1).padStart(2, "0")}`,
+    [monthAnchor],
+  );
+
+  const myMonthQ = useQuery({
+    queryKey: ["att-me-month", monthIso],
+    queryFn: async (): Promise<AttendanceLog[]> => {
+      const res = await fetch(`/xapi/attendance/me?month=${monthIso}`, {
+        cache: "no-store",
+      });
+      const json = (await res.json()) as {
+        data?: { logs: AttendanceLog[] };
+        error?: string;
+      };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      return json.data?.logs ?? [];
+    },
+  });
+
+  const teamTodayQ = useQuery({
+    queryKey: ["att-team-today"],
+    queryFn: async (): Promise<TeamTodayRow[]> => {
+      const res = await fetch("/xapi/attendance/today", { cache: "no-store" });
+      const json = (await res.json()) as {
+        data?: { rows: TeamTodayRow[] };
+        error?: string;
+      };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      return json.data?.rows ?? [];
+    },
+  });
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("att-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hr_attendance_logs" },
+        () => {
+          qc.invalidateQueries({ queryKey: ["att-me-month"] });
+          qc.invalidateQueries({ queryKey: ["att-team-today"] });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-5">
       <PageHeader
-        title="Attendance Hub"
-        description="Check-in/out, team attendance, and leave management."
-        actions={
-          <SegmentedControl
-            options={["My Log", "Team View", "Leave Requests"]}
-            value={activeTab}
-            onChange={(v) => setActiveTab(v as ViewTab)}
-          />
-        }
+        title="Attendance"
+        description="Auto check-in on dashboard load with IP capture. Switch status anytime; team view updates live."
       />
 
-      {activeTab === "My Log" && (
-        <MyLogTab
-          isWfh={isWfh}
-          setIsWfh={setIsWfh}
-          checkedIn={checkedIn}
-          setCheckedIn={setCheckedIn}
-        />
-      )}
-      {activeTab === "Team View" && <TeamViewTab />}
-      {activeTab === "Leave Requests" && <LeaveRequestsTab />}
+      <AttendanceStatusBar />
+
+      {/* My month */}
+      <section className="rounded-xl border border-divider bg-background-secondary/40">
+        <header className="flex items-center justify-between px-4 py-3 border-b border-divider">
+          <div>
+            <h3 className="text-[13px] font-semibold text-foreground">My month</h3>
+            <p className="text-[11px] text-foreground-tertiary">
+              {monthAnchor.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setMonthOffset((o) => o - 1)}
+              className="w-8 h-8 inline-flex items-center justify-center rounded-md text-foreground-secondary hover:bg-foreground/5"
+              aria-label="Previous month"
+            >
+              <ChevronLeft className="w-4 h-4" strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setMonthOffset(0)}
+              disabled={monthOffset === 0}
+              className="h-8 px-2.5 rounded-md text-[11.5px] font-medium text-foreground-secondary hover:bg-foreground/5 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => setMonthOffset((o) => o + 1)}
+              className="w-8 h-8 inline-flex items-center justify-center rounded-md text-foreground-secondary hover:bg-foreground/5"
+              aria-label="Next month"
+            >
+              <ChevronRight className="w-4 h-4" strokeWidth={2} />
+            </button>
+          </div>
+        </header>
+
+        <div className="p-4">
+          {myMonthQ.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-foreground-tertiary" />
+            </div>
+          ) : (
+            <MonthGrid anchor={monthAnchor} logs={myMonthQ.data ?? []} />
+          )}
+          <MonthLegend />
+        </div>
+      </section>
+
+      {/* Team today */}
+      <section className="rounded-xl border border-divider bg-background-secondary/40">
+        <header className="flex items-center justify-between px-4 py-3 border-b border-divider">
+          <div>
+            <h3 className="text-[13px] font-semibold text-foreground">Team today</h3>
+            <p className="text-[11px] text-foreground-tertiary">
+              Live status across everyone — updates within ~1s.
+            </p>
+          </div>
+          <span className="text-[11px] text-foreground-tertiary tabular-nums">
+            {teamTodayQ.data?.length ?? 0} members
+          </span>
+        </header>
+
+        <div className="p-2">
+          {teamTodayQ.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-foreground-tertiary" />
+            </div>
+          ) : (
+            <ul className="divide-y divide-divider">
+              {(teamTodayQ.data ?? []).map((m) => (
+                <TeamTodayItem key={m.id} row={m} />
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MonthGrid
+// ---------------------------------------------------------------------------
+
+function MonthGrid({
+  anchor,
+  logs,
+}: {
+  anchor: Date;
+  logs: AttendanceLog[];
+}) {
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  const first = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const startDay = first.getDay();
+
+  const byDate = new Map<string, AttendanceLog>();
+  for (const l of logs) byDate.set(l.log_date, l);
+
+  const cells: Array<{ key: string; day?: number; iso?: string }> = [];
+  for (let i = 0; i < startDay; i++) cells.push({ key: `pad-${i}` });
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    cells.push({ key: iso, day: d, iso });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="grid grid-cols-7 gap-1">
+      {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+        <div
+          key={`dow-${i}`}
+          className="text-[10px] font-semibold uppercase tracking-wider text-foreground-tertiary text-center pb-1"
+        >
+          {d}
+        </div>
+      ))}
+      {cells.map((c) => {
+        if (!c.day) return <div key={c.key} className="aspect-square" />;
+        const log = byDate.get(c.iso!);
+        const StatusIcon = log ? STATUS_ICON[log.status] : Circle;
+        const colour = log ? STATUS_COLOR[log.status] : "text-foreground-tertiary/40 bg-background";
+        const isToday = c.iso === today;
+        return (
+          <div
+            key={c.key}
+            title={
+              log
+                ? `${ATTENDANCE_LABEL[log.status]} · ${new Date(log.checked_in_at).toLocaleTimeString(
+                    "en-IN",
+                    { hour: "2-digit", minute: "2-digit" },
+                  )}`
+                : "No log"
+            }
+            className={[
+              "aspect-square rounded-md flex flex-col items-center justify-center gap-0.5 text-[11px] border",
+              colour,
+              isToday ? "ring-2 ring-accent/30 border-accent/30" : "border-divider/60",
+            ].join(" ")}
+          >
+            <span className="font-semibold tabular-nums">{c.day}</span>
+            <StatusIcon className="w-3 h-3" strokeWidth={2} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MonthLegend() {
+  return (
+    <div className="mt-3 flex flex-wrap gap-2.5">
+      {(Object.keys(ATTENDANCE_LABEL) as AttendanceStatus[]).map((s) => {
+        const Icon = STATUS_ICON[s];
+        return (
+          <span
+            key={s}
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLOR[s]}`}
+          >
+            <Icon className="w-2.5 h-2.5" strokeWidth={2} />
+            {ATTENDANCE_LABEL[s]}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TeamTodayItem
+// ---------------------------------------------------------------------------
+
+function TeamTodayItem({ row }: { row: TeamTodayRow }) {
+  const status: AttendanceStatus = row.log?.status ?? "absent";
+  const Icon = STATUS_ICON[status];
+  return (
+    <li className="flex items-center gap-3 px-3 py-2">
+      {row.photo_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={row.photo_url}
+          alt={row.name}
+          className="w-8 h-8 rounded-full object-cover bg-foreground/10"
+        />
+      ) : (
+        <span className="w-8 h-8 rounded-full bg-foreground/10 inline-flex items-center justify-center text-[10px] font-bold text-foreground-secondary">
+          {row.name
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((p) => p[0]?.toUpperCase() ?? "")
+            .join("")}
+        </span>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-[12.5px] font-medium text-foreground truncate">
+          {row.name}
+        </p>
+        <p className="text-[10.5px] text-foreground-tertiary truncate">
+          {row.title}
+          {row.department ? ` · ${row.department}` : ""}
+        </p>
+      </div>
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_COLOR[status]}`}
+      >
+        <Icon className="w-3 h-3" strokeWidth={2} />
+        {ATTENDANCE_LABEL[status]}
+      </span>
+    </li>
   );
 }
