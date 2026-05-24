@@ -1,478 +1,215 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Video,
-  CalendarPlus,
-  Clock,
-  Users,
-  CalendarDays,
-} from "lucide-react";
+// Calendar — full-screen month view aggregating live data:
+//   - Task due dates (from pm_tasks)
+//   - Approved leaves (from hr_leaves)
+// Realtime: any pm_tasks or hr_leaves change refetches the merged event set.
+
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+import { FullScreenCalendar, type CalendarDay } from "@/components/ui/full-screen-calendar";
 import { PageHeader } from "@/components/ui/page-header";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
+import type { PmTask } from "@/lib/pm/types";
+import type { LeaveRequest } from "@/lib/hr/types";
+import { LEAVE_TYPE_LABEL } from "@/lib/hr/types";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type EventType = "Meeting" | "Leave" | "Block" | "Activity" | "Holiday";
-
-interface CalendarEvent {
+interface TeamLite {
   id: string;
-  title: string;
-  time: string;
-  duration: string;
-  type: EventType;
-  attendees?: string[];
-  allDay?: boolean;
+  name: string;
 }
 
-interface DayEvents {
-  date: string;
-  dayLabel: string;
-  isToday: boolean;
-  events: CalendarEvent[];
+interface TaskWithProject extends PmTask {
+  project_name?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
+const ORG_ID = "a0000000-0000-0000-0000-000000000001";
 
-const weekEvents: DayEvents[] = [
-  {
-    date: "Apr 14",
-    dayLabel: "Monday",
-    isToday: false,
-    events: [
-      {
-        id: "e1",
-        title: "Sprint 14 Planning",
-        time: "9:30 AM",
-        duration: "1h",
-        type: "Meeting",
-        attendees: ["PK", "SM", "RK", "AM"],
-      },
-      {
-        id: "e2",
-        title: "Natraj \u2014 Casual Leave",
-        time: "All day",
-        duration: "Full day",
-        type: "Leave",
-        allDay: true,
-      },
-    ],
-  },
-  {
-    date: "Apr 15",
-    dayLabel: "Tuesday",
-    isToday: true,
-    events: [
-      {
-        id: "e3",
-        title: "Client Call \u2014 Acme Corp",
-        time: "10:00 AM",
-        duration: "30min",
-        type: "Meeting",
-        attendees: ["PK", "LP"],
-      },
-      {
-        id: "e4",
-        title: "Design Review",
-        time: "2:00 PM",
-        duration: "1h",
-        type: "Meeting",
-        attendees: ["SM", "LP", "DW"],
-      },
-      {
-        id: "e5",
-        title: "Team Standup",
-        time: "5:00 PM",
-        duration: "15min",
-        type: "Meeting",
-        attendees: ["PK", "SM", "RK", "AM", "LP"],
-      },
-    ],
-  },
-  {
-    date: "Apr 16",
-    dayLabel: "Wednesday",
-    isToday: false,
-    events: [
-      {
-        id: "e6",
-        title: "WFH Wednesday",
-        time: "All day",
-        duration: "Full day",
-        type: "Block",
-        allDay: true,
-      },
-      {
-        id: "e7",
-        title: "Webinar: AI in Marketing",
-        time: "11:00 AM",
-        duration: "2h",
-        type: "Activity",
-      },
-    ],
-  },
-  {
-    date: "Apr 17",
-    dayLabel: "Thursday",
-    isToday: false,
-    events: [
-      {
-        id: "e8",
-        title: "Meridian Finance \u2014 SOW Review",
-        time: "11:00 AM",
-        duration: "1h",
-        type: "Meeting",
-        attendees: ["PK", "AM", "NK"],
-      },
-      {
-        id: "e9",
-        title: "Anjali \u2014 Half Day Leave",
-        time: "PM",
-        duration: "Half day",
-        type: "Leave",
-        allDay: true,
-      },
-    ],
-  },
-  {
-    date: "Apr 18",
-    dayLabel: "Friday",
-    isToday: false,
-    events: [
-      {
-        id: "e10",
-        title: "Team Lunch",
-        time: "1:00 PM",
-        duration: "1h",
-        type: "Activity",
-      },
-      {
-        id: "e11",
-        title: "Sprint 14 Retro",
-        time: "4:00 PM",
-        duration: "45min",
-        type: "Meeting",
-        attendees: ["PK", "SM", "RK", "AM", "LP"],
-      },
-    ],
-  },
-];
+export default function CalendarPage() {
+  const qc = useQueryClient();
+  const supabase = useMemo(() => createClient(), []);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
-// Upcoming events: next 3 from today onward
-const upcomingEvents = weekEvents
-  .filter((day) => day.isToday || day.date >= "Apr 15")
-  .flatMap((day) =>
-    day.events
-      .filter((e) => !e.allDay)
-      .map((e) => ({ ...e, date: day.date, dayLabel: day.dayLabel }))
-  )
-  .slice(0, 3);
+  // Tasks with due dates this quarter (+- 60 days from today is plenty)
+  const tasksQ = useQuery({
+    queryKey: ["calendar-tasks"],
+    queryFn: async (): Promise<TaskWithProject[]> => {
+      const { data } = await supabase
+        .from("pm_tasks")
+        .select("*, pm_projects(name)")
+        .eq("org_id", ORG_ID)
+        .not("due_date", "is", null)
+        .order("due_date");
+      return ((data ?? []) as Array<
+        PmTask & { pm_projects?: { name: string } }
+      >).map((t) => ({
+        ...t,
+        project_name: t.pm_projects?.name,
+      }));
+    },
+  });
 
-// Leave this week
-const leavesThisWeek = [
-  { name: "Natraj", dates: "Apr 14 (Full day)", initials: "NT" },
-  { name: "Anjali", dates: "Apr 17 (PM)", initials: "AJ" },
-  { name: "Deepak", dates: "Apr 18 (Full day)", initials: "DK" },
-];
+  // Leaves (approved + pending) within 90 days back to 90 forward.
+  const leavesQ = useQuery({
+    queryKey: ["calendar-leaves"],
+    queryFn: async (): Promise<Array<LeaveRequest & { member_name?: string }>> => {
+      const { data } = await supabase
+        .from("hr_leaves")
+        .select("*, hr_team_members(name)")
+        .eq("org_id", ORG_ID)
+        .in("status", ["approved", "pending"])
+        .order("start_date");
+      return ((data ?? []) as Array<
+        LeaveRequest & { hr_team_members?: TeamLite }
+      >).map((l) => ({
+        ...l,
+        member_name: l.hr_team_members?.name,
+      }));
+    },
+  });
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+  // Realtime: any task/leave change refreshes the calendar.
+  useEffect(() => {
+    const ch = supabase
+      .channel("calendar-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pm_tasks" },
+        () => qc.invalidateQueries({ queryKey: ["calendar-tasks"] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hr_leaves" },
+        () => qc.invalidateQueries({ queryKey: ["calendar-leaves"] }),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-const viewTabs = ["Week", "Month", "Agenda"] as const;
-type ViewTab = (typeof viewTabs)[number];
+  // Merge tasks + leaves into the shape FullScreenCalendar expects.
+  const data: CalendarDay[] = useMemo(() => {
+    const byDay = new Map<string, CalendarDay>();
 
-function eventBorderColor(type: EventType): string {
-  switch (type) {
-    case "Meeting":
-      return "border-l-accent";
-    case "Leave":
-      return "border-l-warning";
-    case "Block":
-      return "border-l-foreground-tertiary";
-    case "Activity":
-      return "border-l-success";
-    case "Holiday":
-      return "border-l-[hsl(var(--accent))]";
-  }
-}
+    const push = (iso: string, event: CalendarDay["events"][number]) => {
+      const slot = byDay.get(iso) ?? { day: new Date(iso), events: [] };
+      slot.events.push(event);
+      byDay.set(iso, slot);
+    };
 
-function eventBadgeType(type: EventType) {
-  switch (type) {
-    case "Meeting":
-      return "info" as const;
-    case "Leave":
-      return "warning" as const;
-    case "Block":
-      return "neutral" as const;
-    case "Activity":
-      return "success" as const;
-    case "Holiday":
-      return "info" as const;
-  }
-}
+    for (const t of tasksQ.data ?? []) {
+      if (!t.due_date) continue;
+      push(t.due_date, {
+        id: `task-${t.id}`,
+        name: t.title,
+        time: t.project_name ?? "Task",
+        datetime: t.due_date,
+      });
+    }
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
+    for (const l of leavesQ.data ?? []) {
+      // Render one event on each day in the leave's range.
+      const start = new Date(l.start_date);
+      const end = new Date(l.end_date);
+      for (
+        let d = new Date(start);
+        d.getTime() <= end.getTime();
+        d.setDate(d.getDate() + 1)
+      ) {
+        const iso = d.toISOString().slice(0, 10);
+        push(iso, {
+          id: `leave-${l.id}-${iso}`,
+          name: `${l.member_name ?? "Teammate"} · ${LEAVE_TYPE_LABEL[l.leave_type]} leave`,
+          time:
+            l.status === "approved" ? "Approved" : `Pending · ${l.urgency}`,
+          datetime: iso,
+        });
+      }
+    }
 
-function EventRow({ event }: { event: CalendarEvent }) {
+    return Array.from(byDay.values()).sort(
+      (a, b) => a.day.getTime() - b.day.getTime(),
+    );
+  }, [tasksQ.data, leavesQ.data]);
+
+  const loading = tasksQ.isLoading || leavesQ.isLoading;
+
   return (
-    <div
-      className={`flex items-center gap-3 px-3.5 py-2.5 bg-background dark:bg-background/40 border-l-[3px] ${eventBorderColor(
-        event.type
-      )}`}
-    >
-      {/* Time */}
-      <div className="w-[72px] shrink-0">
-        <span className="text-[12px] font-medium text-foreground-tertiary">
-          {event.time}
-        </span>
-      </div>
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-7rem)] flex flex-col">
+      <PageHeader
+        title="Calendar"
+        description="Tasks (due dates) and leaves merged in one live month view. Updates push within ~1s when teammates change anything."
+      />
 
-      {/* Title and duration */}
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-foreground truncate">
-          {event.title}
-        </div>
-        <div className="text-[11px] text-foreground-tertiary mt-0.5">
-          {event.duration}
-        </div>
-      </div>
-
-      {/* Type badge */}
-      <StatusBadge type={eventBadgeType(event.type)}>{event.type}</StatusBadge>
-
-      {/* Attendees (meetings only) */}
-      {event.attendees && event.attendees.length > 0 && (
-        <div className="hidden sm:flex items-center -space-x-1.5 shrink-0">
-          {event.attendees.slice(0, 4).map((initial) => (
-            <div
-              key={initial}
-              className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center ring-2 ring-background"
-            >
-              <span className="text-[9px] font-semibold text-accent leading-none">
-                {initial}
-              </span>
-            </div>
-          ))}
-          {event.attendees.length > 4 && (
-            <div className="w-6 h-6 rounded-full bg-background-secondary flex items-center justify-center ring-2 ring-background">
-              <span className="text-[9px] font-medium text-foreground-tertiary leading-none">
-                +{event.attendees.length - 4}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DayGroup({ day }: { day: DayEvents }) {
-  return (
-    <div className="mb-4 last:mb-0">
-      {/* Day header */}
-      <div className="flex items-center gap-2 mb-1.5">
-        <span
-          className={`text-[13px] font-semibold ${
-            day.isToday ? "text-accent" : "text-foreground"
-          }`}
-        >
-          {day.dayLabel}
-        </span>
-        <span
-          className={`text-[12px] ${
-            day.isToday ? "text-accent" : "text-foreground-tertiary"
-          }`}
-        >
-          {day.date}
-        </span>
-        {day.isToday && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-accent text-accent-foreground">
-            Today
-          </span>
+      <div className="flex-1 mt-4 rounded-xl border border-divider bg-background overflow-hidden flex flex-col">
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center text-[12px] text-foreground-tertiary">
+            Loading events…
+          </div>
+        ) : (
+          <FullScreenCalendar data={data} onDayClick={setSelectedDay} />
         )}
       </div>
 
-      {/* Events list */}
-      <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border">
-        {day.events.map((event, i) => (
-          <div key={event.id}>
-            <EventRow event={event} />
-            {i < day.events.length - 1 && (
-              <div className="h-px bg-divider mx-3.5" />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Sidebar() {
-  return (
-    <div className="space-y-4">
-      {/* Upcoming events */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-2">
-          <Clock className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />
-          <span className="text-[13px] font-semibold text-foreground">Upcoming</span>
-        </div>
-        <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border">
-          {upcomingEvents.map((event, i) => (
-            <div key={event.id}>
-              <div className="px-3 py-2.5 bg-background dark:bg-background/40">
-                <div className="text-[13px] font-medium text-foreground truncate">
-                  {event.title}
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[11px] text-foreground-tertiary">
-                    {event.dayLabel}, {event.time}
-                  </span>
-                  <span className="text-[11px] text-foreground-tertiary">
-                    {event.duration}
-                  </span>
-                </div>
-              </div>
-              {i < upcomingEvents.length - 1 && (
-                <div className="h-px bg-divider mx-3" />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Leave calendar */}
-      <div>
-        <div className="flex items-center gap-1.5 mb-2">
-          <Users className="w-3.5 h-3.5 text-foreground-tertiary" strokeWidth={2} />
-          <span className="text-[13px] font-semibold text-foreground">
-            On Leave This Week
-          </span>
-        </div>
-        <div className="bg-background-secondary rounded-[10px] overflow-hidden dark:border dark:border-border">
-          {leavesThisWeek.map((person, i) => (
-            <div key={person.initials}>
-              <div className="flex items-center gap-2.5 px-3 py-2.5 bg-background dark:bg-background/40">
-                <div className="w-7 h-7 rounded-full bg-warning/10 flex items-center justify-center shrink-0">
-                  <span className="text-[10px] font-semibold text-warning">
-                    {person.initials}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-medium text-foreground">
-                    {person.name}
-                  </div>
-                  <div className="text-[11px] text-foreground-tertiary">
-                    {person.dates}
-                  </div>
-                </div>
-              </div>
-              {i < leavesThisWeek.length - 1 && (
-                <div className="h-px bg-divider mx-3" />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Schedule meeting button */}
-      <Button className="w-full">
-        <CalendarPlus className="w-3.5 h-3.5" strokeWidth={2} data-icon="inline-start" />
-        Schedule Meeting
-      </Button>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// View placeholders for Week / Month
-// ---------------------------------------------------------------------------
-
-function WeekView() {
-  return (
-    <div className="bg-background-secondary rounded-[10px] p-6 dark:border dark:border-border text-center">
-      <CalendarDays className="w-8 h-8 text-foreground-tertiary mx-auto mb-2" strokeWidth={1.5} />
-      <p className="text-[13px] text-foreground-tertiary">
-        Week view coming soon. Use the Agenda view for now.
-      </p>
-    </div>
-  );
-}
-
-function MonthView() {
-  return (
-    <div className="bg-background-secondary rounded-[10px] p-6 dark:border dark:border-border text-center">
-      <CalendarDays className="w-8 h-8 text-foreground-tertiary mx-auto mb-2" strokeWidth={1.5} />
-      <p className="text-[13px] text-foreground-tertiary">
-        Month view coming soon. Use the Agenda view for now.
-      </p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
-export default function CalendarPage() {
-  const [activeView, setActiveView] = useState<ViewTab>("Agenda");
-
-  return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <PageHeader
-        title="Calendar"
-        description="Meetings, leaves, and team events."
-        actions={
-          <SegmentedControl
-            options={[...viewTabs]}
-            value={activeView}
-            onChange={(v) => setActiveView(v as ViewTab)}
-          />
-        }
-      />
-
-      {activeView === "Week" && <WeekView />}
-      {activeView === "Month" && <MonthView />}
-
-      {activeView === "Agenda" && (
-        <>
-          {/* Today's date prominent */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="flex items-center gap-1.5">
-              <Video className="w-4 h-4 text-accent" strokeWidth={2} />
-              <span className="text-[15px] font-bold text-foreground tracking-tight">
-                Tuesday, April 15, 2026
-              </span>
-            </div>
-            <span className="text-[12px] text-foreground-tertiary">
-              &middot; 3 events today
-            </span>
-          </div>
-
-          {/* Two-column layout: agenda + sidebar */}
-          <div className="flex gap-5">
-            {/* Main agenda */}
-            <div className="flex-1 min-w-0">
-              {weekEvents.map((day) => (
-                <DayGroup key={day.date} day={day} />
-              ))}
-            </div>
-
-            {/* Right sidebar */}
-            <div className="hidden lg:block w-[280px] shrink-0">
-              <Sidebar />
-            </div>
-          </div>
-        </>
+      {/* Selected-day flyout (mobile-friendly summary) */}
+      {selectedDay && (
+        <SelectedDayPanel
+          day={selectedDay}
+          events={
+            data.find(
+              (d) =>
+                d.day.toISOString().slice(0, 10) ===
+                selectedDay.toISOString().slice(0, 10),
+            )?.events ?? []
+          }
+          onClose={() => setSelectedDay(null)}
+        />
       )}
     </div>
+  );
+}
+
+function SelectedDayPanel({
+  day,
+  events,
+  onClose,
+}: {
+  day: Date;
+  events: CalendarDay["events"];
+  onClose: () => void;
+}) {
+  if (events.length === 0) return null;
+  return (
+    <aside className="mt-3 rounded-xl border border-divider bg-background-secondary/40 p-3.5">
+      <header className="flex items-center justify-between mb-2">
+        <h3 className="text-[12.5px] font-semibold text-foreground">
+          {day.toLocaleDateString("en-IN", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          })}
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[11px] text-foreground-tertiary hover:text-foreground"
+        >
+          Close
+        </button>
+      </header>
+      <ul className="space-y-1.5">
+        {events.map((e) => (
+          <li
+            key={e.id}
+            className="text-[12px] text-foreground-secondary"
+          >
+            <span className="font-medium text-foreground">{e.name}</span>
+            <span className="ml-2 text-foreground-tertiary">{e.time}</span>
+          </li>
+        ))}
+      </ul>
+    </aside>
   );
 }
