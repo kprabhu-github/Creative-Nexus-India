@@ -118,7 +118,7 @@ export default function CalendarPage() {
         d.getTime() <= end.getTime();
         d.setDate(d.getDate() + 1)
       ) {
-        const iso = d.toISOString().slice(0, 10);
+        const iso = localIso(d);
         push(iso, {
           id: `leave-${l.id}-${iso}`,
           name: `${l.member_name ?? "Teammate"} · ${LEAVE_TYPE_LABEL[l.leave_type]} leave`,
@@ -169,6 +169,15 @@ export default function CalendarPage() {
       )}
     </div>
   );
+}
+
+// Format a Date as YYYY-MM-DD in the user's local timezone so events stored
+// on date `2026-05-29` don't shift a day for IST/non-UTC viewers.
+function localIso(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function SelectedDayPanel({

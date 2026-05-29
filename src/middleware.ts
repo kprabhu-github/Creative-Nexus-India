@@ -1,6 +1,21 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Public surfaces that must remain reachable without a session cookie.
+// Everything else under /api is gated to authenticated users so the WAF-mask
+// `/xapi/*` rewrite cannot be used by anonymous callers to spend Claude tokens,
+// rotate SMTP credentials, or write team rows.
+const PUBLIC_API_PREFIXES = [
+  "/api/auth/", // login/signup/setup callbacks
+  "/api/health",
+  "/api/cron/", // hostinger cron uses x-cron-secret instead of cookies
+  "/api/webhooks/", // 3rd-party webhooks authenticate via their own signatures
+];
+
+function isPublicApi(pathname: string): boolean {
+  return PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request: { headers: request.headers } });
 
@@ -14,38 +29,52 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
+            request.cookies.set(name, value),
           );
           response = NextResponse.next({ request: { headers: request.headers } });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, options),
           );
         },
       },
-    }
+    },
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const path = request.nextUrl.pathname;
+  const isAuthPage =
+    path.startsWith("/login") || path.startsWith("/signup");
+  const isApi = path.startsWith("/api/");
+
+  // Gate sensitive APIs — was previously bypassed, allowing any visitor to
+  // hit /xapi/ai-lab/chat, /xapi/email/accounts, /xapi/team POST, etc.
+  if (!user && isApi && !isPublicApi(path)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   // Redirect unauthenticated users away from dashboard routes
-  if (!user && !request.nextUrl.pathname.startsWith("/login") && !request.nextUrl.pathname.startsWith("/signup") && !request.nextUrl.pathname.startsWith("/api")) {
+  if (!user && !isAuthPage && !isApi) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
   // Redirect authenticated users away from auth pages
-  if (user && (request.nextUrl.pathname.startsWith("/login") || request.nextUrl.pathname.startsWith("/signup"))) {
+  if (user && isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
-  // Force HTML to never cache so a new deploy doesn't leave users on stale
-  // HTML referencing chunk hashes that no longer exist (404 -> blank screen).
-  // Static assets under /_next/static are excluded by the matcher below and
-  // remain cacheable via their content-hashed URLs.
-  response.headers.set("Cache-Control", "no-store, must-revalidate");
+  // Cache-Control: only documents (HTML) need no-store to avoid stale chunk
+  // refs after a deploy. JSON API responses should be cacheable via their own
+  // explicit Cache-Control headers if desired.
+  if (!isApi) {
+    response.headers.set("Cache-Control", "no-store, must-revalidate");
+  }
 
   return response;
 }

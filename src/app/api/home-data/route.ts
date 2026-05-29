@@ -210,10 +210,10 @@ export async function GET() {
         () =>
           supabase
             .from("fin_invoices")
-            .select("total_amount")
+            .select("total")
             .eq("org_id", ORG_ID)
             .in("status", ["pending", "sent"]),
-        [] as Array<{ total_amount: number }>,
+        [] as Array<{ total: number }>,
       ),
 
       // 9. All invoices (for total revenue)
@@ -221,9 +221,9 @@ export async function GET() {
         () =>
           supabase
             .from("fin_invoices")
-            .select("total_amount")
+            .select("total")
             .eq("org_id", ORG_ID),
-        [] as Array<{ total_amount: number }>,
+        [] as Array<{ total: number }>,
       ),
 
       // 10. Recent notifications
@@ -244,9 +244,9 @@ export async function GET() {
         () =>
           supabase
             .from("sig_agent_runs")
-            .select("agent_code")
+            .select("agent_id")
             .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-        [] as Array<{ agent_code: string }>,
+        [] as Array<{ agent_id: string }>,
       ),
 
       // 12. Deliverable statuses (quality score approximation)
@@ -282,8 +282,8 @@ export async function GET() {
     const failedRuns = runStatuses.filter((r) => r.status === "failed").length;
 
     const pendingExpensesList = expensesPending as Array<{ amount: number }>;
-    const pendingInvoicesList = invoicesPending as Array<{ total_amount: number }>;
-    const allInvoices = invoicesAll as Array<{ total_amount: number }>;
+    const pendingInvoicesList = invoicesPending as Array<{ total: number }>;
+    const allInvoices = invoicesAll as Array<{ total: number }>;
 
     const pendingExpenseValue = pendingExpensesList.reduce(
       (sum, e) => sum + (Number(e.amount) || 0),
@@ -291,7 +291,7 @@ export async function GET() {
     );
 
     const totalInvoiceValue = allInvoices.reduce(
-      (sum, i) => sum + (Number(i.total_amount) || 0),
+      (sum, i) => sum + (Number(i.total) || 0),
       0,
     );
 
@@ -299,8 +299,8 @@ export async function GET() {
     // Quick stats
     // ---------------------------------------------------------------
 
-    const agentCodes = agentsToday as Array<{ agent_code: string }>;
-    const uniqueAgents = new Set(agentCodes.map((a) => a.agent_code));
+    const agentCodes = agentsToday as Array<{ agent_id: string }>;
+    const uniqueAgents = new Set(agentCodes.map((a) => a.agent_id));
 
     // Quality score approximation: count approved vs total deliverables
     const deliverables = deliverableStatuses as Array<{ status: string }>;

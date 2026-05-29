@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useContextEmails } from "@/lib/email/use-context-emails";
 import { ContextEmailList } from "./ContextEmailList";
 import { ContextEmailReply } from "./ContextEmailReply";
+import { sanitizeEmailHtml } from "@/lib/email/sanitize";
 import type { EmailContextType } from "@/lib/email/index";
 
 interface Props {
@@ -60,7 +61,7 @@ export function ContextEmailPanel({
                   </header>
                   <div
                     className="prose prose-sm max-w-none mt-2"
-                    dangerouslySetInnerHTML={{ __html: m.body_html ?? "" }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(m.body_html ?? "") }}
                   />
                 </article>
               ))}

@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ComposeModal, type ComposeInitial } from "@/components/email/ComposeModal";
+import { sanitizeEmailHtml } from "@/lib/email/sanitize";
 import {
   ThreadHeaderActions,
   ThreadShortcutsPanel,
@@ -556,7 +557,7 @@ export default function InboxPage() {
                         color: "#1F2937",
                         lineHeight: 1.6,
                       }}
-                      dangerouslySetInnerHTML={{ __html: m.body_html }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(m.body_html) }}
                     />
                   ) : m.body_text ? (
                     <pre

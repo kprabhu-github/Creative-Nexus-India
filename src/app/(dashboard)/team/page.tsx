@@ -62,7 +62,7 @@ export default function PeoplePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/team", { cache: "no-store" });
+        const res = await fetch("/xapi/team", { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { data: TeamListResponse; error?: string };
         if (cancelled) return;

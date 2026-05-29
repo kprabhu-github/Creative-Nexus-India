@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------------
 // TeamMemberDrawer — slide-in profile drawer with admin edit mode.
-// Fetches /api/team/[slug], renders profile + edit form, PATCHes on save.
+// Fetches /xapi/team/[slug], renders profile + edit form, PATCHes on save.
 // Apple-style frosted glass, mounted-flag transitions, esc-to-close.
 // ---------------------------------------------------------------------------
 
@@ -77,7 +77,7 @@ export default function TeamMemberDrawer({ slug, onClose }: Props) {
     setLoading(true);
     setError(null);
     setEditing(false);
-    fetch(`/api/team/${slug}`, { signal: ctrl.signal, cache: "no-store" })
+    fetch(`/xapi/team/${slug}`, { signal: ctrl.signal, cache: "no-store" })
       .then(async (res) => {
         if (res.status === 404) { setMember(null); setError("Member not found"); return; }
         if (!res.ok) throw new Error(`Request failed: ${res.status}`);
@@ -115,7 +115,7 @@ export default function TeamMemberDrawer({ slug, onClose }: Props) {
         skills: draft.skills.split(",").map((s) => s.trim()).filter(Boolean),
         status: draft.status,
       };
-      const res = await fetch(`/api/team/${member.slug}`, {
+      const res = await fetch(`/xapi/team/${member.slug}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       if (!res.ok) {

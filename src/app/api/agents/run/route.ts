@@ -205,7 +205,6 @@ async function createAgentRun(
     .from("sig_agent_runs")
     .insert({
       run_id: runId,
-      agent_code: agent.code,
       agent_name: agent.name,
       status: "pending" as AgentRunStatus,
       input,

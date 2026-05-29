@@ -125,7 +125,7 @@ export function AttendanceStatusBar() {
             {loading
               ? "Checking in…"
               : log
-                ? `You&apos;re marked ${
+                ? `You're marked ${
                     STATUS_META.find((s) => s.key === current)?.label ??
                     current
                   }`
