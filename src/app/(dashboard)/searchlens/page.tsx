@@ -60,7 +60,15 @@ const TrackedPromptsTab = dynamic(() => import("./_components/TrackedPromptsTab"
   loading: () => <div className="text-[12px] text-foreground-tertiary">Loading tracked prompts…</div>,
 });
 
-const TAB_OPTIONS = ["Overview", "Citations", "Competitors", "Prompts", "Tracked", "Insights", "Site Audit"] as const;
+const FixerTab = dynamic(
+  () => import("./_components/FixerTab").then((m) => m.FixerTab),
+  {
+    ssr: false,
+    loading: () => <div className="text-[12px] text-foreground-tertiary">Loading Fixer…</div>,
+  },
+);
+
+const TAB_OPTIONS = ["Overview", "Citations", "Competitors", "Prompts", "Tracked", "Insights", "Site Audit", "Fixer"] as const;
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -1045,6 +1053,7 @@ export default function SearchLensPage() {
       {tab === "Site Audit" && (
         <SiteAuditTab domain={activeDomain || prefilledDomain || ""} />
       )}
+      {tab === "Fixer" && <FixerTab />}
 
       {/* Toast notifications */}
       <div className="fixed bottom-6 right-6 z-50 space-y-2">
