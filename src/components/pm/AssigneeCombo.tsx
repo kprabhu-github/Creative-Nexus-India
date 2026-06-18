@@ -356,8 +356,8 @@ export function AssigneeCombo({
             {!addMode ? (
               <button
                 type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                onClick={(e) => {
+                  e.stopPropagation();
                   setAddMode(true);
                 }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-accent hover:bg-foreground/5 transition-colors"
@@ -417,8 +417,8 @@ export function AssigneeCombo({
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setAddMode(false);
                       }}
                       disabled={adding}
@@ -428,8 +428,8 @@ export function AssigneeCombo({
                     </button>
                     <button
                       type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
+                      onClick={(e) => {
+                        e.stopPropagation();
                         void addTeammate();
                       }}
                       disabled={adding || !addingName.trim()}

@@ -49,3 +49,8 @@ _claude_skills_temp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# additions 2026-06-18
+.env.local.NEW
+.env.*.NEW
+.kiro-backup/

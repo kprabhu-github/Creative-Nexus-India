@@ -1,132 +1,61 @@
-# Creative Nexus Command Centre
+# Agentic SDLC and Spec-Driven Development
 
-AI-native agency operating system at creativenexusglobal.com. 10 modules, 36 agents, 13 workflows, 88 database tables.
+Kiro-style Spec-Driven Development on an agentic SDLC
 
-## Tech Stack
+## Project Context
 
-- **Frontend:** Next.js 14 (App Router, RSC) + TypeScript + Tailwind CSS + shadcn/ui
-- **Backend:** FastAPI (Python) for AI agents + tRPC (TypeScript) for CRUD
-- **Database:** Supabase PostgreSQL with RLS. All tables prefixed by module (sig_, gtm_, hr_, fin_, att_, pm_, slack_, ais_, nf_, core_)
-- **Auth:** Supabase Auth + NextAuth.js. 6 roles: super_admin, manager, employee, account_manager, client_admin, client_viewer
-- **AI:** Anthropic Claude (Managed Agents for strategy, Agent SDK for execution, Messages API for research)
-- **Styling:** Apple-like minimal UI. Brand colors: navy `#0A1628`, coral `#FF6B5A`, background `#F0F4F8`
+### Paths
+- Steering: `.kiro/steering/`
+- Specs: `.kiro/specs/`
 
-## Commands
+### Steering vs Specification
 
-```bash
-# Install
-npm install
+**Steering** (`.kiro/steering/`) - Guide AI with project-wide rules and context
+**Specs** (`.kiro/specs/`) - Formalize development process for individual features
 
-# Dev
-npm run dev          # Next.js on :3000
-supabase start       # Local Supabase on :54321
+### Active Specifications
+- Check `.kiro/specs/` for active specifications
+- Use `/kiro-spec-status [feature-name]` to check progress
 
-# Lint & format
-npm run lint
-npm run format
+## Development Guidelines
+- Think in English, generate responses in English. All Markdown content written to project files (e.g., requirements.md, design.md, tasks.md, research.md, validation reports) MUST be written in the target language configured for this specification (see spec.json.language).
 
-# Type check
-npx tsc --noEmit
+## Minimal Workflow
+- Phase 0 (optional): `/kiro-steering`, `/kiro-steering-custom`
+- Discovery: `/kiro-discovery "idea"` — determines action path, writes brief.md + roadmap.md for multi-spec projects
+- Phase 1 (Specification):
+  - Single spec: `/kiro-spec-quick {feature} [--auto]` or step by step:
+    - `/kiro-spec-init "description"`
+    - `/kiro-spec-requirements {feature}`
+    - `/kiro-validate-gap {feature}` (optional: for existing codebase)
+    - `/kiro-spec-design {feature} [-y]`
+    - `/kiro-validate-design {feature}` (optional: design review)
+    - `/kiro-spec-tasks {feature} [-y]`
+  - Multi-spec: `/kiro-spec-batch` — creates all specs from roadmap.md in parallel by dependency wave
+- Phase 2 (Implementation): `/kiro-impl {feature} [tasks]`
+  - Without task numbers: autonomous mode (subagent per task + independent review + final validation)
+  - With task numbers: manual mode (selected tasks in main context, still reviewer-gated before completion)
+  - `/kiro-validate-impl {feature}` (standalone re-validation)
+- Progress check: `/kiro-spec-status {feature}` (use anytime)
 
-# Test
-npm run test         # Vitest
-npm run test:e2e     # Playwright
+## Skills Structure
+Skills are located in `.claude/skills/kiro-*/SKILL.md`
+- Each skill is a directory with a `SKILL.md` file
+- Skills run inline with access to conversation context
+- Skills may delegate parallel research to subagents for efficiency
+- Additional files (templates, examples) can be added to skill directories
+- `kiro-review` — task-local adversarial review protocol used by reviewer subagents
+- `kiro-debug` — root-cause-first debug protocol used by debugger subagents
+- `kiro-verify-completion` — fresh-evidence gate before success or completion claims
+- **If there is even a 1% chance a skill applies to the current task, invoke it.** Do not skip skills because the task seems simple.
 
-# DB
-supabase db push     # Push migrations
-supabase db reset    # Reset + reseed
-```
+## Development Rules
+- 3-phase approval workflow: Requirements → Design → Tasks → Implementation
+- Human review required each phase; use `-y` only for intentional fast-track
+- Keep steering current and verify alignment with `/kiro-spec-status`
+- Follow the user's instructions precisely, and within that scope act autonomously: gather the necessary context and complete the requested work end-to-end in this run, asking questions only when essential information is missing or the instructions are critically ambiguous.
 
-## Project Structure
-
-```
-/
-├── CLAUDE.md              # This file
-├── .mcp.json              # MCP server config (Semrush, Apify, Supabase)
-├── package.json
-├── next.config.ts
-├── tailwind.config.ts
-├── supabase/
-│   ├── migrations/        # SQL migrations (ordered by timestamp)
-│   ├── seed.sql           # Dev seed data
-│   └── config.toml
-├── src/
-│   ├── app/               # Next.js App Router pages
-│   │   ├── (auth)/        # Login, signup
-│   │   ├── (dashboard)/   # Authenticated layout with sidebar
-│   │   │   ├── dashboard/ # Home dashboard
-│   │   │   ├── signal/    # Signal Engine pages
-│   │   │   ├── searchlens/# AI SearchLens pages
-│   │   │   ├── gtm/       # GTM Engine pages
-│   │   │   ├── nexus-flow/# Outreach ops pages
-│   │   │   ├── social/    # Social Intelligence pages
-│   │   │   ├── whatsapp/  # WhatsApp Sales Engine
-│   │   │   ├── people/    # HRMS pages
-│   │   │   ├── finance/   # Invoice & finance pages
-│   │   │   ├── attendance/# Attendance pages
-│   │   │   ├── projects/  # Project ops pages
-│   │   │   ├── slack/     # Slack hub pages
-│   │   │   └── executive/ # Executive dashboard
-│   │   └── api/           # API routes
-│   ├── components/
-│   │   ├── ui/            # shadcn/ui components
-│   │   ├── layout/        # Sidebar, header, shell
-│   │   └── modules/       # Module-specific components
-│   ├── lib/
-│   │   ├── supabase/      # Client + server Supabase helpers
-│   │   ├── auth/          # Auth utilities + RBAC
-│   │   └── utils.ts
-│   └── types/             # TypeScript types per module
-├── agents/                # Python agent service (FastAPI)
-│   ├── orchestrator/      # Workflow DAG runner
-│   ├── agents/            # Individual agent system prompts
-│   ├── quality/           # Quality layer passes
-│   └── mcp/               # MCP client integrations
-└── docs/
-    ├── architecture.md    # Detailed system architecture
-    ├── build-phases.md    # Phase-by-phase execution plan
-    ├── agents.md          # All 36 agent specs (reference)
-    └── api-registry.md    # All 43 API integrations (reference)
-```
-
-## Conventions
-
-- Use named exports, not default exports (except Next.js pages)
-- Server Components by default. Add `'use client'` only when needed
-- All Supabase queries go through `src/lib/supabase/` helpers, never direct in components
-- Use Zod for all input validation
-- All API responses follow `{ data, error }` pattern
-- Never hardcode colors — use CSS variables or Tailwind config
-- All tables have `created_at`, `updated_at`, RLS enabled, and proper indexes
-- Commit messages: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
-
-## Current Focus
-
-<!-- Update this section when starting a new phase -->
-**Phase 1: Foundation (Weeks 1–4)**
-Building: Supabase schema, auth, Next.js shell with sidebar, design system, global search.
-See `docs/build-phases.md` for detailed task breakdown.
-
-## MCP Servers
-
-Configured in `.mcp.json`. Available tools:
-- **Supabase:** execute_sql, list_tables, apply_migration
-- **Semrush:** keyword data, domain metrics, competitor analysis
-- **Apify:** search-actors, call-actor, get-actor-output (14 scrapers)
-
-## Architecture Decisions
-
-- Sidebar is the backbone: 220px expanded, 60px collapsed. Client-facing modules visible to clients, internal modules hidden via RBAC
-- All AI agent execution happens in Python FastAPI service, NOT in Next.js. Frontend only displays results
-- Supabase RLS enforces multi-tenancy. Every query is scoped to org_id
-- Quality layer runs between every agent: PII scan (NVIDIA GLiNER), brand safety (NemoGuard), voice compliance, hallucination check, consistency, polish
-- WhatsApp agent (W13) is always-on via FastAPI webhook + Redis state store, not batch
-
-## Don't
-
-- Don't use `any` type in TypeScript
-- Don't put business logic in components — use server actions or API routes
-- Don't skip RLS policies on new tables
-- Don't use `localStorage` for auth state — use Supabase session
-- Don't install new UI libraries — shadcn/ui + Tailwind handles everything
-- Don't create separate CSS files — use Tailwind classes or CSS variables
+## Steering Configuration
+- Load entire `.kiro/steering/` as project memory
+- Default files: `product.md`, `tech.md`, `structure.md`
+- Custom files are supported (managed via `/kiro-steering-custom`)

@@ -15,6 +15,10 @@ import {
   Copy,
   Check,
   Download,
+  Gauge,
+  Plug,
+  Rocket,
+  Loader2,
 } from "lucide-react";
 import {
   LlmsTxtForm,
@@ -24,21 +28,25 @@ import {
   MetaRewriteForm,
 } from "./FixerForms";
 import { FixerHistory } from "./FixerHistory";
+import { FixerAudit } from "./FixerAudit";
+import { FixerConnections } from "./FixerConnections";
 import type { FixArtifact, FixKind } from "@/lib/searchlens/fix-types";
 
 interface SubTab {
-  key: FixKind | "history";
+  key: FixKind | "history" | "audit" | "connect";
   label: string;
   Icon: typeof FileCode;
   hint: string;
 }
 
 const SUB_TABS: SubTab[] = [
+  { key: "audit", label: "Audit", Icon: Gauge, hint: "Score any URL across 5 GEO-readiness signals" },
   { key: "llms_txt", label: "llms.txt", Icon: FileCode, hint: "Help AI engines understand your site map" },
   { key: "robots_txt", label: "robots.txt", Icon: ShieldCheck, hint: "Allow / block AI crawlers explicitly" },
   { key: "schema_jsonld", label: "Schema", Icon: Tag, hint: "FAQPage JSON-LD ready to paste" },
   { key: "answer_block", label: "Answer Block", Icon: MessageSquareQuote, hint: "150-word citable block AI engines quote" },
   { key: "meta_rewrite", label: "Title + Meta", Icon: Type, hint: "3 variants per page for CTR + AI citation" },
+  { key: "connect", label: "Connect", Icon: Plug, hint: "Connect a CMS to enable one-click deploy" },
   { key: "history", label: "History", Icon: History, hint: "All past artifacts" },
 ];
 
@@ -93,11 +101,20 @@ export function FixerTab() {
               {SUB_TABS.find((t) => t.key === active)?.hint}
             </p>
           </header>
+          {active === "audit" && (
+            <FixerAudit
+              onJumpTo={(k) => {
+                setActive(k);
+                setLastArtifact(null);
+              }}
+            />
+          )}
           {active === "llms_txt" && <LlmsTxtForm onResult={setLastArtifact} />}
           {active === "robots_txt" && <RobotsTxtForm onResult={setLastArtifact} />}
           {active === "schema_jsonld" && <SchemaForm onResult={setLastArtifact} />}
           {active === "answer_block" && <AnswerBlockForm onResult={setLastArtifact} />}
           {active === "meta_rewrite" && <MetaRewriteForm onResult={setLastArtifact} />}
+          {active === "connect" && <FixerConnections />}
           {active === "history" && <FixerHistory onPick={setLastArtifact} />}
         </section>
 
@@ -110,6 +127,7 @@ export function FixerTab() {
               <div className="flex items-center gap-1.5">
                 <CopyButton text={lastArtifact.output_text} />
                 <DownloadButton artifact={lastArtifact} />
+                <DeployButton artifact={lastArtifact} />
               </div>
             )}
           </header>
@@ -247,6 +265,87 @@ function DeploymentNote({ target, kind }: { target: string; kind: FixKind }) {
         Deploy on {target}:
       </span>
       {note}
+    </div>
+  );
+}
+
+interface CmsConn {
+  id: string;
+  target: string;
+  label: string;
+  site_url: string;
+}
+
+function DeployButton({ artifact }: { artifact: FixArtifact }) {
+  const [open, setOpen] = useState(false);
+  const [conns, setConns] = useState<CmsConn[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const openMenu = async () => {
+    setOpen((v) => !v);
+    if (!conns.length) {
+      const r = await fetch("/xapi/searchlens/cms-connections");
+      const j = (await r.json()) as { data?: { connections: CmsConn[] } };
+      setConns(j.data?.connections ?? []);
+    }
+  };
+
+  const deploy = async (connId: string) => {
+    setBusy(true);
+    setMsg(null);
+    const r = await fetch("/xapi/searchlens/fix/deploy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artifact_id: artifact.id, connection_id: connId }),
+    });
+    const j = (await r.json()) as { data?: { result: { ok: boolean; status: string; target_url: string | null; error: string | null } }; error?: string };
+    setBusy(false);
+    if (!r.ok || !j.data?.result.ok) {
+      setMsg(j.data?.result.error ?? j.error ?? "Deploy failed");
+    } else {
+      setMsg(`Deployed (${j.data.result.status})`);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={openMenu}
+        disabled={busy}
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium text-white bg-accent hover:opacity-90 transition-opacity disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rocket className="w-3 h-3" strokeWidth={2} />}
+        Deploy
+      </button>
+      {open && (
+        <div className="absolute right-0 top-9 z-50 w-64 rounded-lg border border-divider bg-background-secondary shadow-lg p-2">
+          {conns.length === 0 ? (
+            <div className="text-[11.5px] text-foreground-tertiary p-2">
+              No CMS connections. Open the Connect sub-tab to add one.
+            </div>
+          ) : (
+            conns.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => deploy(c.id)}
+                className="w-full text-left px-2 py-1.5 rounded-md hover:bg-foreground/5"
+              >
+                <div className="text-[12px] font-medium text-foreground">{c.label}</div>
+                <div className="text-[10.5px] text-foreground-tertiary">{c.target} · {c.site_url}</div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+      {msg && (
+        <div className="absolute right-0 top-9 z-40 mt-9 text-[11px] text-foreground-secondary bg-background-secondary border border-divider rounded-md px-2 py-1">
+          {msg}
+        </div>
+      )}
     </div>
   );
 }
